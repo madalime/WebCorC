@@ -1,0 +1,63 @@
+<p-accordion [value]="expandedSections" [multiple]="true" (valueChange)="updateExpandedSections($event)">
+  @for (item of items; track item.value) {
+    @if (typeof item.settings === 'undefined' || item.settings.length === 0) {
+      <p-accordion-panel [value]="item.value">
+        <p-accordion-header>
+          <span class="flex items-center gap-2 w-full">
+            <p-toggleswitch
+                [(ngModel)]="item.enabled"
+                (click)="$event.stopPropagation()"
+                (ngModelChange)="onToggle(item)" />
+            <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
+          </span>
+          <!--
+            Settings-less items are static (no toggle arrow, no body). Providing an empty
+            #toggleicon template makes PrimeNG render this slot instead of the chevron
+            (@if (toggleicon) {...} @else { chevron }), hiding the arrow via the public API.
+            The "Unused constant toggleicon" hint is editor-only (Angular Language Service):
+            the ref is consumed by AccordionHeader's ContentChild query, not the template,
+            so it is intentional and does not affect ng build / ng lint / CI.
+          -->
+          <ng-template #toggleicon></ng-template>
+        </p-accordion-header>
+      </p-accordion-panel>
+    } @else {
+      <p-accordion-panel [value]="item.value">
+        <p-accordion-header>
+          <span class="flex items-center gap-2 w-full">
+            <p-toggleswitch
+                [(ngModel)]="item.enabled"
+                (click)="$event.stopPropagation()"
+                (ngModelChange)="onToggle(item)" />
+            <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
+          </span>
+        </p-accordion-header>
+        <p-accordion-content>
+          <form [formGroup]="form">
+              <ng-container [formGroupName]="item.value">
+                @for (field of item.settings; track field.value) {
+                  <div class="field">
+                    @if (field.type === 'text') {
+                      <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
+                        <mat-label> {{ field.label }} </mat-label>
+                        <input matInput [formControlName]="field.value" />
+                      </mat-form-field>
+                    } @else if (field.type === 'select') {
+                      <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
+                        <mat-label> {{ field.label }} </mat-label>
+                        <mat-select [formControlName]="field.value">
+                          @for (option of field.options; track option.value) {
+                            <mat-option [value]="option.value"> {{ option.label }} </mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                    }
+                  </div>
+                }
+              </ng-container>
+          </form>
+        </p-accordion-content>
+      </p-accordion-panel>
+    }
+  }
+</p-accordion>
