@@ -5,9 +5,9 @@
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
-                [(ngModel)]="item.enabled"
+                [ngModel]="item.enabled"
                 (click)="$event.stopPropagation()"
-                (ngModelChange)="onToggle(item)" />
+                (ngModelChange)="onToggle(item, $event)" />
             <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
           </span>
           <!--
@@ -26,36 +26,39 @@
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
-                [(ngModel)]="item.enabled"
+                [ngModel]="item.enabled"
                 (click)="$event.stopPropagation()"
-                (ngModelChange)="onToggle(item)" />
+                (ngModelChange)="onToggle(item, $event)" />
             <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
           </span>
         </p-accordion-header>
         <p-accordion-content>
-          <form [formGroup]="form">
-              <ng-container [formGroupName]="item.value">
-                @for (field of item.settings; track field.value) {
-                  <div class="field">
-                    @if (field.type === 'text') {
-                      <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
-                        <mat-label> {{ field.label }} </mat-label>
-                        <input matInput [formControlName]="field.value" />
-                      </mat-form-field>
-                    } @else if (field.type === 'select') {
-                      <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
-                        <mat-label> {{ field.label }} </mat-label>
-                        <mat-select [formControlName]="field.value">
-                          @for (option of field.options; track option.value) {
-                            <mat-option [value]="option.value"> {{ option.label }} </mat-option>
-                          }
-                        </mat-select>
-                      </mat-form-field>
+          @for (field of item.settings; track field.value) {
+            <div class="field">
+              @if (field.type === 'text') {
+                <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
+                  <mat-label> {{ field.label }} </mat-label>
+                  <input matInput
+                         [ngModel]="field.input"
+                         (ngModelChange)="onSettingChange(item, field, $event)"
+                         [ngModelOptions]="{ standalone: true }"
+                         [required]="field.required ?? false" />
+                </mat-form-field>
+              } @else if (field.type === 'select') {
+                <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
+                  <mat-label> {{ field.label }} </mat-label>
+                  <mat-select [ngModel]="field.input"
+                              (ngModelChange)="onSettingChange(item, field, $event)"
+                              [ngModelOptions]="{ standalone: true }"
+                              [required]="field.required ?? false">
+                    @for (option of field.options; track option.value) {
+                      <mat-option [value]="option.value"> {{ option.label }} </mat-option>
                     }
-                  </div>
-                }
-              </ng-container>
-          </form>
+                  </mat-select>
+                </mat-form-field>
+              }
+            </div>
+          }
         </p-accordion-content>
       </p-accordion-panel>
     }
