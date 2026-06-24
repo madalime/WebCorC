@@ -61,4 +61,50 @@ describe("VerifierService", () => {
 
     expect(service.verifiersValid()).toBeFalse();
   });
+
+  it("treats a numeric setting within range and on the step grid as valid", () => {
+    service.load([
+      { value: 'v', label: 'V', enabled: true, settings: [
+        { value: 'n', label: 'n', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 10 } },
+      ] },
+    ]);
+
+    service.updateSetting('v', 'n', '2.5');
+
+    expect(service.verifiersValid()).toBeTrue();
+  });
+
+  it("is invalid when a numeric setting is out of range", () => {
+    service.load([
+      { value: 'v', label: 'V', enabled: true, settings: [
+        { value: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 0, max: 10 } },
+      ] },
+    ]);
+
+    service.updateSetting('v', 'n', '20');
+
+    expect(service.verifiersValid()).toBeFalse();
+  });
+
+  it("is invalid when a numeric setting violates its step (non-integer with default step 1)", () => {
+    service.load([
+      { value: 'v', label: 'V', enabled: true, settings: [
+        { value: 'n', label: 'n', type: 'text', valueType: 'number' },
+      ] },
+    ]);
+
+    service.updateSetting('v', 'n', '4.2');
+
+    expect(service.verifiersValid()).toBeFalse();
+  });
+
+  it("treats an empty optional numeric setting as valid", () => {
+    service.load([
+      { value: 'v', label: 'V', enabled: true, settings: [
+        { value: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 1, max: 10 } },
+      ] },
+    ]);
+
+    expect(service.verifiersValid()).toBeTrue();
+  });
 });

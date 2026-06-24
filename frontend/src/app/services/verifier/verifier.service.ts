@@ -1,5 +1,6 @@
 import { Injectable, Signal, WritableSignal, computed, signal } from "@angular/core";
 import { Verifier } from "../../types/Verifier";
+import { isSettingValid } from "./verifier-validation";
 
 /**
  * Service that owns the list of available verifiers and shares it across components.
@@ -19,7 +20,7 @@ export class VerifierService {
     this.seedInputs([
       { value: '1', label: 'Energy efficiency', enabled: true, settings: [
         { value: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ value: 'model1', label: 'Model 1' }, { value: 'model2', label: 'Model 2' }] },
-        { value: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text' },
+        { value: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
       ] },
       { value: '2', label: 'Security', enabled: true, settings: [{ value: 'test_value', label: 'test_label', type: 'text' }] },
       { value: '3', label: 'Maintainability', enabled: false },
@@ -32,18 +33,17 @@ export class VerifierService {
   public readonly verifiers: Signal<Verifier[]> = this._verifiers.asReadonly();
 
   /**
-   * Whether every enabled verifier has all of its required settings filled in. Disabled
-   * verifiers do not count — they will not run, so their empty required settings are
-   * irrelevant. Ready for a future "run verification" action to gate on.
+   * Whether every enabled verifier has all of its settings valid: required settings filled
+   * in, and numeric settings within their range and on their step grid. Disabled verifiers
+   * do not count — they will not run, so their invalid settings are irrelevant. Mirrors the
+   * per-field `mat-error` validation (via the shared {@link isSettingValid}), so an invalid
+   * value is stored but unusable: this gate goes false and blocks a future "run
+   * verification" action.
    */
   public readonly verifiersValid: Signal<boolean> = computed(() =>
     this._verifiers()
       .filter(verifier => verifier.enabled)
-      .every(verifier =>
-        (verifier.settings ?? [])
-          .filter(setting => setting.required)
-          .every(setting => (setting.input ?? '').trim().length > 0),
-      ),
+      .every(verifier => (verifier.settings ?? []).every(isSettingValid)),
   );
 
   /**

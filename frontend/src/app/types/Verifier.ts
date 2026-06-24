@@ -16,17 +16,47 @@ type SettingBase = {
   label: string;
   /** Optional longer description of what the setting controls. */
   description?: string;
-  /** Current, persisted value of the setting. Seeded from `default` on load. */
+  /**
+   * Current, persisted value of the setting. Seeded from `default` on load. Always a
+   * string — numeric settings store their value as a canonical `.`-decimal string.
+   */
   input?: string;
 };
 
 /**
- * A single configurable setting of a verifier, rendered as either a free text input
- * or a select dropdown depending on the `type` discriminator.
+ * A free-text setting holding an arbitrary string. `valueType` may be omitted or set to
+ * `'string'`.
+ */
+type TextStringSetting = { type: 'text'; valueType?: 'string' };
+
+/**
+ * A numeric text setting. `step` defines the precision grid; an **omitted `step` means
+ * `step = 1`, i.e. integers only**. `step: 0.01` allows two decimals, `step: 0.5` allows
+ * halves, and so on. The step grid is measured relative to `range.min` (or `0` when no
+ * `min` is given), matching native `<input type="number">` semantics. `range` (inclusive
+ * on both ends, each bound optional) optionally bounds the value. The value is still stored
+ * as a canonical, `.`-separated decimal string on {@link SettingBase.input}.
+ */
+type TextNumberSetting = {
+  type: 'text';
+  valueType: 'number';
+  step?: number;
+  range?: { min?: number; max?: number };
+};
+
+/**
+ * A setting rendered as a dropdown of predefined options.
+ */
+type SelectSetting = { type: 'select'; options: { value: string; label: string }[] };
+
+/**
+ * A single configurable setting of a verifier, rendered as either a free text / numeric
+ * input or a select dropdown. Discriminated on `type` and, for text settings, `valueType`.
  */
 export type VerifierSetting =
-  | (SettingBase & { type: 'text' } & Requiredness)
-  | (SettingBase & { type: 'select'; options: { value: string; label: string }[] } & Requiredness);
+  | (SettingBase & TextStringSetting & Requiredness)
+  | (SettingBase & TextNumberSetting & Requiredness)
+  | (SettingBase & SelectSetting & Requiredness);
 
 /**
  * A verifier that can be toggled on or off and optionally configured through its settings.

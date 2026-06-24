@@ -2,10 +2,11 @@ import { Component } from '@angular/core';
 import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
 import {ToggleSwitch} from "primeng/toggleswitch";
 import {FormsModule} from "@angular/forms";
-import {MatFormField, MatInput, MatLabel} from "@angular/material/input";
+import {MatError, MatFormField, MatInput, MatLabel} from "@angular/material/input";
 import {MatOption, MatSelect} from "@angular/material/select";
 import { Verifier, VerifierSetting } from "../../types/Verifier";
 import { VerifierService } from "../../services/verifier/verifier.service";
+import { StepValidatorDirective } from "../../services/verifier/step-validator.directive";
 
 @Component({
   selector: 'app-verifier-manager',
@@ -19,8 +20,10 @@ import { VerifierService } from "../../services/verifier/verifier.service";
     MatFormField,
     MatInput,
     MatLabel,
+    MatError,
     MatSelect,
-    MatOption
+    MatOption,
+    StepValidatorDirective
   ],
   templateUrl: './verifier-manager.component.html',
   standalone: true,
@@ -56,13 +59,17 @@ export class VerifierManagerComponent {
 
   /**
    * Persist a settings input change to the shared service, keeping it the single source of
-   * truth across every consuming component.
+   * truth across every consuming component. Numeric inputs bind through Angular's
+   * `NumberValueAccessor`, which emits a `number` (or `null` when empty/unparseable); both
+   * are coerced to the canonical string the model stores, so emptiness is always `''`.
+   * Invalid values are persisted on purpose: the field flags them via `mat-error` and the
+   * service's `verifiersValid` gate blocks their use, so the model never lies about its view.
    * @param item The verifier owning the setting
    * @param setting The setting that changed
-   * @param value The new input value
+   * @param value The new input value as reported by the bound control
    */
-  public onSettingChange(item: Verifier, setting: VerifierSetting, value: string) {
-    this._verifierService.updateSetting(item.value, setting.value, value);
+  public onSettingChange(item: Verifier, setting: VerifierSetting, value: string | number | null) {
+    this._verifierService.updateSetting(item.value, setting.value, value == null ? '' : String(value));
   }
 
   /**
