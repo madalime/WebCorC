@@ -49,7 +49,28 @@
                          [step]="field.step ?? 1"
                          [appStepValidator]="field.step ?? 1"
                          [stepBase]="field.range?.min ?? 0"
-                         #ctrl="ngModel" />
+                         #ctrl="ngModel" >
+                  <mat-hint align="start"> Step: {{ field.step ?? 1 }}</mat-hint>
+                  @if (field.range?.min != null && field.range?.max != null) {
+                    <mat-hint align="end">Range: {{ field.range?.min }} - {{ field.range?.max }}</mat-hint>
+                  } @else if (field.range?.min != null) {
+                    <mat-hint align="end">Min: {{ field.range?.min }}</mat-hint>
+                  } @else if (field.range?.max != null) {
+                    <mat-hint align="end">Max: {{ field.range?.max }}</mat-hint>
+                  }
+
+                  @if (field.description) {
+                    <button
+                        mat-icon-button
+                        matSuffix
+                        type="button"
+                        [matTooltip]="field.description"
+                        [attr.aria-label]="field.description"
+                        (click)="$event.stopPropagation()">
+                      <i class="pi pi-info-circle"></i>
+                    </button>
+                  }
+
                   @if (ctrl.hasError('required')) {
                     <mat-error> This field is required </mat-error>
                   } @else if (ctrl.hasError('min')) {
@@ -73,6 +94,17 @@
                          [ngModelOptions]="{ standalone: true }"
                          [required]="field.required ?? false"
                          #ctrl="ngModel" />
+                  @if (field.description) {
+                    <button
+                        mat-icon-button
+                        matSuffix
+                        type="button"
+                        [matTooltip]="field.description"
+                        [attr.aria-label]="field.description"
+                        (click)="$event.stopPropagation()">
+                      <i class="pi pi-info-circle"></i>
+                    </button>
+                  }
                   @if (ctrl.hasError('required')) {
                     <mat-error> This field is required </mat-error>
                   }
@@ -88,6 +120,17 @@
                       <mat-option [value]="option.value"> {{ option.label }} </mat-option>
                     }
                   </mat-select>
+                  @if (field.description) {
+                    <button
+                        mat-icon-button
+                        matSuffix
+                        type="button"
+                        [matTooltip]="field.description"
+                        [attr.aria-label]="field.description"
+                        (click)="$event.stopPropagation()">
+                      <i class="pi pi-info-circle"></i>
+                    </button>
+                  }
                 </mat-form-field>
               }
             </div>

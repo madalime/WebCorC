@@ -22,7 +22,7 @@ export class VerifierService {
         { value: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ value: 'model1', label: 'Model 1' }, { value: 'model2', label: 'Model 2' }] },
         { value: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
       ] },
-      { value: '2', label: 'Security', enabled: true, settings: [{ value: 'test_value', label: 'test_label', type: 'text' }] },
+      { value: '2', label: 'Security', enabled: true, settings: [{ value: 'test_value1', label: 'test_label1', type: 'text' }, { value: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' }] },
       { value: '3', label: 'Maintainability', enabled: false },
     ]),
   );

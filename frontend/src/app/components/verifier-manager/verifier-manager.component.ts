@@ -2,11 +2,13 @@ import { Component } from '@angular/core';
 import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
 import {ToggleSwitch} from "primeng/toggleswitch";
 import {FormsModule} from "@angular/forms";
-import {MatError, MatFormField, MatInput, MatLabel} from "@angular/material/input";
+import {MatError, MatFormField, MatHint, MatInput, MatLabel, MatSuffix} from "@angular/material/input";
 import {MatOption, MatSelect} from "@angular/material/select";
 import { Verifier, VerifierSetting } from "../../types/Verifier";
 import { VerifierService } from "../../services/verifier/verifier.service";
 import { StepValidatorDirective } from "../../services/verifier/step-validator.directive";
+import {MatTooltip} from "@angular/material/tooltip";
+import {MatIconButton} from "@angular/material/button";
 
 @Component({
   selector: 'app-verifier-manager',
@@ -23,7 +25,11 @@ import { StepValidatorDirective } from "../../services/verifier/step-validator.d
     MatError,
     MatSelect,
     MatOption,
-    StepValidatorDirective
+    StepValidatorDirective,
+    MatHint,
+    MatTooltip,
+    MatSuffix,
+    MatIconButton
   ],
   templateUrl: './verifier-manager.component.html',
   standalone: true,
