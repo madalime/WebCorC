@@ -4,9 +4,9 @@ import {ToggleSwitch} from "primeng/toggleswitch";
 import {FormsModule} from "@angular/forms";
 import {MatError, MatFormField, MatHint, MatInput, MatLabel, MatSuffix} from "@angular/material/input";
 import {MatOption, MatSelect} from "@angular/material/select";
-import { Verifier, VerifierSetting } from "../../types/Verifier";
-import { VerifierService } from "../../services/verifier/verifier.service";
-import { StepValidatorDirective } from "../../services/verifier/step-validator.directive";
+import { Verifier, VerifierSetting } from "../../../types/Verifier";
+import { VerifierService } from "../../../services/verifier/verifier.service";
+import { StepValidatorDirective } from "../../../services/verifier/step-validator.directive";
 import {MatTooltip} from "@angular/material/tooltip";
 import {MatIconButton} from "@angular/material/button";
 

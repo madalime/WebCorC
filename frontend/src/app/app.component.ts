@@ -20,8 +20,8 @@ import { SettingsButtonComponent } from "./components/settings/settings-button/s
 import { Toast } from "primeng/toast";
 import { MessageService, ConfirmationService } from "primeng/api";
 import { InputText } from "primeng/inputtext";
-import { GlobalSettingsService } from "./services/global-settings.service";
 import { ConfirmDialog } from "primeng/confirmdialog";
+import {VerifyButtonGlobalComponent} from "./components/verify/verify-button-global/verify-button-global.component";
 
 /**
  * Top Component of this application,
@@ -44,6 +44,7 @@ import { ConfirmDialog } from "primeng/confirmdialog";
     Toast,
     InputText,
     ConfirmDialog,
+    VerifyButtonGlobalComponent,
   ],
   templateUrl: "./app.component.html",
   providers: [DialogService, MessageService, ConfirmationService],
@@ -59,9 +60,6 @@ export class AppComponent implements OnInit {
     private route: ActivatedRoute,
     public projectService: ProjectService,
     private snackBar: MatSnackBar,
-    protected globalSettingsService: GlobalSettingsService,
-    private confirmationService: ConfirmationService,
-    private messageService: MessageService,
   ) {}
 
   public ngOnInit(): void {
@@ -74,56 +72,6 @@ export class AppComponent implements OnInit {
       }
     });
     this.projectService.downloadWorkspace();
-  }
-  /**
-   * Triggered on pressing the verify Button in the Top Bar.
-   * Sideeffect: When the helper.key exists and no backend project connected prompt user to create project in the backend.
-   * This is needed for the backend to use the contents of helper.key
-   */
-  public verify(): void {
-    this.treeService.finalizeStatements();
-    if (this.projectService.shouldCreateProject) {
-      this.confirmationService.confirm({
-        message:
-          "You have unsaved changes. Do you want to save them before verifying?",
-        header: "Unsaved Changes",
-        icon: "pi pi-exclamation-triangle",
-        accept: () => {
-          this.openNewProjectDialog()?.onClose.subscribe((created) => {
-            if (created) {
-              this.projectService.uploadWorkspace().then(() => {
-                this.messageService.add({
-                  summary: "Save successful",
-                  severity: "success",
-                });
-                this.verify();
-              });
-            } else {
-              this.messageService.add({
-                summary: "Save cancelled",
-                detail: "No project specified to save to",
-                severity: "warn",
-              });
-            }
-          });
-        },
-        reject: () => {
-          this.globalSettingsService.isVerifying = true;
-          this.networkTreeService.verify(
-            this.treeService.rootFormula,
-            this.projectService.projectId,
-            this.treeService.urn,
-          );
-        },
-      });
-    } else {
-      this.globalSettingsService.isVerifying = true;
-      this.networkTreeService.verify(
-        this.treeService.rootFormula,
-        this.projectService.projectId,
-        this.treeService.urn,
-      );
-    }
   }
 
   private openNewProjectDialog() {
@@ -182,6 +130,7 @@ export class AppComponent implements OnInit {
       this.writeURLintoClipboard();
     }
   }
+
 
   /**
    * Prevent closing the tab with not saved changes
