@@ -6,7 +6,7 @@ import {MatError, MatFormField, MatHint, MatInput, MatLabel, MatSuffix} from "@a
 import {MatOption, MatSelect} from "@angular/material/select";
 import { Verifier, VerifierSetting } from "../../../types/Verifier";
 import { VerifierService } from "../../../services/verifier/verifier.service";
-import { StepValidatorDirective } from "../../../services/verifier/step-validator.directive";
+import { NumberInputValidatorDirective } from "../../../services/verifier/number-input-validator.directive";
 import {MatTooltip} from "@angular/material/tooltip";
 import {MatIconButton} from "@angular/material/button";
 
@@ -25,7 +25,7 @@ import {MatIconButton} from "@angular/material/button";
     MatError,
     MatSelect,
     MatOption,
-    StepValidatorDirective,
+    NumberInputValidatorDirective,
     MatHint,
     MatTooltip,
     MatSuffix,
@@ -65,11 +65,12 @@ export class VerifierManagerComponent {
 
   /**
    * Persist a settings input change to the shared service, keeping it the single source of
-   * truth across every consuming component. Numeric inputs bind through Angular's
-   * `NumberValueAccessor`, which emits a `number` (or `null` when empty/unparseable); both
-   * are coerced to the canonical string the model stores, so emptiness is always `''`.
-   * Invalid values are persisted on purpose: the field flags them via `mat-error` and the
-   * service's `verifiersValid` gate blocks their use, so the model never lies about its view.
+   * truth across every consuming component. Every input (text, numeric, select) binds as a
+   * plain string — numeric settings render as `type="text"` so non-numeric text survives to
+   * be validated rather than being swallowed by a native number input; `null`/`undefined` is
+   * coerced to `''`, so emptiness is always `''`. Invalid values are persisted on purpose:
+   * the field flags them via `mat-error` and the service's `verifiersValid` gate blocks their
+   * use, so the model never lies about its view.
    * @param item The verifier owning the setting
    * @param setting The setting that changed
    * @param value The new input value as reported by the bound control

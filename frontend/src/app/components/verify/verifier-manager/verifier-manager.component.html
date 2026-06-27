@@ -39,16 +39,13 @@
                 <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
                   <mat-label> {{ field.label }} </mat-label>
                   <input matInput
-                         type="number"
+                         type="text"
+                         inputmode="decimal"
                          [ngModel]="field.input"
                          (ngModelChange)="onSettingChange(item, field, $event)"
                          [ngModelOptions]="{ standalone: true }"
                          [required]="field.required ?? false"
-                         [min]="field.range?.min ?? null"
-                         [max]="field.range?.max ?? null"
-                         [step]="field.step ?? 1"
-                         [appStepValidator]="field.step ?? 1"
-                         [stepBase]="field.range?.min ?? 0"
+                         [appNumberInput]="field"
                          #ctrl="ngModel" >
                   <mat-hint align="start"> Step: {{ field.step ?? 1 }}</mat-hint>
                   @if (field.range?.min != null && field.range?.max != null) {
@@ -73,6 +70,8 @@
 
                   @if (ctrl.hasError('required')) {
                     <mat-error> This field is required </mat-error>
+                  } @else if (ctrl.hasError('number')) {
+                    <mat-error> Must be a number </mat-error>
                   } @else if (ctrl.hasError('min')) {
                     <mat-error> Must be at least {{ field.range?.min }} </mat-error>
                   } @else if (ctrl.hasError('max')) {
