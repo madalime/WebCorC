@@ -1,5 +1,5 @@
 <p-splitbutton
-    [model]="verifyOptions"
+    [model]="verifyOptions()"
     [disabled]="isDisabled || isVerifying"
     [icon]="isVerifying ? 'pi pi-spin pi-spinner' : 'pi pi-check-circle'"
     [label]="verifyButtonLabel()"

@@ -1,0 +1,9 @@
+::ng-deep .selected-verify-option .p-tieredmenu-item-content {
+  background: color-mix(in srgb, var(--p-primary-color) 15%, transparent);
+  color: var(--p-primary-color);
+  font-weight: 600;
+}
+
+::ng-deep .selected-verify-option .p-tieredmenu-item-content .p-tieredmenu-item-icon {
+  color: var(--p-primary-color);
+}

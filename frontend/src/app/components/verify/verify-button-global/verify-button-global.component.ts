@@ -12,8 +12,6 @@ import {SplitButton} from "primeng/splitbutton";
 import {VerifierService} from "../../../services/verifier/verifier.service";
 import { ConsoleService } from "../../../services/console/console.service";
 
-type VerifyOption = { id: string, label: string, command: () => void };
-
 /**
  * The currently selected verify mode. Unlike the {@link VerifyOption} menu items (whose
  * `label` must be a plain string for the split button), the state's `label` is a reactive
@@ -57,8 +55,8 @@ export class VerifyButtonGlobalComponent {
     return `Verify all (${active}/${verifiers.length})`;
   });
 
-  private _verifyOptions : VerifyOption[] = [
-    { id: "all", label: "Verify all", command: () => this.updateVerifyButtonState("all") },
+  private _verifyOptions : MenuItem[] = [
+    { id: "all", label: "Verify all", command: () => this.updateVerifyButtonState("all")},
     { id: "functional", label: "Verify functional", command: () => this.updateVerifyButtonState("functional")},
   ]
 
@@ -169,11 +167,21 @@ export class VerifyButtonGlobalComponent {
   }
 
   /**
-   * The verification options for the split button menu.
+   * The verification options for the split button menu. The currently selected option is
+   * marked with a check icon; the others get an empty fixed-width placeholder so all labels
+   * stay aligned.
    */
-  public get verifyOptions() : MenuItem[] {
-    return this._verifyOptions;
-  }
+  public readonly verifyOptions: Signal<MenuItem[]> = computed(() => {
+    const selectedId = this._verifyButtonState().id;
+    return this._verifyOptions.map(option => {
+      const selected = option.id === selectedId;
+      return {
+        ...option,
+        icon: selected ? "pi pi-check" : "pi pi-fw",
+        styleClass: selected ? "selected-verify-option" : undefined,
+      };
+    });
+  });
 
 
   /**
