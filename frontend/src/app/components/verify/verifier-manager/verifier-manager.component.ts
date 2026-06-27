@@ -9,6 +9,15 @@ import { VerifierService } from "../../../services/verifier/verifier.service";
 import { NumberInputValidatorDirective } from "../../../services/verifier/number-input-validator.directive";
 import {MatTooltip} from "@angular/material/tooltip";
 import {MatIconButton} from "@angular/material/button";
+import {ErrorStateMatcher} from "@angular/material/core";
+
+/**
+ * Show a `mat-error` as soon as the control is invalid, without waiting for it to be `touched`
+ * or a form to be submitted (Material's default).
+ */
+const immediateErrorStateMatcher: ErrorStateMatcher = {
+  isErrorState: (control) => !!control && control.invalid,
+};
 
 @Component({
   selector: 'app-verifier-manager',
@@ -34,6 +43,7 @@ import {MatIconButton} from "@angular/material/button";
   templateUrl: './verifier-manager.component.html',
   standalone: true,
   styleUrl: './verifier-manager.component.css',
+  providers: [{ provide: ErrorStateMatcher, useValue: immediateErrorStateMatcher }],
 })
 /**
  * Component, to manage the available verifiers, each verifier can be enabled or disabled via a toggle and,
