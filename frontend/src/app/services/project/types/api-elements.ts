@@ -104,6 +104,7 @@ export class ApiDiagramFile extends ApiFile {
     formattedContent.javaVariables = content.javaVariables;
     formattedContent.renamings = content.renamings;
     formattedContent.isProven = content.isProven;
+    formattedContent.verifiers = content.verifiers;
     this.content = formattedContent;
   }
 

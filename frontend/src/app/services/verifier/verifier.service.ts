@@ -18,12 +18,14 @@ import { isSettingValid } from "./verifier-validation";
 export class VerifierService {
   private _verifiers: WritableSignal<Verifier[]> = signal<Verifier[]>(
     this.seedInputs([
-      { value: '1', label: 'Energy efficiency', enabled: true, settings: [
-        { value: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ value: 'model1', label: 'Model 1' }, { value: 'model2', label: 'Model 2' }] },
-        { value: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
+      { id: 'eebc', label: 'Energy efficiency', enabled: true, settings: [
+        { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
+        { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
       ] },
-      { value: '2', label: 'Security', enabled: true, settings: [{ value: 'test_value1', label: 'test_label1', type: 'text' }, { value: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' }] },
-      { value: '3', label: 'Maintainability', enabled: false },
+      { id: 'sec', label: 'Security', enabled: true, settings: [
+          { id: 'test_value1', label: 'test_label1', type: 'text' },
+          { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' }] },
+      { id: 'maintain', label: 'Maintainability', enabled: false },
     ]),
   );
 
@@ -57,14 +59,14 @@ export class VerifierService {
   }
 
   /**
-   * Update whether the verifier with the given value is enabled. Mutating shared state
+   * Update whether the verifier with the given id is enabled. Mutating shared state
    * goes through the service so every consumer observes the same enabled state.
-   * @param value The value of the verifier to toggle
+   * @param id The id of the verifier to toggle
    * @param enabled The new enabled state
    */
-  public setEnabled(value: string, enabled: boolean): void {
+  public setEnabled(id: string, enabled: boolean): void {
     this._verifiers.update(verifiers =>
-      verifiers.map(v => (v.value === value ? { ...v, enabled } : v)),
+      verifiers.map(v => (v.id === id ? { ...v, enabled } : v)),
     );
   }
 
@@ -72,18 +74,18 @@ export class VerifierService {
    * Persist a settings input value into the shared signal. Routing changes through the
    * service keeps it the single source of truth, so every consumer (side menu, bottom
    * menu) observes the same value.
-   * @param verifierValue The value of the verifier owning the setting
-   * @param settingValue The value (key) of the setting to update
+   * @param verifierId The id of the verifier owning the setting
+   * @param settingId The id (key) of the setting to update
    * @param input The new input value
    */
-  public updateSetting(verifierValue: string, settingValue: string, input: string): void {
+  public updateSetting(verifierId: string, settingId: string, input: string): void {
     this._verifiers.update(verifiers =>
       verifiers.map(verifier =>
-        verifier.value === verifierValue
+        verifier.id === verifierId
           ? {
               ...verifier,
               settings: verifier.settings?.map(setting =>
-                setting.value === settingValue ? { ...setting, input } : setting,
+                setting.id === settingId ? { ...setting, input } : setting,
               ),
             }
           : verifier,
@@ -102,5 +104,27 @@ export class VerifierService {
       ...verifier,
       settings: verifier.settings?.map(setting => ({ ...setting, input: setting.default ?? '' })),
     }));
+  }
+
+  /**
+   * Get the list of enabled verifiers.
+   */
+  public get activeVerifiers(): Verifier[] {
+    return this._verifiers().filter(verifier => verifier.enabled);
+  }
+
+  /**
+   * The enabled verifiers that have at least one invalid setting, each with its `settings`
+   * narrowed to only the invalid ones. Disabled verifiers are excluded — they will not run —
+   * mirroring the {@link verifiersValid} gate. Returns an empty array when everything is valid.
+   */
+  public get invalidVerifierSettings(): Verifier[] {
+    return this._verifiers()
+      .filter(verifier => verifier.enabled)
+      .map(verifier => ({
+        ...verifier,
+        settings: (verifier.settings ?? []).filter(setting => !isSettingValid(setting)),
+      }))
+      .filter(verifier => (verifier.settings ?? []).length > 0);
   }
 }

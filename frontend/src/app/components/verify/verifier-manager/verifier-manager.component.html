@@ -1,7 +1,7 @@
 <p-accordion [value]="expandedSections" [multiple]="true" (valueChange)="updateExpandedSections($event)">
-  @for (item of items; track item.value) {
+  @for (item of items; track item.id) {
     @if (typeof item.settings === 'undefined' || item.settings.length === 0) {
-      <p-accordion-panel [value]="item.value">
+      <p-accordion-panel [value]="item.id">
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
@@ -22,7 +22,7 @@
         </p-accordion-header>
       </p-accordion-panel>
     } @else {
-      <p-accordion-panel [value]="item.value">
+      <p-accordion-panel [value]="item.id">
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
@@ -33,7 +33,7 @@
           </span>
         </p-accordion-header>
         <p-accordion-content>
-          @for (field of item.settings; track field.value) {
+          @for (field of item.settings; track field.id) {
             <div class="field">
               @if (field.type === 'text' && field.valueType === 'number') {
                 <mat-form-field class="w-full" (keydown.enter)="$event.preventDefault()">
@@ -116,8 +116,8 @@
                               (ngModelChange)="onSettingChange(item, field, $event)"
                               [ngModelOptions]="{ standalone: true }"
                               [required]="field.required ?? false">
-                    @for (option of field.options; track option.value) {
-                      <mat-option [value]="option.value"> {{ option.label }} </mat-option>
+                    @for (option of field.options; track option.id) {
+                      <mat-option [value]="option.id"> {{ option.label }} </mat-option>
                     }
                   </mat-select>
                   @if (field.description) {

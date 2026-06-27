@@ -45,6 +45,11 @@ properties:
   statement:
     $ref: './statement.yml'
 
+  verifiers:
+    type: array
+    items:
+      $ref: '../verifiers/verifier.yml'
+
 required:
   - type
   - name 

@@ -11,7 +11,7 @@ type Requiredness =
  */
 type SettingBase = {
   /** Stable key of the setting, used to address it when persisting changes. */
-  value: string;
+  id: string;
   /** Human-readable label rendered next to the input. */
   label: string;
   /** Optional longer description of what the setting controls. */
@@ -47,7 +47,7 @@ type TextNumberSetting = {
 /**
  * A setting rendered as a dropdown of predefined options.
  */
-type SelectSetting = { type: 'select'; options: { value: string; label: string }[] };
+type SelectSetting = { type: 'select'; options: { id: string; label: string }[] };
 
 /**
  * A single configurable setting of a verifier, rendered as either a free text / numeric
@@ -62,7 +62,7 @@ export type VerifierSetting =
  * A verifier that can be toggled on or off and optionally configured through its settings.
  */
 export interface Verifier {
-  value: string;
+  id: string;
   label: string;
   enabled: boolean;
   settings?: VerifierSetting[];

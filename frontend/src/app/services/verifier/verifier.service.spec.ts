@@ -16,9 +16,9 @@ describe("VerifierService", () => {
 
   it("seeds setting inputs from their default on load", () => {
     service.load([
-      { value: 'v', label: 'V', enabled: true, settings: [
-        { value: 'withDefault', label: 'a', type: 'text', required: true, default: 'd' },
-        { value: 'withoutDefault', label: 'b', type: 'text' },
+      { id: 'v', label: 'V', enabled: true, settings: [
+        { id: 'withDefault', label: 'a', type: 'text', required: true, default: 'd' },
+        { id: 'withoutDefault', label: 'b', type: 'text' },
       ] },
     ]);
 
@@ -29,8 +29,8 @@ describe("VerifierService", () => {
 
   it("persists a setting input through updateSetting", () => {
     service.load([
-      { value: 'v', label: 'V', enabled: true, settings: [
-        { value: 's', label: 's', type: 'text' },
+      { id: 'v', label: 'V', enabled: true, settings: [
+        { id: 's', label: 's', type: 'text' },
       ] },
     ]);
 
@@ -41,11 +41,11 @@ describe("VerifierService", () => {
 
   it("ignores empty required settings of disabled verifiers for validity", () => {
     service.load([
-      { value: 'on', label: 'On', enabled: true, settings: [
-        { value: 's', label: 's', type: 'text', required: true, default: 'ok' },
+      { id: 'on', label: 'On', enabled: true, settings: [
+        { id: 's', label: 's', type: 'text', required: true, default: 'ok' },
       ] },
-      { value: 'off', label: 'Off', enabled: false, settings: [
-        { value: 's', label: 's', type: 'text', required: true, default: '' },
+      { id: 'off', label: 'Off', enabled: false, settings: [
+        { id: 's', label: 's', type: 'text', required: true, default: '' },
       ] },
     ]);
 
@@ -54,8 +54,8 @@ describe("VerifierService", () => {
 
   it("is invalid when an enabled verifier has an empty required setting", () => {
     service.load([
-      { value: 'on', label: 'On', enabled: true, settings: [
-        { value: 's', label: 's', type: 'text', required: true, default: '' },
+      { id: 'on', label: 'On', enabled: true, settings: [
+        { id: 's', label: 's', type: 'text', required: true, default: '' },
       ] },
     ]);
 
@@ -64,8 +64,8 @@ describe("VerifierService", () => {
 
   it("treats a numeric setting within range and on the step grid as valid", () => {
     service.load([
-      { value: 'v', label: 'V', enabled: true, settings: [
-        { value: 'n', label: 'n', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 10 } },
+      { id: 'v', label: 'V', enabled: true, settings: [
+        { id: 'n', label: 'n', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 10 } },
       ] },
     ]);
 
@@ -76,8 +76,8 @@ describe("VerifierService", () => {
 
   it("is invalid when a numeric setting is out of range", () => {
     service.load([
-      { value: 'v', label: 'V', enabled: true, settings: [
-        { value: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 0, max: 10 } },
+      { id: 'v', label: 'V', enabled: true, settings: [
+        { id: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 0, max: 10 } },
       ] },
     ]);
 
@@ -88,8 +88,8 @@ describe("VerifierService", () => {
 
   it("is invalid when a numeric setting violates its step (non-integer with default step 1)", () => {
     service.load([
-      { value: 'v', label: 'V', enabled: true, settings: [
-        { value: 'n', label: 'n', type: 'text', valueType: 'number' },
+      { id: 'v', label: 'V', enabled: true, settings: [
+        { id: 'n', label: 'n', type: 'text', valueType: 'number' },
       ] },
     ]);
 
@@ -100,8 +100,8 @@ describe("VerifierService", () => {
 
   it("treats an empty optional numeric setting as valid", () => {
     service.load([
-      { value: 'v', label: 'V', enabled: true, settings: [
-        { value: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 1, max: 10 } },
+      { id: 'v', label: 'V', enabled: true, settings: [
+        { id: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 1, max: 10 } },
       ] },
     ]);
 

@@ -1,0 +1,5 @@
+description: VerifierSetting
+oneOf:
+  - $ref: './settings/textString.yml'
+  - $ref: './settings/textNumber.yml'
+  - $ref: './settings/select.yml'

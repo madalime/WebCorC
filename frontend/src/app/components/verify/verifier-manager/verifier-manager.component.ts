@@ -36,7 +36,7 @@ import {MatIconButton} from "@angular/material/button";
   styleUrl: './verifier-manager.component.css',
 })
 /**
- * Component to manage the available verifiers, each verifier can be enabled or disabled via a toggle and,
+ * Component, to manage the available verifiers, each verifier can be enabled or disabled via a toggle and,
  * when it has settings, configured through an expandable accordion section.
  * The verifier list and all of its state (enabled flag, settings input values) live in the shared
  * {@link VerifierService} signal, so the side menu and bottom menu placements stay in sync. Settings inputs
@@ -47,7 +47,7 @@ export class VerifierManagerComponent {
 
   private _expandedSections: string[] = [];
 
-  public constructor(private _verifierService: VerifierService) {}
+  public constructor(private verifierService: VerifierService) {}
 
   /**
    * Handle the toggle of a verifier. Updates the shared enabled state through the
@@ -56,10 +56,10 @@ export class VerifierManagerComponent {
    * @param enabled The new enabled state from the toggle
    */
   public onToggle(item: Verifier, enabled: boolean) {
-    this._verifierService.setEnabled(item.value, enabled);
+    this.verifierService.setEnabled(item.id, enabled);
     if (!enabled) {
       // collapse when switched off
-      this._expandedSections = this._expandedSections.filter(v => v !== item.value);
+      this._expandedSections = this._expandedSections.filter(v => v !== item.id);
     }
   }
 
@@ -75,7 +75,7 @@ export class VerifierManagerComponent {
    * @param value The new input value as reported by the bound control
    */
   public onSettingChange(item: Verifier, setting: VerifierSetting, value: string | number | null) {
-    this._verifierService.updateSetting(item.value, setting.value, value == null ? '' : String(value));
+    this.verifierService.updateSetting(item.id, setting.id, value == null ? '' : String(value));
   }
 
   /**
@@ -90,26 +90,26 @@ export class VerifierManagerComponent {
   }
 
   /**
-   * Check whether the verifier with the given value is enabled.
-   * @param name The value of the verifier to check
+   * Check whether the verifier with the given id is enabled.
+   * @param id The id of the verifier to check
    */
-  private isEnabled(name: string): boolean {
-    return this._verifierService.verifiers().find(item => item.value === name)?.enabled ?? false;
+  private isEnabled(id: string): boolean {
+    return this.verifierService.verifiers().find(item => item.id === id)?.enabled ?? false;
   }
 
   /**
-   * Check whether the verifier with the given value has any settings.
-   * @param name The value of the verifier to check
+   * Check whether the verifier with the given id has any settings.
+   * @param id The id of the verifier to check
    */
-  private hasSettings(name: string): boolean {
-    return (this._verifierService.verifiers().find(item => item.value === name)?.settings?.length ?? 0) > 0;
+  private hasSettings(id: string): boolean {
+    return (this.verifierService.verifiers().find(item => item.id === id)?.settings?.length ?? 0) > 0;
   }
 
   /**
    * Getter for the verifiers, sourced from the shared service signal.
    */
   public get items() : Verifier[] {
-    return this._verifierService.verifiers();
+    return this.verifierService.verifiers();
   }
 
   /**

@@ -1,0 +1,37 @@
+description: VerifierTextNumberSetting
+allOf:
+  - $ref: './abstract.yml'
+  - type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - text
+
+      valueType:
+        type: string
+        enum:
+          - number
+
+      step:
+        type: number
+        description: >-
+          Precision grid for the value. An omitted step means `1` (integers only).
+          The grid is measured relative to `range.min` (or `0` when no min is given),
+          matching native input[type=number] semantics.
+
+      range:
+        type: object
+        description: Inclusive bounds for the value; each bound is optional.
+        properties:
+          min:
+            type: number
+            description: Inclusive lower bound.
+
+          max:
+            type: number
+            description: Inclusive upper bound.
+
+    required:
+      - type
+      - valueType

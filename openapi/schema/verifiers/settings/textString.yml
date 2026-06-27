@@ -1,0 +1,18 @@
+description: VerifierTextStringSetting
+allOf:
+  - $ref: './abstract.yml'
+  - type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - text
+
+      valueType:
+        type: string
+        enum:
+          - string
+        description: May be omitted; a free-text setting defaults to `string`.
+
+    required:
+      - type

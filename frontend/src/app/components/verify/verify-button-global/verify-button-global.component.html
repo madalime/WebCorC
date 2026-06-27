@@ -1,8 +1,6 @@
-<p-button
-    (click)="verify()"
-    [disabled]="isDisabled"
-    [loading]="isVerifying"
->
-  <i class="pi pi-check-circle"></i>
-  Verify
-</p-button>
+<p-splitbutton
+    [model]="verifyOptions"
+    [disabled]="isDisabled || isVerifying"
+    [icon]="isVerifying ? 'pi pi-spin pi-spinner' : 'pi pi-check-circle'"
+    [label]="verifyButtonLabel()"
+    (onClick)="verify()"/>

@@ -1,0 +1,25 @@
+type: object
+description: Verifier
+properties:
+  id:
+    type: string
+    description: Stable identifier of the verifier, used to address it.
+
+  label:
+    type: string
+    description: Human-readable name of the verifier.
+
+  enabled:
+    type: boolean
+    description: Whether the verifier is selected to run.
+
+  settings:
+    type: array
+    description: Configurable settings of the verifier.
+    items:
+      $ref: './setting.yml'
+
+required:
+  - id
+  - label
+  - enabled

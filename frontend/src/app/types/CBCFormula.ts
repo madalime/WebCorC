@@ -7,6 +7,7 @@ import {
 import { IJavaVariable } from "./JavaVariable";
 import { IRenaming } from "./Renaming";
 import { IRootStatement, RootStatement } from "./statements/root-statement";
+import { Verifier } from "./Verifier";
 
 /**
  * The representation of the data in the graphical editor in a json object.
@@ -21,6 +22,7 @@ export interface ICBCFormula {
   globalConditions: ICondition[];
   renamings: IRenaming[] | null;
   isProven: boolean;
+  verifiers?: Verifier[]; // Optional: The verifiers to run for this formula. See openapi/schema/verifiers/verifier.yml.
 }
 
 export interface ILocalCBCFormula {
@@ -71,5 +73,6 @@ export class CBCFormula implements ICBCFormula {
     public renamings: IRenaming[] | null = null,
     public isProven: boolean = false,
     public position: IPosition = new Position(0, 0),
+    public verifiers: Verifier[] = [],
   ) {}
 }
