@@ -19,10 +19,10 @@ public class VerificationOrchestrator {
         jobs = new HashMap<>();
     }
 
-    public UUID addJob(Optional<String> projectId, CbCFormula formula, FilesController filesController) throws IOException {
+    public UUID addJob(Optional<String> projectId, boolean functionalOnly, CbCFormula formula, FilesController filesController) throws IOException {
         UUID jobId = UUID.randomUUID();
 
-        VerificationJob job = new VerificationJob(projectId, formula, filesController, () -> deleteJob(jobId));
+        VerificationJob job = new VerificationJob(projectId, functionalOnly, formula, filesController, () -> deleteJob(jobId));
         jobs.put(jobId, job);
         job.start();
         LOGGER.info(String.format("New verification started with job id: %s", jobId));

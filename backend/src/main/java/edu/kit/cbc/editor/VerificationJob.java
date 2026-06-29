@@ -1,8 +1,11 @@
 package edu.kit.cbc.editor;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.kit.cbc.common.corc.FileUtil;
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
 import edu.kit.cbc.common.corc.proof.ProofContext;
+import edu.kit.cbc.editor.verifier.Verifier;
 import edu.kit.cbc.projects.files.controller.FilesController;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,6 +26,8 @@ import lombok.Getter;
 public class VerificationJob extends Thread {
 
     private static final String LOGGER_FORMAT = "%s %s\n";
+    private static final String VERIFIERS_FILE_URN = ".internal/verifiers.json";
+    private static final ObjectMapper VERIFIERS_MAPPER = new ObjectMapper();
 
     @Getter private String log;
     @Getter private boolean hasResult = false;
@@ -36,7 +41,7 @@ public class VerificationJob extends Thread {
 
     private static final Logger LOGGER = Logger.getGlobal();
 
-    VerificationJob(Optional<String> projectId, CbCFormula formula, FilesController filesController, Runnable onFinished) throws IOException {
+    VerificationJob(Optional<String> projectId, boolean functionalOnly, CbCFormula formula, FilesController filesController, Runnable onFinished) throws IOException {
         log = "";
         listeners = new HashSet<Function<String, Boolean>>();
         this.projectId = projectId;
@@ -52,6 +57,7 @@ public class VerificationJob extends Thread {
             .includeFiles(new ArrayList<>())
             .javaSrcFiles(new ArrayList<>())
             .existingProofFiles(new ArrayList<>())
+            .verifiers(new ArrayList<>())
             .logger((msg) -> log(msg));
 
         if (projectId.isPresent()) {
@@ -65,8 +71,34 @@ public class VerificationJob extends Thread {
             context.includeFiles(includeFiles);
             context.javaSrcFiles(javaSrcFiles);
             context.existingProofFiles(existingKeyFiles);
+
+            if (!functionalOnly) {
+                context.verifiers(loadVerifiers(projectId.get(), filesController));
+            }
         }
         log("verification initialized");
+    }
+
+    /**
+     * Load the project-wide verifiers from {@code .internal/verifiers.json}. Returns an empty
+     * list when the file is missing (legacy projects, or new projects that have not persisted
+     * yet). On parse failure the error is logged and an empty list is returned; once the KeY
+     * step actually consumes verifiers this should additionally surface the error to the user
+     * and fall back to functional-only verification per the verifier-persistence design.
+     */
+    private static List<Verifier> loadVerifiers(String projectId, FilesController filesController) throws IOException {
+        Optional<byte[]> raw = filesController.retrieveFileBytes(projectId, VERIFIERS_FILE_URN);
+        if (raw.isEmpty()) {
+            return new ArrayList<>();
+        }
+        try {
+            return VERIFIERS_MAPPER.readValue(raw.get(), new TypeReference<List<Verifier>>() {});
+        } catch (IOException e) {
+            LOGGER.warning(String.format(
+                "Failed to parse %s for project %s: %s. Continuing without verifiers.",
+                VERIFIERS_FILE_URN, projectId, e.getMessage()));
+            return new ArrayList<>();
+        }
     }
 
     public void run() {

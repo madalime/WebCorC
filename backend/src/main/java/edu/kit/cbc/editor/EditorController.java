@@ -65,7 +65,10 @@ public class EditorController {
     @Post(uri = "/verify")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
-    public HttpResponse<?> verify(@QueryValue Optional<String> projectId, @Body @Valid CbCFormula formula)
+    public HttpResponse<?> verify(
+        @QueryValue Optional<String> projectId,
+        @QueryValue boolean functionalOnly,
+        @Body @Valid CbCFormula formula)
         throws IOException {
         try {
             edu.kit.cbc.common.corc.parsing.SemanticChecker.checkVariables(formula);
@@ -75,7 +78,7 @@ public class EditorController {
                 .badRequest(Map.of("_embedded", Map.of("errors", List.of(Map.of("message", e.getMessage())))));
         }
 
-        UUID jobId = orchestrator.addJob(projectId, formula, filesController);
+        UUID jobId = orchestrator.addJob(projectId, functionalOnly, formula, filesController);
         return HttpResponse.ok(jobId);
     }
 

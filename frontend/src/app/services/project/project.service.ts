@@ -12,6 +12,7 @@ import { ProjectElementsMapperService } from "./types/project-elements-mapper.se
 import { ProjectStorageService } from "./storage/project-storage.service";
 import { Inode, LocalDirectory } from "./types/api-elements";
 import { ProjectPredicate } from "../../types/ProjectPredicate";
+import { Verifier } from "../../types/Verifier";
 import { GlobalSettingsService } from "../global-settings.service";
 
 /**
@@ -30,6 +31,7 @@ export class ProjectService {
   );
   private _saveNotify = new Subject<void>();
   private _savedFinished = new Subject<void>();
+  private _verifiersLoaded = new Subject<void>();
   private _projectName: string = "";
   constructor(
     private network: NetworkProjectService,
@@ -176,6 +178,9 @@ export class ProjectService {
         newFile = this.mapper.constructDiagramFile(newUrn);
         break;
       case "key":
+        newFile = this.mapper.constructCodeFile(newUrn);
+        break;
+      case "json":
         newFile = this.mapper.constructCodeFile(newUrn);
         break;
       default:
@@ -379,6 +384,36 @@ export class ProjectService {
     return this.storage.getPredicates();
   }
 
+  public saveVerifiers(verifiers: Verifier[]) {
+    this.storage.setVerifiers(verifiers);
+
+    const internalDirName = ".internal";
+    const verifiersFileName = "verifiers";
+    const verifiersFileExtension = "json";
+    const verifiersFileUrn = `${internalDirName}/${verifiersFileName}.${verifiersFileExtension}`;
+
+    if (!this.findByUrn(internalDirName)) {
+      this.addDirectory("", internalDirName);
+    }
+
+    if (!this.findByUrn(verifiersFileUrn)) {
+      this.addFile(internalDirName, verifiersFileName, verifiersFileExtension);
+    }
+
+    try {
+      this.syncLocalFileContent(
+        verifiersFileUrn,
+        JSON.stringify(verifiers, null, 2),
+      );
+    } catch (e) {
+      console.error(`Could not sync verifiers file: ${e}`);
+    }
+  }
+
+  public getVerifiers(): Verifier[] | null {
+    return this.storage.getVerifiers();
+  }
+
   /**
    * Export the project by exporting the root directory to the data only classes
    * @returns
@@ -393,6 +428,7 @@ export class ProjectService {
     this._projectName = projectname;
     this.storage.saveProject(imported, projectname);
     this.loadPredicatesFromFile();
+    this.loadVerifiersFromFile();
     this._dataChange.next(this._rootDir.contents);
   }
 
@@ -445,6 +481,7 @@ export class ProjectService {
     }
 
     this.loadPredicatesFromFile();
+    this.loadVerifiersFromFile();
     this._dataChange.next(this._rootDir.contents);
   }
 
@@ -661,6 +698,31 @@ export class ProjectService {
       );
       this.storage.setPredicates([]);
     }
+  }
+
+  private async loadVerifiersFromFile() {
+    const verifiersFileUrn = ".internal/verifiers.json";
+    try {
+      const content = await this.getFileContent(verifiersFileUrn);
+      if (typeof content === "string") {
+        const verifiers = JSON.parse(content) as Verifier[];
+        this.storage.setVerifiers(verifiers);
+        this._verifiersLoaded.next();
+      }
+    } catch (e) {
+      console.log(
+        "Verifiers file not found or invalid, falling back to defaults.",
+      );
+    }
+  }
+
+  /**
+   * Fires when the verifier list has just been hydrated from `.internal/verifiers.json`
+   * (e.g. after `downloadWorkspace` or `importProject`). The {@link VerifierService}
+   * subscribes to this to re-read the cache and refresh its signal so the UI updates.
+   */
+  public get verifiersLoaded() {
+    return this._verifiersLoaded;
   }
 
   public notifyEditortoSave() {

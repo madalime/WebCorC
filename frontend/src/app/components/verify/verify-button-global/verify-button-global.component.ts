@@ -13,7 +13,7 @@ import {VerifierService} from "../../../services/verifier/verifier.service";
 import { ConsoleService } from "../../../services/console/console.service";
 
 /**
- * The currently selected verify mode. Unlike the {@link VerifyOption} menu items (whose
+ * The currently selected verify mode. Unlike the {@link VerifyOptions} menu items (whose
  * `label` must be a plain string for the split button), the state's `label` is a reactive
  * signal so the button caption can track live data such as the verifier counts.
  */
@@ -121,6 +121,7 @@ export class VerifyButtonGlobalComponent {
               this.treeService.rootFormula,
               this.projectService.projectId,
               this.treeService.urn,
+              this._verifyButtonState().id !== "all",
           );
         },
       });
@@ -130,7 +131,7 @@ export class VerifyButtonGlobalComponent {
           this.treeService.rootFormula,
           this.projectService.projectId,
           this.treeService.urn,
-          (this._verifyButtonState().id === "all"),
+          this._verifyButtonState().id !== "all",
       );
     }
   }

@@ -1,12 +1,19 @@
 import { TestBed } from "@angular/core/testing";
 
+import { ProjectService } from "../project/project.service";
 import { VerifierService } from "./verifier.service";
 
 describe("VerifierService", () => {
   let service: VerifierService;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
+    const projectServiceStub: Partial<ProjectService> = {
+      getVerifiers: () => null,
+      saveVerifiers: () => undefined,
+    };
+    TestBed.configureTestingModule({
+      providers: [{ provide: ProjectService, useValue: projectServiceStub }],
+    });
     service = TestBed.inject(VerifierService);
   });
 

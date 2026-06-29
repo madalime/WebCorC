@@ -48,7 +48,7 @@ export class ApiDirectory implements Inode {
 /**
  * Possible types of files in the project directory
  */
-export type ApiFileType = "key" | "prove" | "java" | "diagram" | "other";
+export type ApiFileType = "key" | "prove" | "java" | "diagram" | "json" | "other";
 
 /**
  * See openapi/schema/file/diagramm.yml
@@ -104,7 +104,6 @@ export class ApiDiagramFile extends ApiFile {
     formattedContent.javaVariables = content.javaVariables;
     formattedContent.renamings = content.renamings;
     formattedContent.isProven = content.isProven;
-    formattedContent.verifiers = content.verifiers;
     this.content = formattedContent;
   }
 
@@ -220,6 +219,7 @@ export class LocalFile implements LocalInode {
         case "java":
         case "key":
         case "prove":
+        case "json":
           return LocalTextFile.fromApi(api as ApiTextFile);
       }
     }
@@ -234,10 +234,14 @@ export class LocalFile implements LocalInode {
       case "java":
       case "key":
       case "proof":
+      case "json":
         return new LocalTextFile(api.urn, "", api.inodeType, false);
       default:
     }
-    throw Error("Unknown Api File type");
+    const reportedType = "type" in api ? (api as ApiFile).type : "<missing>";
+    throw Error(
+      `Unknown Api File type: urn="${api.urn}" type="${reportedType}"`,
+    );
   }
 }
 
@@ -324,7 +328,11 @@ export class LocalTextFile extends LocalFile {
         api.inodeType,
       );
     }
-    return new LocalTextFile(api.urn, "", api.inodeType);
+    const plainContent =
+      "content" in api && typeof (api as { content?: unknown }).content === "string"
+        ? ((api as { content: string }).content)
+        : "";
+    return new LocalTextFile(api.urn, plainContent, api.inodeType);
   }
 }
 

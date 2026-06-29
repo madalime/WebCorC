@@ -15,7 +15,6 @@ import { WebSocketService } from "./websocket";
 import { ApiDiagramFile } from "../../project/types/api-elements";
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { TreeService } from "../tree.service";
-import {VerifierService} from "../../verifier/verifier.service";
 
 /**
  * The Service to send the editor contents over the network to the backend for verification or code generation.
@@ -38,7 +37,6 @@ export class NetworkJobService {
     private readonly consoleService: ConsoleService,
     private readonly projectService: ProjectService,
     private readonly treeService: TreeService,
-    private readonly verifierService: VerifierService
   ) {}
 
   /**
@@ -46,29 +44,25 @@ export class NetworkJobService {
    * @param root The root refinement to verify
    * @param projectId The id of the project, is used to give backend more context in form of the helper.key in the project
    * @param urn urn of the file being verified, used to update the file in the project with the verification result
-   * @param useActiveVerifiers  when true (and the verifier settings are valid), attaches the active verifiers to the request;
-   *                            when false, sends none so the backend runs only its default (functional) verification
+   * @param functionalOnly when true, instructs the backend to run only the default (functional) verification
+   *                       and ignore the project-wide verifiers stored in `.internal/verifiers.json`;
+   *                       when false, runs all enabled project-wide verifiers
    */
   public verify(
     root: LocalCBCFormula | undefined,
     projectId: string | undefined,
     urn: string,
-    useActiveVerifiers : boolean = true,
+    functionalOnly: boolean,
   ) {
-    let params = new HttpParams();
+    let params = new HttpParams().set("functionalOnly", functionalOnly ? "true" : "false");
 
     if (projectId) {
       params = params.set("projectId", projectId);
     }
 
-    let body: CBCFormula | undefined;
-    if (root) {
-      const exported = this.mapper.exportFormula(root);
-      if (useActiveVerifiers  && this.verifierService.verifiersValid()) {
-        exported.verifiers = this.verifierService.activeVerifiers;
-      }
-      body = new ApiDiagramFile("", exported, "file").content;
-    }
+    const body: CBCFormula | undefined = root
+      ? new ApiDiagramFile("", this.mapper.exportFormula(root), "file").content
+      : undefined;
 
     this.http
       .post<string>(
@@ -129,7 +123,7 @@ export class NetworkJobService {
     urn: string,
     onComplete: () => void,
   ) {
-    let params = new HttpParams();
+    let params = new HttpParams().set("functionalOnly", "true");
 
     if (projectId) {
       params = params.set("projectId", projectId);

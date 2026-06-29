@@ -1,6 +1,7 @@
 package edu.kit.cbc.common.corc.proof;
 
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
+import edu.kit.cbc.editor.verifier.Verifier;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
@@ -17,4 +18,5 @@ public final class ProofContext {
     private final List<Path> javaSrcFiles;
     private final List<Path> existingProofFiles;
     private final Consumer<String> logger;
+    private final List<Verifier> verifiers;
 }

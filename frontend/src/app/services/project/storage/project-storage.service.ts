@@ -3,6 +3,7 @@ import { LocalCBCFormula } from "../../../types/CBCFormula";
 import { IProjectElement, ProjectDirectory } from "../types/project-elements";
 import { CbcFormulaMapperService } from "../mapper/cbc-formula-mapper.service";
 import { ProjectPredicate } from "../../../types/ProjectPredicate";
+import { Verifier } from "../../../types/Verifier";
 import { ProjectElementsMapperService } from "../types/project-elements-mapper.service";
 
 /**
@@ -18,6 +19,7 @@ export class ProjectStorageService {
   private static readonly remoteFileTreeKey = "remoteFileTree";
   private static readonly projectFileUrnPrefix = "_webCorc_";
   private static readonly projectPredicatesKey = "predicates";
+  private static readonly projectVerifiersKey = "verifiers";
 
   constructor(
     private mapper: CbcFormulaMapperService,
@@ -120,6 +122,21 @@ export class ProjectStorageService {
     sessionStorage.setItem(
       ProjectStorageService.projectPredicatesKey,
       JSON.stringify(predicates),
+    );
+  }
+
+  public getVerifiers(): Verifier[] | null {
+    const storageContent = sessionStorage.getItem(
+      ProjectStorageService.projectVerifiersKey,
+    );
+    if (!storageContent) return null;
+    return JSON.parse(storageContent);
+  }
+
+  public setVerifiers(verifiers: Verifier[]) {
+    sessionStorage.setItem(
+      ProjectStorageService.projectVerifiersKey,
+      JSON.stringify(verifiers),
     );
   }
 }

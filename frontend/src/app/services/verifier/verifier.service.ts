@@ -1,5 +1,6 @@
 import { Injectable, Signal, WritableSignal, computed, signal } from "@angular/core";
 import { Verifier } from "../../types/Verifier";
+import { ProjectService } from "../project/project.service";
 import { isSettingValid } from "./verifier-validation";
 
 /**
@@ -16,18 +17,33 @@ import { isSettingValid } from "./verifier-validation";
   providedIn: "root",
 })
 export class VerifierService {
+  private static readonly DEFAULT_VERIFIERS: Verifier[] = [
+    { id: 'eebc', label: 'Energy efficiency', enabled: true, settings: [
+      { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
+      { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
+    ] },
+    { id: 'sec', label: 'Security', enabled: true, settings: [
+        { id: 'test_value1', label: 'test_label1', type: 'text' },
+        { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' }] },
+    { id: 'maintain', label: 'Maintainability', enabled: false },
+  ];
+
   private _verifiers: WritableSignal<Verifier[]> = signal<Verifier[]>(
-    this.seedInputs([
-      { id: 'eebc', label: 'Energy efficiency', enabled: true, settings: [
-        { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
-        { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
-      ] },
-      { id: 'sec', label: 'Security', enabled: true, settings: [
-          { id: 'test_value1', label: 'test_label1', type: 'text' },
-          { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' }] },
-      { id: 'maintain', label: 'Maintainability', enabled: false },
-    ]),
+    this.seedInputs(VerifierService.DEFAULT_VERIFIERS),
   );
+
+  constructor(private projectService: ProjectService) {
+    const cached = this.projectService.getVerifiers();
+    if (cached) {
+      this._verifiers.set(this.seedInputs(cached));
+    }
+    this.projectService.verifiersLoaded.subscribe(() => {
+      const reloaded = this.projectService.getVerifiers();
+      if (reloaded) {
+        this._verifiers.set(this.seedInputs(reloaded));
+      }
+    });
+  }
 
   /**
    * Read-only signal of the available verifiers, shared across all consuming components.
@@ -56,6 +72,7 @@ export class VerifierService {
    */
   public load(verifiers: Verifier[]): void {
     this._verifiers.set(this.seedInputs(verifiers));
+    this.persist();
   }
 
   /**
@@ -68,6 +85,7 @@ export class VerifierService {
     this._verifiers.update(verifiers =>
       verifiers.map(v => (v.id === id ? { ...v, enabled } : v)),
     );
+    this.persist();
   }
 
   /**
@@ -91,18 +109,30 @@ export class VerifierService {
           : verifier,
       ),
     );
+    this.persist();
   }
 
   /**
-   * Seed every setting's `input` from its `default` (`input = default ?? ''`). Applied to
-   * both the hardcoded initializer and to backend-loaded verifiers so the preinitialization
-   * rule cannot be forgotten on either path.
+   * Push the current verifier list into the project's persistence layer (sessionStorage
+   * cache + `.internal/verifiers.json` project file). Called after every mutation so the
+   * UI state is always in sync with the persisted state.
+   */
+  private persist(): void {
+    this.projectService.saveVerifiers(this._verifiers());
+  }
+
+  /**
+   * Seed every setting's `input` from its `default` when no `input` is present yet
+   * (`input ??= default ?? ''`). Applied to both the hardcoded initializer, to backend-loaded
+   * verifiers, and to cache-restored verifiers so the preinitialization rule cannot be
+   * forgotten on any path. Preserving an existing `input` is essential for the cache path —
+   * the user's typed values must survive a reload.
    * @param verifiers The verifiers to normalize
    */
   private seedInputs(verifiers: Verifier[]): Verifier[] {
     return verifiers.map(verifier => ({
       ...verifier,
-      settings: verifier.settings?.map(setting => ({ ...setting, input: setting.default ?? '' })),
+      settings: verifier.settings?.map(setting => ({ ...setting, input: setting.input ?? setting.default ?? '' })),
     }));
   }
 
