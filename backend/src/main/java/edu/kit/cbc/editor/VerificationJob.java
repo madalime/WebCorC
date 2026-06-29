@@ -41,8 +41,8 @@ public class VerificationJob extends Thread {
 
     private static final Logger LOGGER = Logger.getGlobal();
 
-    VerificationJob(Optional<String> projectId, boolean functionalOnly, CbCFormula formula,
-                    FilesController filesController, Runnable onFinished) throws IOException {
+    VerificationJob(Optional<String> projectId, boolean functionalOnly, CbCFormula formula, FilesController filesController, Runnable onFinished)
+        throws IOException {
         log = "";
         listeners = new HashSet<Function<String, Boolean>>();
         this.projectId = projectId;
