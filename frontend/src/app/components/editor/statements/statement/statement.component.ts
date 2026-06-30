@@ -1,10 +1,12 @@
 import {
   Component,
+  ContentChild,
   ElementRef,
   EventEmitter,
   Input,
   Output,
   signal,
+  TemplateRef,
   ViewChild,
 } from "@angular/core";
 
@@ -31,10 +33,11 @@ import {
   ButtonLabel,
 } from "primeng/button";
 import { Toolbar } from "primeng/toolbar";
+import { Dialog } from "primeng/dialog";
 import { GlobalSettingsService } from "../../../../services/global-settings.service";
 import { NetworkJobService } from "../../../../services/tree/network/network-job.service";
 import { ProjectService } from "../../../../services/project/project.service";
-import { AsyncPipe } from "@angular/common";
+import { AsyncPipe, NgTemplateOutlet } from "@angular/common";
 import { AiChatService } from "../../../../services/ai-chat/ai-chat.service";
 import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-statement-node";
 
@@ -66,22 +69,34 @@ import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-s
         ButtonIcon,
         ButtonLabel,
         AsyncPipe,
+        Dialog,
+        NgTemplateOutlet,
     ],
   templateUrl: "./statement.component.html",
   styleUrl: "./statement.component.css",
   standalone: true,
 })
 export class StatementComponent {
-  private static readonly EDITOR_CONTAINER_EXPANSION_TRIGGER = 150;
-  private static readonly EDITOR_CONTAINER_EXPANSION = 200;
-
   @Input() public refinement!: Refinement;
   @Input() public hideSourceHandle = false;
   @Input() public hideTargetHandle = false;
   @Input({ required: true }) _node!: AbstractStatementNode;
   @Input() public icon = "pi pi-circle";
+  @Input() public showEditButton = true;
+  @Input() public hasPopupMiddle = true;
+  @Input() public hasInlineSynthesis = false;
 
   @Output() delete = new EventEmitter();
+
+  @ContentChild("middleContent") middleTemplate?: TemplateRef<{
+    popup: boolean;
+    statement: StatementComponent;
+  }>;
+
+  public dialogVisible = false;
+  public preOpen = true;
+  public midOpen = true;
+  public postOpen = true;
 
   @ViewChild("preconditionDrawer") private preconditionDrawer!: MatDrawer;
   @ViewChild("postconditionDrawer") private postconditionDrawer!: MatDrawer;

@@ -1,9 +1,7 @@
-import {Component, EventEmitter, Inject, Input, Output} from '@angular/core';
+import {Component, EventEmitter, HostBinding, Inject, Input, Output} from '@angular/core';
 import {Condition, ICondition} from '../../../../types/condition/condition';
 import {AiChatService} from '../../../../services/ai-chat/ai-chat.service';
 import {Textarea} from 'primeng/textarea';
-import {IconField} from 'primeng/iconfield';
-import {InputIcon} from 'primeng/inputicon';
 import {FloatLabelModule} from 'primeng/floatlabel';
 import {
     GREEN_COLOURED_CONDITIONS,
@@ -14,7 +12,6 @@ import {FormsModule} from '@angular/forms';
 import {BehaviorSubject} from 'rxjs';
 import {AsyncPipe} from '@angular/common';
 import {Button} from "primeng/button";
-import {ButtonGroup} from "primeng/buttongroup";
 import {Dialog} from "primeng/dialog";
 
 /**
@@ -24,7 +21,7 @@ import {Dialog} from "primeng/dialog";
  */
 @Component({
     selector: 'app-condition-editor',
-    imports: [Textarea, IconField, InputIcon, FloatLabelModule, FormsModule, AsyncPipe, Button, ButtonGroup, Dialog],
+    imports: [Textarea, FloatLabelModule, FormsModule, AsyncPipe, Button, Dialog],
     templateUrl: './condition-editor.component.html',
     standalone: true,
     styleUrl: './condition-editor.component.css',
@@ -41,7 +38,9 @@ export class ConditionEditorComponent {
     @Input() public placeholder: string = 'Type here';
     @Input() public editable: boolean | null = true;
     @Input() public inline = false;
-    @Input() public showAiButton = true;
+    @Input() public showSynthesisButton = false;
+    @Input() public fill = false;
+    @HostBinding('class.fill') get _fillHostClass(): boolean { return this.fill; }
 
     /**
      * Emitter to emit the condition
@@ -49,6 +48,7 @@ export class ConditionEditorComponent {
     @Output() public conditionEditingFinished: EventEmitter<void> =
         new EventEmitter<void>();
     @Output() public textChanged: EventEmitter<void> = new EventEmitter<void>();
+    @Output() public synthesisRequested: EventEmitter<void> = new EventEmitter<void>();
     protected dialogConditionText: string = "";
 
     public constructor(
