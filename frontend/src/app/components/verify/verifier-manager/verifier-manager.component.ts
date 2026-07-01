@@ -60,8 +60,10 @@ export class VerifierManagerComponent {
   public constructor(private verifierService: VerifierService) {}
 
   /**
-   * Handle the toggle of a verifier. Updates the shared enabled state through the
-   * service and collapses the section when the verifier is switched off.
+   * Handle the toggle of a verifier. Updates the shared enabled state through the service.
+   * Auto-collapses the section on disable and auto-expands it on enable (only for verifiers
+   * with settings); the user can then manually re-open a disabled section or close an
+   * enabled one via the chevron.
    * @param item The toggled verifier
    * @param enabled The new enabled state from the toggle
    */
@@ -70,6 +72,8 @@ export class VerifierManagerComponent {
     if (!enabled) {
       // collapse when switched off
       this._expandedSections = this._expandedSections.filter(v => v !== item.id);
+    } else if (this.hasSettings(item.id)) {
+      this._expandedSections = [...this._expandedSections, item.id];
     }
   }
 
