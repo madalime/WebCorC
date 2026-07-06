@@ -59,6 +59,22 @@ export type VerifierSetting =
   | (SettingBase & SelectSetting & Requiredness);
 
 /**
+ * A domain variable a verifier operates on. `type` is a free-form string that names the
+ * variable's type (e.g. `int`, `boolean`, a class name) — the frontend does not interpret
+ * it, it is passed through to the verifier backend.
+ */
+export interface VerifierVariable {
+  /** Stable key of the variable, used to address it when persisting changes. */
+  id: string;
+  /** Type name of the variable (e.g. `int`, `boolean`, a class name). */
+  type: string;
+  /** Human-readable name of the variable. */
+  name: string;
+  /** Optional longer description of what the variable represents. */
+  description?: string;
+}
+
+/**
  * A verifier that can be toggled on or off and optionally configured through its settings.
  */
 export interface Verifier {
@@ -72,4 +88,10 @@ export interface Verifier {
    */
   disableable?: boolean;
   settings?: VerifierSetting[];
+  /**
+   * Domain variables the verifier operates on. Passed through to the verifier backend;
+   * the frontend does not interpret them beyond rendering. Omitted for verifiers that
+   * declare no variables.
+   */
+  variables?: VerifierVariable[];
 }

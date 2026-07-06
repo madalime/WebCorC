@@ -26,6 +26,14 @@ properties:
     items:
       $ref: './setting.yml'
 
+  variables:
+    type: array
+    description: >-
+      Domain variables the verifier operates on. Passed through to the verifier
+      backend; the frontend does not interpret them beyond rendering.
+    items:
+      $ref: './variable.yml'
+
 required:
   - id
   - label

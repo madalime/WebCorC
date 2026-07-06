@@ -11,3 +11,38 @@ p-accordion {
     min-height: 0;
     overflow: auto;
 }
+
+.variables {
+    margin-top: 0.5rem;
+}
+
+.variables-header {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.variables-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.variable {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.variable-name {
+    font-family: monospace;
+}
+
+.variable-type {
+    font-family: monospace;
+    opacity: 0.75;
+}
+
+.variable button .pi {
+    display: block;
+    line-height: 1;
+}

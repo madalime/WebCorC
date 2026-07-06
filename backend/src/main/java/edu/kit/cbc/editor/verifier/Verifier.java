@@ -7,10 +7,9 @@ import java.util.List;
 /**
  * A project-wide verifier loaded from {@code .internal/verifiers.json}.
  *
- * <p>{@code settings} is kept as raw {@link JsonNode} entries: the actual shape of each
- * setting is a discriminated union owned by the frontend, and the proof flow does not
- * inspect them yet. Round-tripping the JSON losslessly is enough until the KeY wiring
- * decides what it needs.
+ * <p>{@code settings} and {@code variables} are kept as raw {@link JsonNode} entries: their
+ * actual shapes are frontend-owned, and the proof flow does not inspect them yet.
+ * Round-tripping the JSON losslessly is enough until the KeY wiring decides what it needs.
  *
  * <p>{@code disableable} is optional (nullable {@code Boolean}): {@code false} means the
  * verifier is mandatory and cannot be toggled off; omitted / {@code null} is equivalent to
@@ -22,5 +21,6 @@ public record Verifier(
     String label,
     boolean enabled,
     Boolean disableable,
-    List<JsonNode> settings
+    List<JsonNode> settings,
+    List<JsonNode> variables
 ) {}

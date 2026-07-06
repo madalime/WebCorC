@@ -1,6 +1,6 @@
 <p-accordion [value]="expandedSections" [multiple]="true" (valueChange)="updateExpandedSections($event)">
   @for (item of items; track item.id) {
-    @if (typeof item.settings === 'undefined' || item.settings.length === 0) {
+    @if ((typeof item.settings === 'undefined' || item.settings.length === 0) && (typeof item.variables === 'undefined' || item.variables.length === 0)) {
       <p-accordion-panel [value]="item.id">
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
@@ -35,6 +35,7 @@
           </span>
         </p-accordion-header>
         <p-accordion-content>
+          @if (item.settings && item.settings.length > 0) {
           @for (field of item.settings; track field.id) {
             <div class="field">
               @if (field.type === 'text' && field.valueType === 'number') {
@@ -58,13 +59,13 @@
                     <mat-hint align="end">Max: {{ field.range?.max }}</mat-hint>
                   }
 
-                  @if (field.description) {
+                  @if (getDescription(field); as description) {
                     <button
                         mat-icon-button
                         matSuffix
                         type="button"
-                        [matTooltip]="field.description"
-                        [attr.aria-label]="field.description"
+                        [matTooltip]="description"
+                        [attr.aria-label]="description"
                         (click)="$event.stopPropagation()">
                       <i class="pi pi-info-circle"></i>
                     </button>
@@ -95,13 +96,13 @@
                          [ngModelOptions]="{ standalone: true }"
                          [required]="field.required ?? false"
                          #ctrl="ngModel" />
-                  @if (field.description) {
+                  @if (getDescription(field); as description) {
                     <button
                         mat-icon-button
                         matSuffix
                         type="button"
-                        [matTooltip]="field.description"
-                        [attr.aria-label]="field.description"
+                        [matTooltip]="description"
+                        [attr.aria-label]="description"
                         (click)="$event.stopPropagation()">
                       <i class="pi pi-info-circle"></i>
                     </button>
@@ -121,19 +122,44 @@
                       <mat-option [value]="option.id"> {{ option.label }} </mat-option>
                     }
                   </mat-select>
-                  @if (field.description) {
+                  @if (getDescription(field); as description) {
                     <button
                         mat-icon-button
                         matSuffix
                         type="button"
-                        [matTooltip]="field.description"
-                        [attr.aria-label]="field.description"
+                        [matTooltip]="description"
+                        [attr.aria-label]="description"
                         (click)="$event.stopPropagation()">
                       <i class="pi pi-info-circle"></i>
                     </button>
                   }
                 </mat-form-field>
               }
+            </div>
+          }
+          }
+
+          @if (item.variables && item.variables.length > 0) {
+            <div class="variables">
+              <div class="variables-header">Variables</div>
+              <ul class="variables-list">
+                @for (variable of item.variables; track variable.id) {
+                  <li class="variable">
+                    <span class="variable-name">{{ variable.name }}</span>
+                    <span class="variable-type">: {{ variable.type }}</span>
+                    @if (variable.description) {
+                      <button
+                          mat-icon-button
+                          type="button"
+                          [matTooltip]="variable.description"
+                          [attr.aria-label]="variable.description"
+                          (click)="$event.stopPropagation()">
+                        <i class="pi pi-info-circle"></i>
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
             </div>
           }
         </p-accordion-content>

@@ -87,7 +87,7 @@ export class VerifierManagerComponent {
       this._expandedSections = this._expandedSections.filter(
         (v) => v !== item.id,
       );
-    } else if (this.hasSettings(item.id)) {
+    } else if (this.hasBody(item.id)) {
       this._expandedSections = [...this._expandedSections, item.id];
     }
   }
@@ -127,9 +127,9 @@ export class VerifierManagerComponent {
     const sections = Array.isArray(expandedSections)
       ? expandedSections.map(String)
       : [];
-    // a disabled or settings-less Section can never be opened, so it never stays in the active set
+    // a disabled or bodyless Section can never be opened, so it never stays in the active set
     this._expandedSections = sections.filter(
-      (section) => this.isEnabled(section) && this.hasSettings(section),
+      (section) => this.isEnabled(section) && this.hasBody(section),
     );
   }
 
@@ -145,13 +145,39 @@ export class VerifierManagerComponent {
   }
 
   /**
-   * Check whether the verifier with the given id has any settings.
+   * Return the description of a setting field, or `undefined` when none is set.
+   * Exposed as a component method so the template calls `getDescription(field)`
+   * instead of reaching into `field.description` directly — a single seam for
+   * future fallbacks (e.g., i18n lookup, defaulting to the label).
+   * @param field The setting to read the description from
+   */
+  public getDescription(field: VerifierSetting): string | undefined {
+    const description = field.description;
+    const defaultValue = field.default;
+    if (description && defaultValue) {
+      return description + " (default: " + defaultValue + ")";
+    } else if (description) {
+      return description;
+    } else if (defaultValue) {
+      return "Default: " + defaultValue;
+    } else {
+      return undefined;
+    }
+  }
+
+  /**
+   * Check whether the verifier with the given id has any body content to display,
+   * i.e. at least one setting or at least one variable. Verifiers without a body
+   * render as a static header (no accordion chevron, no expandable section).
    * @param id The id of the verifier to check
    */
-  private hasSettings(id: string): boolean {
+  private hasBody(id: string): boolean {
+    const verifier = this.verifierService
+      .verifiers()
+      .find((item) => item.id === id);
     return (
-      (this.verifierService.verifiers().find((item) => item.id === id)?.settings
-        ?.length ?? 0) > 0
+      (verifier?.settings?.length ?? 0) > 0 ||
+      (verifier?.variables?.length ?? 0) > 0
     );
   }
 
