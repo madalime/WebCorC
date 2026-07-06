@@ -196,11 +196,6 @@ export class StatementComponent {
     this.aiChatService.addSynthesisPrompt(variables, pre, post, isLoopUpdate);
   }
 
-  public get showSynthesisButton(): boolean {
-    if (this._node.statement.type === "SKIP") return false;
-    return this._node.children.filter((c) => c !== undefined).length === 0;
-  }
-
   compactButton = {
     root: {
       sm: {

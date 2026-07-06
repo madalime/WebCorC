@@ -1,4 +1,4 @@
-import { Injectable, Signal, WritableSignal, computed, signal } from "@angular/core";
+import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
 import { Verifier } from "../../types/Verifier";
 import { ProjectService } from "../project/project.service";
 import { isSettingValid } from "./verifier-validation";
@@ -17,6 +17,8 @@ import { isSettingValid } from "./verifier-validation";
   providedIn: "root",
 })
 export class VerifierService {
+  private projectService = inject(ProjectService);
+
   private static readonly DEFAULT_VERIFIERS: Verifier[] = [
     { id: 'eebc', label: 'Energy efficiency', enabled: true, settings: [
       { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
@@ -32,7 +34,7 @@ export class VerifierService {
     this.seedInputs(VerifierService.DEFAULT_VERIFIERS),
   );
 
-  constructor(private projectService: ProjectService) {
+  constructor() {
     const cached = this.projectService.getVerifiers();
     if (cached) {
       this._verifiers.set(this.seedInputs(cached));
@@ -60,8 +62,8 @@ export class VerifierService {
    */
   public readonly verifiersValid: Signal<boolean> = computed(() =>
     this._verifiers()
-      .filter(verifier => verifier.enabled)
-      .every(verifier => (verifier.settings ?? []).every(isSettingValid)),
+      .filter((verifier) => verifier.enabled)
+      .every((verifier) => (verifier.settings ?? []).every(isSettingValid)),
   );
 
   /**
@@ -82,8 +84,8 @@ export class VerifierService {
    * @param enabled The new enabled state
    */
   public setEnabled(id: string, enabled: boolean): void {
-    this._verifiers.update(verifiers =>
-      verifiers.map(v => (v.id === id ? { ...v, enabled } : v)),
+    this._verifiers.update((verifiers) =>
+      verifiers.map((v) => (v.id === id ? { ...v, enabled } : v)),
     );
     this.persist();
   }
@@ -96,13 +98,17 @@ export class VerifierService {
    * @param settingId The id (key) of the setting to update
    * @param input The new input value
    */
-  public updateSetting(verifierId: string, settingId: string, input: string): void {
-    this._verifiers.update(verifiers =>
-      verifiers.map(verifier =>
+  public updateSetting(
+    verifierId: string,
+    settingId: string,
+    input: string,
+  ): void {
+    this._verifiers.update((verifiers) =>
+      verifiers.map((verifier) =>
         verifier.id === verifierId
           ? {
               ...verifier,
-              settings: verifier.settings?.map(setting =>
+              settings: verifier.settings?.map((setting) =>
                 setting.id === settingId ? { ...setting, input } : setting,
               ),
             }
@@ -130,9 +136,12 @@ export class VerifierService {
    * @param verifiers The verifiers to normalize
    */
   private seedInputs(verifiers: Verifier[]): Verifier[] {
-    return verifiers.map(verifier => ({
+    return verifiers.map((verifier) => ({
       ...verifier,
-      settings: verifier.settings?.map(setting => ({ ...setting, input: setting.input ?? setting.default ?? '' })),
+      settings: verifier.settings?.map((setting) => ({
+        ...setting,
+        input: setting.input ?? setting.default ?? "",
+      })),
     }));
   }
 
@@ -140,7 +149,7 @@ export class VerifierService {
    * Get the list of enabled verifiers.
    */
   public get activeVerifiers(): Verifier[] {
-    return this._verifiers().filter(verifier => verifier.enabled);
+    return this._verifiers().filter((verifier) => verifier.enabled);
   }
 
   /**
@@ -150,11 +159,13 @@ export class VerifierService {
    */
   public get invalidVerifierSettings(): Verifier[] {
     return this._verifiers()
-      .filter(verifier => verifier.enabled)
-      .map(verifier => ({
+      .filter((verifier) => verifier.enabled)
+      .map((verifier) => ({
         ...verifier,
-        settings: (verifier.settings ?? []).filter(setting => !isSettingValid(setting)),
+        settings: (verifier.settings ?? []).filter(
+          (setting) => !isSettingValid(setting),
+        ),
       }))
-      .filter(verifier => (verifier.settings ?? []).length > 0);
+      .filter((verifier) => (verifier.settings ?? []).length > 0);
   }
 }

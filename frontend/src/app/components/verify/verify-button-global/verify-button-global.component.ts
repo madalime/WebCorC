@@ -1,15 +1,20 @@
-import { Component, Signal, WritableSignal, computed, signal } from '@angular/core';
 import {
-  CreateProjectDialogComponent
-} from "../../project-explorer/create-project-dialog/create-project-dialog.component";
-import {TreeService} from "../../../services/tree/tree.service";
-import {NetworkJobService} from "../../../services/tree/network/network-job.service";
-import {DialogService} from "primeng/dynamicdialog";
-import {ProjectService} from "../../../services/project/project.service";
-import {GlobalSettingsService} from "../../../services/global-settings.service";
-import {ConfirmationService, MenuItem, MessageService} from "primeng/api";
-import {SplitButton} from "primeng/splitbutton";
-import {VerifierService} from "../../../services/verifier/verifier.service";
+  Component,
+  Signal,
+  WritableSignal,
+  computed,
+  signal,
+  inject,
+} from "@angular/core";
+import { CreateProjectDialogComponent } from "../../project-explorer/create-project-dialog/create-project-dialog.component";
+import { TreeService } from "../../../services/tree/tree.service";
+import { NetworkJobService } from "../../../services/tree/network/network-job.service";
+import { DialogService } from "primeng/dynamicdialog";
+import { ProjectService } from "../../../services/project/project.service";
+import { GlobalSettingsService } from "../../../services/global-settings.service";
+import { ConfirmationService, MenuItem, MessageService } from "primeng/api";
+import { SplitButton } from "primeng/splitbutton";
+import { VerifierService } from "../../../services/verifier/verifier.service";
 import { ConsoleService } from "../../../services/console/console.service";
 
 /**
@@ -17,32 +22,28 @@ import { ConsoleService } from "../../../services/console/console.service";
  * `label` must be a plain string for the split button), the state's `label` is a reactive
  * signal so the button caption can track live data such as the verifier counts.
  */
-type VerifyState = { id: string, label: Signal<string> };
+type VerifyState = { id: string; label: Signal<string> };
 
 /**
  * The global Verify button.
  * Uses {@link NetworkJobService} to verify the root formula of the current file.
  */
 @Component({
-  selector: 'app-verify-button-global',
-  imports: [
-    SplitButton,
-  ],
-  templateUrl: './verify-button-global.component.html',
-  styleUrl: './verify-button-global.component.css',
+  selector: "app-verify-button-global",
+  imports: [SplitButton],
+  templateUrl: "./verify-button-global.component.html",
+  styleUrl: "./verify-button-global.component.css",
 })
 export class VerifyButtonGlobalComponent {
-  constructor(
-      private treeService: TreeService,
-      private networkTreeService: NetworkJobService,
-      private dialogService: DialogService,
-      private projectService: ProjectService,
-      private globalSettingsService: GlobalSettingsService,
-      private confirmationService: ConfirmationService,
-      private messageService: MessageService,
-      private verifierService: VerifierService,
-      private readonly consoleService: ConsoleService,
-  ) {}
+  private treeService = inject(TreeService);
+  private networkTreeService = inject(NetworkJobService);
+  private dialogService = inject(DialogService);
+  private projectService = inject(ProjectService);
+  private globalSettingsService = inject(GlobalSettingsService);
+  private confirmationService = inject(ConfirmationService);
+  private messageService = inject(MessageService);
+  private verifierService = inject(VerifierService);
+  private readonly consoleService = inject(ConsoleService);
 
   /**
    * The label of the "Verify all" option, annotated with the live verifier counts:
@@ -51,21 +52,31 @@ export class VerifyButtonGlobalComponent {
    */
   private readonly verifyAllLabel: Signal<string> = computed(() => {
     const verifiers = this.verifierService.verifiers();
-    const active = verifiers.filter(verifier => verifier.enabled).length;
+    const active = verifiers.filter((verifier) => verifier.enabled).length;
     return `Verify all (${active}/${verifiers.length})`;
   });
 
-  private _verifyOptions : MenuItem[] = [
-    { id: "all", label: "Verify all", command: () => this.updateVerifyButtonState("all")},
-    { id: "functional", label: "Verify functional", command: () => this.updateVerifyButtonState("functional")},
-  ]
+  private _verifyOptions: MenuItem[] = [
+    {
+      id: "all",
+      label: "Verify all",
+      command: () => this.updateVerifyButtonState("all"),
+    },
+    {
+      id: "functional",
+      label: "Verify functional",
+      command: () => this.updateVerifyButtonState("functional"),
+    },
+  ];
 
-  private _verifyStates : VerifyState[] = [
+  private _verifyStates: VerifyState[] = [
     { id: "all", label: this.verifyAllLabel },
     { id: "functional", label: signal("Verify functional") },
-  ]
+  ];
 
-  private _verifyButtonState: WritableSignal<VerifyState> = signal(this._verifyStates[0]);
+  private _verifyButtonState: WritableSignal<VerifyState> = signal(
+    this._verifyStates[0],
+  );
 
   /**
    * Triggered on pressing the verify Button.
@@ -77,7 +88,7 @@ export class VerifyButtonGlobalComponent {
     if (!this.verifierService.verifiersValid()) {
       this.confirmationService.confirm({
         message:
-            "Some verifier settings are invalid. Please correct them before verifying or switch to functional verification. For more information see the console.",
+          "Some verifier settings are invalid. Please correct them before verifying or switch to functional verification. For more information see the console.",
         header: "Invalid Verifier Settings",
         icon: "pi pi-exclamation-triangle",
         rejectVisible: false,
@@ -93,7 +104,7 @@ export class VerifyButtonGlobalComponent {
     if (this.projectService.shouldCreateProject) {
       this.confirmationService.confirm({
         message:
-            "You have unsaved changes. Do you want to save them before verifying?",
+          "You have unsaved changes. Do you want to save them before verifying?",
         header: "Unsaved Changes",
         icon: "pi pi-exclamation-triangle",
         accept: () => {
@@ -118,20 +129,20 @@ export class VerifyButtonGlobalComponent {
         reject: () => {
           this.globalSettingsService.isVerifying = true;
           this.networkTreeService.verify(
-              this.treeService.rootFormula,
-              this.projectService.projectId,
-              this.treeService.urn,
-              this._verifyButtonState().id !== "all",
+            this.treeService.rootFormula,
+            this.projectService.projectId,
+            this.treeService.urn,
+            this._verifyButtonState().id !== "all",
           );
         },
       });
     } else {
       this.globalSettingsService.isVerifying = true;
       this.networkTreeService.verify(
-          this.treeService.rootFormula,
-          this.projectService.projectId,
-          this.treeService.urn,
-          this._verifyButtonState().id !== "all",
+        this.treeService.rootFormula,
+        this.projectService.projectId,
+        this.treeService.urn,
+        this._verifyButtonState().id !== "all",
       );
     }
   }
@@ -146,8 +157,8 @@ export class VerifyButtonGlobalComponent {
     });
   }
 
-  protected updateVerifyButtonState(id : string) {
-    const state = this._verifyStates.find(state => state.id === id);
+  protected updateVerifyButtonState(id: string) {
+    const state = this._verifyStates.find((state) => state.id === id);
     if (state) {
       this._verifyButtonState.set(state);
     }
@@ -157,7 +168,9 @@ export class VerifyButtonGlobalComponent {
    * Whether the verify Button is disabled because no root formula exists to verify.
    */
   protected get isDisabled(): boolean {
-    return !this.treeService.rootFormula || this.globalSettingsService.isVerifying;
+    return (
+      !this.treeService.rootFormula || this.globalSettingsService.isVerifying
+    );
   }
 
   /**
@@ -174,7 +187,7 @@ export class VerifyButtonGlobalComponent {
    */
   public readonly verifyOptions: Signal<MenuItem[]> = computed(() => {
     const selectedId = this._verifyButtonState().id;
-    return this._verifyOptions.map(option => {
+    return this._verifyOptions.map((option) => {
       const selected = option.id === selectedId;
       return {
         ...option,
@@ -183,7 +196,6 @@ export class VerifyButtonGlobalComponent {
       };
     });
   });
-
 
   /**
    * The label shown on the split button itself, reflecting the selected option and, for

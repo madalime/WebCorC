@@ -1,15 +1,27 @@
-import { Component } from '@angular/core';
-import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
-import {ToggleSwitch} from "primeng/toggleswitch";
-import {FormsModule} from "@angular/forms";
-import {MatError, MatFormField, MatHint, MatInput, MatLabel, MatSuffix} from "@angular/material/input";
-import {MatOption, MatSelect} from "@angular/material/select";
+import { Component, inject } from "@angular/core";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionHeader,
+  AccordionPanel,
+} from "primeng/accordion";
+import { ToggleSwitch } from "primeng/toggleswitch";
+import { FormsModule } from "@angular/forms";
+import {
+  MatError,
+  MatFormField,
+  MatHint,
+  MatInput,
+  MatLabel,
+  MatSuffix,
+} from "@angular/material/input";
+import { MatOption, MatSelect } from "@angular/material/select";
 import { Verifier, VerifierSetting } from "../../../types/Verifier";
 import { VerifierService } from "../../../services/verifier/verifier.service";
 import { NumberInputValidatorDirective } from "../../../services/verifier/number-input-validator.directive";
-import {MatTooltip} from "@angular/material/tooltip";
-import {MatIconButton} from "@angular/material/button";
-import {ErrorStateMatcher} from "@angular/material/core";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatIconButton } from "@angular/material/button";
+import { ErrorStateMatcher } from "@angular/material/core";
 
 /**
  * Show a `mat-error` as soon as the control is invalid, without waiting for it to be `touched`
@@ -20,7 +32,7 @@ const immediateErrorStateMatcher: ErrorStateMatcher = {
 };
 
 @Component({
-  selector: 'app-verifier-manager',
+  selector: "app-verifier-manager",
   imports: [
     Accordion,
     AccordionContent,
@@ -38,12 +50,14 @@ const immediateErrorStateMatcher: ErrorStateMatcher = {
     MatHint,
     MatTooltip,
     MatSuffix,
-    MatIconButton
+    MatIconButton,
   ],
-  templateUrl: './verifier-manager.component.html',
+  templateUrl: "./verifier-manager.component.html",
   standalone: true,
-  styleUrl: './verifier-manager.component.css',
-  providers: [{ provide: ErrorStateMatcher, useValue: immediateErrorStateMatcher }],
+  styleUrl: "./verifier-manager.component.css",
+  providers: [
+    { provide: ErrorStateMatcher, useValue: immediateErrorStateMatcher },
+  ],
 })
 /**
  * Component, to manage the available verifiers, each verifier can be enabled or disabled via a toggle and,
@@ -54,10 +68,9 @@ const immediateErrorStateMatcher: ErrorStateMatcher = {
  * @link https://primeng.org/accordion
  */
 export class VerifierManagerComponent {
+  private verifierService = inject(VerifierService);
 
   private _expandedSections: string[] = [];
-
-  public constructor(private verifierService: VerifierService) {}
 
   /**
    * Handle the toggle of a verifier. Updates the shared enabled state through the service.
@@ -71,7 +84,9 @@ export class VerifierManagerComponent {
     this.verifierService.setEnabled(item.id, enabled);
     if (!enabled) {
       // collapse when switched off
-      this._expandedSections = this._expandedSections.filter(v => v !== item.id);
+      this._expandedSections = this._expandedSections.filter(
+        (v) => v !== item.id,
+      );
     } else if (this.hasSettings(item.id)) {
       this._expandedSections = [...this._expandedSections, item.id];
     }
@@ -89,8 +104,16 @@ export class VerifierManagerComponent {
    * @param setting The setting that changed
    * @param value The new input value as reported by the bound control
    */
-  public onSettingChange(item: Verifier, setting: VerifierSetting, value: string | number | null) {
-    this.verifierService.updateSetting(item.id, setting.id, value == null ? '' : String(value));
+  public onSettingChange(
+    item: Verifier,
+    setting: VerifierSetting,
+    value: string | number | null,
+  ) {
+    this.verifierService.updateSetting(
+      item.id,
+      setting.id,
+      value == null ? "" : String(value),
+    );
   }
 
   /**
@@ -98,10 +121,16 @@ export class VerifierManagerComponent {
    * A disabled or settings-less section can never be opened, so it never stays in the active set.
    * @param expandedSections The currently expanded section values as reported by the accordion
    */
-  public updateExpandedSections(expandedSections: string | number | string[] | number[] | null | undefined) {
-    const sections = Array.isArray(expandedSections) ? expandedSections.map(String) : [];
+  public updateExpandedSections(
+    expandedSections: string | number | string[] | number[] | null | undefined,
+  ) {
+    const sections = Array.isArray(expandedSections)
+      ? expandedSections.map(String)
+      : [];
     // a disabled or settings-less Section can never be opened, so it never stays in the active set
-    this._expandedSections = sections.filter(section => this.isEnabled(section) && this.hasSettings(section));
+    this._expandedSections = sections.filter(
+      (section) => this.isEnabled(section) && this.hasSettings(section),
+    );
   }
 
   /**
@@ -109,7 +138,10 @@ export class VerifierManagerComponent {
    * @param id The id of the verifier to check
    */
   private isEnabled(id: string): boolean {
-    return this.verifierService.verifiers().find(item => item.id === id)?.enabled ?? false;
+    return (
+      this.verifierService.verifiers().find((item) => item.id === id)
+        ?.enabled ?? false
+    );
   }
 
   /**
@@ -117,20 +149,23 @@ export class VerifierManagerComponent {
    * @param id The id of the verifier to check
    */
   private hasSettings(id: string): boolean {
-    return (this.verifierService.verifiers().find(item => item.id === id)?.settings?.length ?? 0) > 0;
+    return (
+      (this.verifierService.verifiers().find((item) => item.id === id)?.settings
+        ?.length ?? 0) > 0
+    );
   }
 
   /**
    * Getter for the verifiers, sourced from the shared service signal.
    */
-  public get items() : Verifier[] {
+  public get items(): Verifier[] {
     return this.verifierService.verifiers();
   }
 
   /**
    * Getter for the values of the currently expanded accordion sections
    */
-  public get expandedSections() : string[] {
-    return this._expandedSections
+  public get expandedSections(): string[] {
+    return this._expandedSections;
   }
 }
