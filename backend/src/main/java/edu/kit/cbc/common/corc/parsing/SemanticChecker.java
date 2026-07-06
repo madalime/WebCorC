@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 public class SemanticChecker {
 
-    private static final java.util.List<String> IGNORED_VARIABLES = java.util.List.of("true", "false");
+    private static final java.util.List<String> IGNORED_VARIABLES = java.util.List.of("true", "false", "null");
 
     public static void checkVariables(CbCFormula formula) throws SemanticException {
         if (formula == null) {
@@ -129,7 +129,6 @@ public class SemanticChecker {
             checkTree(bin.lhs(), scope);
             checkTree(bin.rhs(), scope);
         } else if (node instanceof CallTree call) {
-            checkTree(call.name(), scope);
             if (call.params() != null) {
                 for (Tree param : call.params()) {
                     checkTree(param, scope);

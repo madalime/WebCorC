@@ -1,17 +1,17 @@
-<app-statement-base icon="pi pi-angle-double-right" [_node]="_node" [refinement]="this" [hideSourceHandle]="true" [hasInlineSynthesis]="true">
+<app-statement-base icon="pi pi-angle-double-right" [_node]="_node" [refinement]="this" [hideSourceHandle]="true">
     <ng-template #middleContent let-popup="popup" let-statement="statement">
         <div class="relative flex items-center h-full"
-             [class.w-56]="!popup"
-             [class.w-full]="popup"
-             [class.popup-fill-target]="popup">
+            [class.w-56]="!popup"
+            [class.w-full]="popup"
+            [class.popup-fill-target]="popup">
             <app-condition-editor
-                    [condition]="_node.programStatement"
-                    [editable]="true"
-                    placeholder="Statement"
-                    [fill]="popup"
-                    [showSynthesisButton]="statement.showSynthesisButton"
-                    (synthesisRequested)="statement.synthesizeWithAi()"
-                    (textChanged)="onEditableContentChanged()">
+                [condition]="_node.programStatement"
+                [editable]="true"
+                placeholder="Statement"
+                [fill]="popup"
+                [showAiButton]="true"
+                (textChanged)="onEditableContentChanged()"
+                (synthesizeRequested)="synthesizeWithAi()">
             </app-condition-editor>
         </div>
     </ng-template>

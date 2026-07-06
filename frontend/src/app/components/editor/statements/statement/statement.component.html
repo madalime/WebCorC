@@ -85,6 +85,7 @@
                                     [condition]="_node.precondition"
                                     [editable]="_node.preconditionEditable | async"
                                     (textChanged)="onEditableContentChanged()"
+                                    (synthesizeRequested)="synthesizeWithAi()"
                             ></app-condition-editor>
                         </div>
                     </mat-drawer>
@@ -119,19 +120,11 @@
         }
 
         <div class="flex items-center statementCenter">
-            @if (middleTemplate) {
-                <ng-container *ngTemplateOutlet="middleTemplate; context: { popup: false, statement: this }"></ng-container>
-            }
-            @if (showSynthesisButton && !hasInlineSynthesis) {
-                <p-button
-                        text
-                        icon="pi pi-microchip-ai"
-                        severity="secondary"
-                        class="cursor-pointer synthesisCenterButton"
-                        (click)="synthesizeWithAi()"
-                        title="Synthesize statement with AI"
-                />
-            }
+          @if (middleTemplate) {
+            <ng-container *ngTemplateOutlet="middleTemplate; context: { popup: false, statement: this }"></ng-container>
+          } @else {
+            <ng-content></ng-content>
+          }
         </div>
         @if (!globalSettingsService.conditionsAlwaysOpen) {
             <div appGtBorder #postconditionDiv class="w-12">
@@ -174,6 +167,7 @@
                         [condition]="_node.postcondition"
                         [editable]="_node.postconditionEditable | async"
                         (textChanged)="onEditableContentChanged()"
+                        (synthesizeRequested)="synthesizeWithAi()"
                 ></app-condition-editor>
             </div>
         }
@@ -225,6 +219,7 @@
                             [editable]="_node.preconditionEditable | async"
                             [fill]="true"
                             (textChanged)="onEditableContentChanged()"
+                            (synthesizeRequested)="synthesizeWithAi()"
                     ></app-condition-editor>
                 </div>
             } @else {
@@ -255,16 +250,6 @@
                     </div>
                     <div class="popup-column-body">
                         <ng-container *ngTemplateOutlet="middleTemplate; context: { popup: true, statement: this }"></ng-container>
-                        @if (showSynthesisButton && !hasInlineSynthesis) {
-                            <p-button
-                                    text
-                                    icon="pi pi-microchip-ai"
-                                    severity="secondary"
-                                    class="cursor-pointer"
-                                    (click)="synthesizeWithAi()"
-                                    title="Synthesize statement with AI"
-                            />
-                        }
                     </div>
                 } @else {
                     <p-button
@@ -299,6 +284,7 @@
                             [editable]="_node.postconditionEditable | async"
                             [fill]="true"
                             (textChanged)="onEditableContentChanged()"
+                            (synthesizeRequested)="synthesizeWithAi()"
                     ></app-condition-editor>
                 </div>
             } @else {

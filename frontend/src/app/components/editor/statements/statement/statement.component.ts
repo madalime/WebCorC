@@ -8,6 +8,7 @@ import {
   signal,
   TemplateRef,
   ViewChild,
+  inject,
 } from "@angular/core";
 
 import { MatGridListModule } from "@angular/material/grid-list";
@@ -49,34 +50,43 @@ import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-s
  */
 @Component({
   selector: "app-statement-base",
-    imports: [
-        MatGridListModule,
-        MatFormFieldModule,
-        MatInputModule,
-        FormsModule,
-        ConditionEditorComponent,
-        MatIconModule,
-        MatSidenavModule,
-        MatButtonModule,
-        MatExpansionModule,
-        MatListModule,
-        HandleComponent,
-        GridTileBorderDirective,
-        Card,
-        Button,
-        Toolbar,
-        ButtonDirective,
-        ButtonIcon,
-        ButtonLabel,
-        AsyncPipe,
-        Dialog,
-        NgTemplateOutlet,
-    ],
+  imports: [
+    MatGridListModule,
+    MatFormFieldModule,
+    MatInputModule,
+    FormsModule,
+    ConditionEditorComponent,
+    MatIconModule,
+    MatSidenavModule,
+    MatButtonModule,
+    MatExpansionModule,
+    MatListModule,
+    HandleComponent,
+    GridTileBorderDirective,
+    Card,
+    Button,
+    Toolbar,
+    ButtonDirective,
+    ButtonIcon,
+    ButtonLabel,
+    AsyncPipe,
+    Dialog,
+    NgTemplateOutlet,
+  ],
   templateUrl: "./statement.component.html",
   styleUrl: "./statement.component.css",
   standalone: true,
 })
 export class StatementComponent {
+  private treeService = inject(TreeService);
+  private aiChatService = inject(AiChatService);
+  globalSettingsService = inject(GlobalSettingsService);
+  private networkTreeService = inject(NetworkJobService);
+  private projectService = inject(ProjectService);
+
+  private static readonly EDITOR_CONTAINER_EXPANSION_TRIGGER = 150;
+  private static readonly EDITOR_CONTAINER_EXPANSION = 200;
+
   @Input() public refinement!: Refinement;
   @Input() public hideSourceHandle = false;
   @Input() public hideTargetHandle = false;
@@ -84,7 +94,6 @@ export class StatementComponent {
   @Input() public icon = "pi pi-circle";
   @Input() public showEditButton = true;
   @Input() public hasPopupMiddle = true;
-  @Input() public hasInlineSynthesis = false;
 
   @Output() delete = new EventEmitter();
 
@@ -105,13 +114,10 @@ export class StatementComponent {
 
   public isVerifying = signal(false);
 
-  constructor(
-    private treeService: TreeService,
-    private aiChatService: AiChatService,
-    public globalSettingsService: GlobalSettingsService,
-    private networkTreeService: NetworkJobService,
-    private projectService: ProjectService,
-  ) {}
+  /** Inserted by Angular inject() migration for backwards compatibility */
+  constructor(...args: unknown[]);
+
+  constructor() {}
 
   public deleteRefinement(): void {
     this.treeService.deleteStatementNode(this._node);
@@ -139,12 +145,17 @@ export class StatementComponent {
     }
   }
 
-  public getStatementSeverity(node: AbstractStatementNode): 'success' | 'secondary' | 'warn'  {
-      switch (node.statement.nodeState) {
-          case 'verified': return 'success';
-          case 'failed': return 'warn';
-          case 'unverified': return 'secondary'
-      }
+  public getStatementSeverity(
+    node: AbstractStatementNode,
+  ): "success" | "secondary" | "warn" {
+    switch (node.statement.nodeState) {
+      case "verified":
+        return "success";
+      case "failed":
+        return "warn";
+      case "unverified":
+        return "secondary";
+    }
   }
 
   public verifyStatement(): void {
