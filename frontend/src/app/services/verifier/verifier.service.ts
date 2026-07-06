@@ -20,6 +20,7 @@ export class VerifierService {
   private projectService = inject(ProjectService);
 
   private static readonly DEFAULT_VERIFIERS: Verifier[] = [
+    { id: 'func', label: 'Functional correctness', enabled: true, disableable: false },
     { id: 'eebc', label: 'Energy efficiency', enabled: true, settings: [
       { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
       { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },

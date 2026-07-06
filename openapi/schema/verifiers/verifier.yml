@@ -13,6 +13,13 @@ properties:
     type: boolean
     description: Whether the verifier is selected to run.
 
+  disableable:
+    type: boolean
+    description: >-
+      Whether the user is allowed to disable this verifier. `false` locks the
+      enabled toggle in the on position — the verifier is mandatory and will
+      always run. Defaults to `true` (freely toggleable) when omitted.
+
   settings:
     type: array
     description: Configurable settings of the verifier.

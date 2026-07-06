@@ -65,5 +65,11 @@ export interface Verifier {
   id: string;
   label: string;
   enabled: boolean;
+  /**
+   * Whether the user is allowed to disable this verifier. `false` means the enabled toggle
+   * is locked in the on position — the verifier is mandatory and will always run. Defaults
+   * to `true` (freely toggleable) when omitted.
+   */
+  disableable?: boolean;
   settings?: VerifierSetting[];
 }

@@ -207,7 +207,7 @@ export class ProjectService {
     element: ProjectElement | string,
     directory: ProjectDirectory = this._rootDir,
   ): ProjectDirectory | undefined {
-    let parts: string[] = [];
+    let parts: string[];
     if (typeof element === "string") {
       parts = element.split("/");
     } else {
@@ -571,9 +571,11 @@ export class ProjectService {
   private async uploadFolder(folder: ProjectDirectory) {
     console.log("upload folder", folder);
     for (const item of folder.contents) {
+/*
       if (item.urn.startsWith(".internal")) {
         continue;
       }
+*/
 
       if (item.serverSideUrn && item.serverSideUrn !== item.urn) {
         const inodeType = item.type === "DIRECTORY" ? "directory" : "file";

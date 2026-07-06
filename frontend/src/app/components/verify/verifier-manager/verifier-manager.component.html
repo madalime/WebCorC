@@ -6,6 +6,7 @@
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
                 [ngModel]="item.enabled"
+                [disabled]="item.disableable === false"
                 (click)="$event.stopPropagation()"
                 (ngModelChange)="onToggle(item, $event)" />
             <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
@@ -27,6 +28,7 @@
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
                 [ngModel]="item.enabled"
+                [disabled]="item.disableable === false"
                 (click)="$event.stopPropagation()"
                 (ngModelChange)="onToggle(item, $event)" />
             <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
