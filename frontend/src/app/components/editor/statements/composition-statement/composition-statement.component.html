@@ -1,5 +1,12 @@
-<app-statement-base icon="pi pi-link" [_node]="_node" [refinement]="this" [hideSourceHandle]="true">
-  <ng-template #middleContent let-popup="popup">
+<app-statement-base
+  icon="pi pi-link"
+  [_node]="_node"
+  [refinement]="this"
+  [hideSourceHandle]="true"
+  [hasVerifierMiddle]="true"
+  middleLabel="Intermediate"
+>
+  <ng-template #middleContent let-popup="popup" let-verifier="verifier">
     @if (!popup) {
       <div class="w-fit">
         @if (!_node.firstStatementNode) {
@@ -18,7 +25,7 @@
          [class.w-full]="popup"
          [class.popup-fill-target]="popup">
       <app-condition-editor
-        [condition]="_node.intermediateCondition"
+        [condition]="intermediateConditionFor(verifier)"
         placeholder="Intermediate"
         [fill]="popup"
         (textChanged)="onEditableContentChanged()"

@@ -37,10 +37,17 @@ properties:
       $ref: './condition.yml'
 
   preCondition:
-    type: string 
+    type: string
 
   postCondition:
     type: string
+
+  verifierConditions:
+    description: >
+      Verifier conditions of the root statement, which is flattened into the
+      formula's preCondition/postCondition on export.
+    allOf:
+      - $ref: './verifierConditions.yml'
 
   statement:
     $ref: './statement.yml'

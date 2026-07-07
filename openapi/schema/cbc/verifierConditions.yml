@@ -1,0 +1,18 @@
+type: object
+description: >
+  Verifier-specific pre/postcondition pairs, keyed by verifier id. Sparse — only
+  verifiers with at least one non-empty condition have an entry; the primary
+  (functional) verifier's conditions are the owning statement's own
+  preCondition/postCondition.
+additionalProperties:
+  type: object
+  properties:
+    preCondition:
+      $ref: './condition.yml'
+
+    postCondition:
+      $ref: './condition.yml'
+
+  required:
+    - preCondition
+    - postCondition

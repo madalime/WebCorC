@@ -3,6 +3,7 @@ import { IPosition, Position } from "./position";
 import {
   IAbstractStatement,
   IAbstractStatementImpl,
+  IVerifierConditions,
 } from "./statements/abstract-statement";
 import { IJavaVariable } from "./JavaVariable";
 import { IRenaming } from "./Renaming";
@@ -17,6 +18,12 @@ export interface ICBCFormula {
   statement: IAbstractStatementImpl | undefined;
   preCondition: ICondition;
   postCondition: ICondition;
+  /**
+   * Verifier conditions of the root statement. Lives at formula level because the
+   * root statement wrapper is flattened into `preCondition`/`postCondition` on
+   * export — its verifier conditions are handled the same way.
+   */
+  verifierConditions?: IVerifierConditions;
   javaVariables: IJavaVariable[];
   globalConditions: ICondition[];
   renamings: IRenaming[] | null;
@@ -49,6 +56,20 @@ export class LocalCBCFormula implements ILocalCBCFormula {
     public isProven: boolean = false,
     public position: IPosition = new Position(0, 0),
   ) {}
+
+  /** Serialize with the statement tree last, keeping the scalar fields readable. */
+  public toJSON(): Record<string, unknown> {
+    return {
+      local: this.local,
+      name: this.name,
+      javaVariables: this.javaVariables,
+      globalConditions: this.globalConditions,
+      renamings: this.renamings,
+      isProven: this.isProven,
+      position: this.position,
+      statement: this.statement,
+    };
+  }
 }
 
 /**
@@ -71,5 +92,22 @@ export class CBCFormula implements ICBCFormula {
     public renamings: IRenaming[] | null = null,
     public isProven: boolean = false,
     public position: IPosition = new Position(0, 0),
+    public verifierConditions: IVerifierConditions = {},
   ) {}
+
+  /** Serialize with the statement tree last, keeping the scalar fields readable. */
+  public toJSON(): Record<string, unknown> {
+    return {
+      name: this.name,
+      preCondition: this.preCondition,
+      postCondition: this.postCondition,
+      verifierConditions: this.verifierConditions,
+      javaVariables: this.javaVariables,
+      globalConditions: this.globalConditions,
+      renamings: this.renamings,
+      isProven: this.isProven,
+      position: this.position,
+      statement: this.statement,
+    };
+  }
 }

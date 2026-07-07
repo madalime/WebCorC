@@ -41,6 +41,11 @@ import { ProjectService } from "../../../../services/project/project.service";
 import { AsyncPipe, NgTemplateOutlet } from "@angular/common";
 import { AiChatService } from "../../../../services/ai-chat/ai-chat.service";
 import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-statement-node";
+import {VerifierService} from "../../../../services/verifier/verifier.service";
+import {PRIMARY_VERIFIER_ID, Verifier} from "../../../../types/Verifier";
+import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
+import { BehaviorSubject } from "rxjs";
+import { ICondition } from "../../../../types/condition/condition";
 
 /**
  * Component to present the statements.
@@ -72,12 +77,17 @@ import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-s
     AsyncPipe,
     Dialog,
     NgTemplateOutlet,
+    Accordion,
+    AccordionPanel,
+    AccordionHeader,
+    AccordionContent,
   ],
   templateUrl: "./statement.component.html",
   styleUrl: "./statement.component.css",
   standalone: true,
 })
 export class StatementComponent {
+  private verifierService = inject(VerifierService);
   private treeService = inject(TreeService);
   private aiChatService = inject(AiChatService);
   globalSettingsService = inject(GlobalSettingsService);
@@ -94,18 +104,31 @@ export class StatementComponent {
   @Input() public icon = "pi pi-circle";
   @Input() public showEditButton = true;
   @Input() public hasPopupMiddle = true;
+  /**
+   * When true, the popup middle column is rendered in every verifier panel (with
+   * the panel's verifier passed to the template), not only the primary one. Used
+   * by compositions, whose intermediate condition exists per verifier.
+   */
+  @Input() public hasVerifierMiddle = false;
+  /** Label of the popup middle column's collapse/expand buttons. */
+  @Input() public middleLabel = "Statement";
 
   @Output() delete = new EventEmitter();
 
   @ContentChild("middleContent") middleTemplate?: TemplateRef<{
     popup: boolean;
     statement: StatementComponent;
+    verifier?: Verifier;
   }>;
 
   public dialogVisible = false;
-  public preOpen = true;
-  public midOpen = true;
-  public postOpen = true;
+  public readonly primaryVerifierId = PRIMARY_VERIFIER_ID;
+  /** Panels open in the popup accordion; the primary verifier starts open. */
+  public openPanels: string[] = [PRIMARY_VERIFIER_ID];
+  private popupColumnStates = new Map<
+    string,
+    { pre: boolean; mid: boolean; post: boolean }
+  >();
 
   @ViewChild("preconditionDrawer") private preconditionDrawer!: MatDrawer;
   @ViewChild("postconditionDrawer") private postconditionDrawer!: MatDrawer;
@@ -212,4 +235,65 @@ export class StatementComponent {
       },
     },
   };
+
+  /**
+   * The verifiers shown as popup accordion panels: enabled ones whose panel has
+   * content — the primary verifier (statement + the node's own pre/post) and any
+   * verifier that declares variables (verifier-specific pre/post).
+   */
+  public get items(): Verifier[] {
+    return this.verifierService
+      .verifiers()
+      .filter(
+        (verifier) =>
+          verifier.enabled &&
+          (verifier.id === PRIMARY_VERIFIER_ID ||
+            verifier.variables.length > 0),
+      );
+  }
+
+  /**
+   * Collapse state of the pre/statement/post columns inside one verifier's panel,
+   * independent per verifier. Lazily initialized to all-open.
+   */
+  public popupColumns(verifierId: string): {
+    pre: boolean;
+    mid: boolean;
+    post: boolean;
+  } {
+    let state = this.popupColumnStates.get(verifierId);
+    if (!state) {
+      state = { pre: true, mid: true, post: true };
+      this.popupColumnStates.set(verifierId, state);
+    }
+    return state;
+  }
+
+  public togglePopupColumn(
+    verifierId: string,
+    column: "pre" | "mid" | "post",
+  ): void {
+    const state = this.popupColumns(verifierId);
+    state[column] = !state[column];
+  }
+
+  /**
+   * The pre condition edited in the given verifier's panel: the node's own for the
+   * primary verifier, the verifier-specific one otherwise.
+   */
+  public popupPrecondition(verifier: Verifier): BehaviorSubject<ICondition> {
+    return verifier.id === PRIMARY_VERIFIER_ID
+      ? this._node.precondition
+      : this._node.verifierPrecondition(verifier.id);
+  }
+
+  /**
+   * The post condition edited in the given verifier's panel.
+   * @see popupPrecondition
+   */
+  public popupPostcondition(verifier: Verifier): BehaviorSubject<ICondition> {
+    return verifier.id === PRIMARY_VERIFIER_ID
+      ? this._node.postcondition
+      : this._node.verifierPostcondition(verifier.id);
+  }
 }

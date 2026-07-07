@@ -189,7 +189,7 @@
             maxHeight: '90vh',
             minHeight: '50vh'
         }"
-        [contentStyle]="{ overflow: 'hidden', height: '100%' }"
+        [contentStyle]="{ overflow: 'auto', height: '100%' }"
 >
     <ng-template #header>
         <div class="flex items-center gap-2">
@@ -199,107 +199,118 @@
         </div>
     </ng-template>
 
-    <div class="popup-flex-row">
-        <div class="popup-column" [class.open]="preOpen" [class.closed]="!preOpen">
-            @if (preOpen) {
-                <div class="popup-column-header">
-                    <p-button
-                            text
-                            severity="secondary"
-                            icon="pi pi-chevron-left"
-                            (click)="preOpen = false"
-                            title="Collapse precondition"
-                            label="Precondition"
-                    ></p-button>
-                </div>
-                <div class="popup-column-body">
-                    <app-condition-editor
-                            placeholder="Pre Condition"
-                            [condition]="_node.precondition"
-                            [editable]="_node.preconditionEditable | async"
-                            [fill]="true"
-                            (textChanged)="onEditableContentChanged()"
-                            (synthesizeRequested)="synthesizeWithAi()"
-                    ></app-condition-editor>
-                </div>
-            } @else {
-                <p-button
-                        text
-                        severity="secondary"
-                        icon="pi pi-chevron-right"
-                        (click)="preOpen = true"
-                        class="verticalButton bottomLeft popup-collapsed-tab"
-                        label="Precondition"
-                        title="Expand precondition"
-                ></p-button>
-            }
-        </div>
+    <p-accordion [multiple]="true" [(value)]="openPanels">
+        @for (item of items; track item.id) {
+            <p-accordion-panel [value]="item.id">
+                <p-accordion-header>
+                    <span class="flex items-center gap-2 w-full">{{ item.label }}</span>
+                </p-accordion-header>
+                <p-accordion-content>
+                    <div class="popup-flex-row">
+                        <div class="popup-column" [class.open]="popupColumns(item.id).pre" [class.closed]="!popupColumns(item.id).pre">
+                            @if (popupColumns(item.id).pre) {
+                                <div class="popup-column-header">
+                                    <p-button
+                                        text
+                                        severity="secondary"
+                                        icon="pi pi-chevron-left"
+                                        (click)="togglePopupColumn(item.id, 'pre')"
+                                        title="Collapse precondition"
+                                        label="Precondition"
+                                    ></p-button>
+                                </div>
+                                <div class="popup-column-body">
+                                    <app-condition-editor
+                                        placeholder="Pre Condition"
+                                        [condition]="popupPrecondition(item)"
+                                        [editable]="_node.preconditionEditable | async"
+                                        [fill]="true"
+                                        (textChanged)="onEditableContentChanged()"
+                                        (synthesizeRequested)="synthesizeWithAi()"
+                                    ></app-condition-editor>
+                                </div>
+                            } @else {
+                                <p-button
+                                    text
+                                    severity="secondary"
+                                    icon="pi pi-chevron-right"
+                                    (click)="togglePopupColumn(item.id, 'pre')"
+                                    class="verticalButton bottomLeft popup-collapsed-tab"
+                                    label="Precondition"
+                                    title="Expand precondition"
+                                ></p-button>
+                            }
+                        </div>
 
-        @if (middleTemplate && hasPopupMiddle) {
-            <div class="popup-column" [class.open]="midOpen" [class.closed]="!midOpen">
-                @if (midOpen) {
-                    <div class="popup-column-header">
-                        <p-button
-                                text
-                                severity="secondary"
-                                icon="pi pi-chevron-left"
-                                (click)="midOpen = false"
-                                title="Collapse statement"
-                                label="Statement"
-                        ></p-button>
+                        @if (middleTemplate && hasPopupMiddle && (hasVerifierMiddle || item.id === primaryVerifierId)) {
+                            <div class="popup-column" [class.open]="popupColumns(item.id).mid" [class.closed]="!popupColumns(item.id).mid">
+                                @if (popupColumns(item.id).mid) {
+                                    <div class="popup-column-header">
+                                        <p-button
+                                            text
+                                            severity="secondary"
+                                            icon="pi pi-chevron-left"
+                                            (click)="togglePopupColumn(item.id, 'mid')"
+                                            [title]="'Collapse ' + middleLabel.toLowerCase()"
+                                            [label]="middleLabel"
+                                        ></p-button>
+                                    </div>
+                                    <div class="popup-column-body">
+                                      <ng-container *ngTemplateOutlet="middleTemplate; context: { popup: true, statement: this, verifier: item }"></ng-container>
+                                    </div>
+                                } @else {
+                                    <p-button
+                                        text
+                                        severity="secondary"
+                                        icon="pi pi-chevron-right"
+                                        (click)="togglePopupColumn(item.id, 'mid')"
+                                        class="verticalButton bottomLeft popup-collapsed-tab"
+                                        [label]="middleLabel"
+                                        [title]="'Expand ' + middleLabel.toLowerCase()"
+                                    ></p-button>
+                                }
+                            </div>
+                        }
+
+                        <div class="popup-column" [class.open]="popupColumns(item.id).post" [class.closed]="!popupColumns(item.id).post">
+                            @if (popupColumns(item.id).post) {
+                                <div class="popup-column-header">
+                                    <p-button
+                                        text
+                                        severity="secondary"
+                                        icon="pi pi-chevron-left"
+                                        (click)="togglePopupColumn(item.id, 'post')"
+                                        title="Collapse postcondition"
+                                        label="Postcondition"
+                                    ></p-button>
+                                </div>
+                                <div class="popup-column-body">
+                                    <app-condition-editor
+                                        placeholder="Post Condition"
+                                        [condition]="popupPostcondition(item)"
+                                        [editable]="_node.postconditionEditable | async"
+                                        [fill]="true"
+                                        (textChanged)="onEditableContentChanged()"
+                                        (synthesizeRequested)="synthesizeWithAi()"
+                                    ></app-condition-editor>
+                                </div>
+                            } @else {
+                                <p-button
+                                    text
+                                    severity="secondary"
+                                    icon="pi pi-chevron-right"
+                                    (click)="togglePopupColumn(item.id, 'post')"
+                                    class="verticalButton bottomLeft popup-collapsed-tab"
+                                    label="Postcondition"
+                                    title="Expand postcondition"
+                                ></p-button>
+                            }
+                        </div>
                     </div>
-                    <div class="popup-column-body">
-                        <ng-container *ngTemplateOutlet="middleTemplate; context: { popup: true, statement: this }"></ng-container>
-                    </div>
-                } @else {
-                    <p-button
-                            text
-                            severity="secondary"
-                            icon="pi pi-chevron-right"
-                            (click)="midOpen = true"
-                            class="verticalButton bottomLeft popup-collapsed-tab"
-                            label="Statement"
-                            title="Expand statement"
-                    ></p-button>
-                }
-            </div>
+                </p-accordion-content>
+            </p-accordion-panel>
         }
-
-        <div class="popup-column" [class.open]="postOpen" [class.closed]="!postOpen">
-            @if (postOpen) {
-                <div class="popup-column-header">
-                    <p-button
-                            text
-                            severity="secondary"
-                            icon="pi pi-chevron-left"
-                            (click)="postOpen = false"
-                            title="Collapse postcondition"
-                            label="Postcondition"
-                    ></p-button>
-                </div>
-                <div class="popup-column-body">
-                    <app-condition-editor
-                            placeholder="Post Condition"
-                            [condition]="_node.postcondition"
-                            [editable]="_node.postconditionEditable | async"
-                            [fill]="true"
-                            (textChanged)="onEditableContentChanged()"
-                            (synthesizeRequested)="synthesizeWithAi()"
-                    ></app-condition-editor>
-                </div>
-            } @else {
-                <p-button
-                        text
-                        severity="secondary"
-                        icon="pi pi-chevron-right"
-                        (click)="postOpen = true"
-                        class="verticalButton bottomLeft popup-collapsed-tab"
-                        label="Postcondition"
-                        title="Expand postcondition"
-                ></p-button>
-            }
-        </div>
-    </div>
+    </p-accordion>
 
     <ng-template #footer>
         <p-button (click)="dialogVisible = false" label="Close"></p-button>

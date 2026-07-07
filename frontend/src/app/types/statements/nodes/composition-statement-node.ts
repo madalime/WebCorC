@@ -54,6 +54,23 @@ export class CompositionStatementNode extends AbstractStatementNode {
     }
   }
 
+  /**
+   * The intermediate condition a specific verifier attaches to this composition.
+   * Bound to the intermediate condition slot, so it is shared with the first
+   * child's post- and the second child's precondition exactly like
+   * {@link intermediateCondition} itself.
+   * @param verifierId The id of the verifier owning the condition
+   */
+  public verifierIntermediateCondition(
+    verifierId: string,
+  ): BehaviorSubject<ICondition> {
+    return this.slotVerifierCondition(
+      this.intermediateCondition,
+      verifierId,
+      this.statement.verifierIntermediateConditions?.[verifierId],
+    );
+  }
+
   override overridePrecondition(condition: BehaviorSubject<ICondition>) {
     super.overridePrecondition(condition);
     this.firstStatementNode?.overridePrecondition(condition);
@@ -69,6 +86,11 @@ export class CompositionStatementNode extends AbstractStatementNode {
   override finalize() {
     super.finalize();
     this.statement.intermediateCondition = this.intermediateCondition.getValue();
+    this.statement.verifierIntermediateConditions =
+      CompositionStatementNode.finalizeSlotConditions(
+        this.intermediateCondition,
+        this.statement.verifierIntermediateConditions,
+      );
     this.firstStatementNode?.finalize();
     this.secondStatementNode?.finalize();
   }

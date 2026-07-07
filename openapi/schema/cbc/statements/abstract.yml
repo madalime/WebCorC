@@ -23,6 +23,9 @@ properties:
   postCondition:
     $ref: '../condition.yml'
 
+  verifierConditions:
+    $ref: '../verifierConditions.yml'
+
   position:
     $ref: '../position.yml'
 

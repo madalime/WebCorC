@@ -175,11 +175,21 @@ export function disconnectNodes(
   parent: AbstractStatementNode,
   child: AbstractStatementNode,
 ) {
+  const sharedPostcondition = child.postcondition;
+  const sharedPrecondition = child.precondition;
   child.overridePostcondition(
-    new BehaviorSubject<ICondition>(new Condition(child.postcondition.getValue().condition)),
+    new BehaviorSubject<ICondition>(new Condition(sharedPostcondition.getValue().condition)),
   );
   child.overridePrecondition(
-    new BehaviorSubject<ICondition>(new Condition(child.precondition.getValue().condition)),
+    new BehaviorSubject<ICondition>(new Condition(sharedPrecondition.getValue().condition)),
+  );
+  AbstractStatementNode.copySlotVerifierConditions(
+    sharedPostcondition,
+    child.postcondition,
+  );
+  AbstractStatementNode.copySlotVerifierConditions(
+    sharedPrecondition,
+    child.precondition,
   );
   parent.deleteChild(child);
   child.parent = undefined;

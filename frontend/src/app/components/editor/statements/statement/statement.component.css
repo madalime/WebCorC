@@ -92,7 +92,10 @@
 
 .popup-flex-row {
   display: flex;
-  height: 100%;
+  /* Definite height so the fill-mode condition editors (height: 100% / flex chains)
+     have something to resolve against inside the auto-height accordion content. */
+  height: 45vh;
+  min-height: 18rem;
   gap: 0.5rem;
   align-items: stretch;
 }

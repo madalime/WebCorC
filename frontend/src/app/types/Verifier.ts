@@ -1,4 +1,12 @@
 /**
+ * Well-known id of the primary (functional correctness) verifier. Every catalog is
+ * contractually guaranteed to contain it and to keep it enabled (`toggleable: false`).
+ * Unlike the other verifiers, its pre/postconditions are the statement's own
+ * `preCondition`/`postCondition`, not verifier-specific ones.
+ */
+export const PRIMARY_VERIFIER_ID = "func";
+
+/**
  * Whether a setting must be filled in. A required setting must declare a `default`
  * value used to preinitialize its input; an optional setting may still provide one.
  */
