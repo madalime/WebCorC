@@ -1,3 +1,8 @@
+::ng-deep .verify-splitbutton .p-splitbutton-button {
+  min-width: 175px;
+  justify-content: flex-start;
+}
+
 ::ng-deep .selected-verify-option .p-tieredmenu-item-content {
   background: color-mix(in srgb, var(--p-primary-color) 15%, transparent);
   color: var(--p-primary-color);

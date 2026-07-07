@@ -3,4 +3,5 @@
     [disabled]="isDisabled || isVerifying"
     [icon]="isVerifying ? 'pi pi-spin pi-spinner' : 'pi pi-check-circle'"
     [label]="verifyButtonLabel()"
-    (onClick)="verify()"/>
+    (onClick)="verify()"
+    class="verify-splitbutton"/>

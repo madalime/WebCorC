@@ -53,18 +53,18 @@ export class VerifyButtonGlobalComponent {
   private readonly verifyAllLabel: Signal<string> = computed(() => {
     const verifiers = this.verifierService.verifiers();
     const active = verifiers.filter((verifier) => verifier.enabled).length;
-    return `Verify all (${active}/${verifiers.length})`;
+    return `Verify (${active}/${verifiers.length})`;
   });
 
   private _verifyOptions: MenuItem[] = [
     {
       id: "all",
-      label: "Verify all",
+      label: "Verify",
       command: () => this.updateVerifyButtonState("all"),
     },
     {
       id: "functional",
-      label: "Verify functional",
+      label: "Verify only functional",
       command: () => this.updateVerifyButtonState("functional"),
     },
   ];
