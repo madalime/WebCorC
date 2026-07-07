@@ -2,7 +2,7 @@ import { Injectable, inject } from "@angular/core";
 import { IProjectElement, ProjectDirectory } from "../types/project-elements";
 import { CbcFormulaMapperService } from "../mapper/cbc-formula-mapper.service";
 import { ProjectPredicate } from "../../../types/ProjectPredicate";
-import { Verifier } from "../../../types/Verifier";
+import { VerifierOverrides } from "../../../types/Verifier";
 import { ProjectElementsMapperService } from "../types/project-elements-mapper.service";
 
 /**
@@ -127,7 +127,7 @@ export class ProjectStorageService {
     );
   }
 
-  public getVerifiers(): Verifier[] | null {
+  public getVerifierOverrides(): VerifierOverrides | null {
     const storageContent = sessionStorage.getItem(
       ProjectStorageService.projectVerifiersKey,
     );
@@ -135,10 +135,10 @@ export class ProjectStorageService {
     return JSON.parse(storageContent);
   }
 
-  public setVerifiers(verifiers: Verifier[]) {
+  public setVerifierOverrides(overrides: VerifierOverrides) {
     sessionStorage.setItem(
       ProjectStorageService.projectVerifiersKey,
-      JSON.stringify(verifiers),
+      JSON.stringify(overrides),
     );
   }
 }

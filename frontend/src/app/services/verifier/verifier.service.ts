@@ -1,17 +1,21 @@
 import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
-import { Verifier } from "../../types/Verifier";
+import { Verifier, VerifierOverrides } from "../../types/Verifier";
 import { ProjectService } from "../project/project.service";
+import { applyOverrides } from "./verifier-overrides";
 import { isSettingValid } from "./verifier-validation";
 
 /**
- * Service that owns the list of available verifiers and shares it across components.
+ * Service that owns the verifier state and shares it across components.
  *
- * The verifiers are currently hardcoded in the frontend but are exposed as a read-only
- * signal so that consumers update reactively once they are loaded from the backend. The
- * backend delivers the verifier list once at startup and is only mutated by the frontend
- * afterwards, so the consuming `@for (item of verifiers())` is the only reactivity needed
- * — there is no form to rebuild. When the backend integration lands, call `load(...)` with
- * the fetched verifiers; consumers do not need to change.
+ * State is split in two:
+ * - the read-only **base catalog** ({@link _base}) — currently hardcoded in
+ *   {@link DEFAULT_VERIFIERS}, later delivered by the backend once per session via
+ *   {@link loadBase};
+ * - a sparse **overrides** record ({@link _overrides}) that stores only the fields the
+ *   user has modified (enabled toggle and setting inputs).
+ *
+ * Consumers read {@link verifiers}, a `computed` that merges the two via
+ * {@link applyOverrides}, so the shape is identical to the previous single-signal design.
  */
 @Injectable({
   providedIn: "root",
@@ -20,11 +24,11 @@ export class VerifierService {
   private projectService = inject(ProjectService);
 
   private static readonly DEFAULT_VERIFIERS: Verifier[] = [
-    { id: 'func', label: 'Functional correctness', enabled: true, disableable: false },
+    { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
     { id: 'eebc', label: 'Energy efficiency', enabled: true, settings: [
       { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
       { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
-    ] },
+    ], variables: [] },
     { id: 'sec', label: 'Security', enabled: true, settings: [
         { id: 'test_value1', label: 'test_label1', type: 'text', default: 'test_default1' },
         { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' }],
@@ -32,30 +36,32 @@ export class VerifierService {
         { id: 'test', name: 'test', type: 'int', description: 'test description' },
         { id: 'test2', name: 'test2', type: 'boolean' },
     ] },
-    { id: 'maintain', label: 'Maintainability', enabled: false },
+    { id: 'maintain', label: 'Maintainability', enabled: false, settings: [], variables: [] },
   ];
 
-  private _verifiers: WritableSignal<Verifier[]> = signal<Verifier[]>(
-    this.seedInputs(VerifierService.DEFAULT_VERIFIERS),
-  );
+  private _base: WritableSignal<Verifier[]> = signal(VerifierService.DEFAULT_VERIFIERS);
+  private _overrides: WritableSignal<VerifierOverrides> = signal({});
 
   constructor() {
-    const cached = this.projectService.getVerifiers();
+    const cached = this.projectService.getVerifierOverrides();
     if (cached) {
-      this._verifiers.set(this.seedInputs(cached));
+      this._overrides.set(cached);
     }
-    this.projectService.verifiersLoaded.subscribe(() => {
-      const reloaded = this.projectService.getVerifiers();
+    this.projectService.verifierOverridesLoaded.subscribe(() => {
+      const reloaded = this.projectService.getVerifierOverrides();
       if (reloaded) {
-        this._verifiers.set(this.seedInputs(reloaded));
+        this._overrides.set(reloaded);
       }
     });
   }
 
   /**
    * Read-only signal of the available verifiers, shared across all consuming components.
+   * Recomputed automatically when either the base catalog or the overrides change.
    */
-  public readonly verifiers: Signal<Verifier[]> = this._verifiers.asReadonly();
+  public readonly verifiers: Signal<Verifier[]> = computed(() =>
+    applyOverrides(this._base(), this._overrides()),
+  );
 
   /**
    * Whether every enabled verifier has all of its settings valid: required settings filled
@@ -66,20 +72,18 @@ export class VerifierService {
    * verification" action.
    */
   public readonly verifiersValid: Signal<boolean> = computed(() =>
-    this._verifiers()
+    this.verifiers()
       .filter((verifier) => verifier.enabled)
-      .every((verifier) => (verifier.settings ?? []).every(isSettingValid)),
+      .every((verifier) => verifier.settings.every(isSettingValid)),
   );
 
   /**
-   * Replace the verifier list, e.g. once it has been fetched from the backend. Every
-   * setting's `input` is seeded from its `default` so the load path and the hardcoded
-   * initializer share the same preinitialization rule.
-   * @param verifiers The verifiers to load
+   * Replace the base verifier catalog, e.g. once it has been fetched from the backend.
+   * Does not persist — the catalog is backend-supplied, not user state.
+   * @param verifiers The verifiers to load as the new base
    */
-  public load(verifiers: Verifier[]): void {
-    this._verifiers.set(this.seedInputs(verifiers));
-    this.persist();
+  public loadBase(verifiers: Verifier[]): void {
+    this._base.set(verifiers);
   }
 
   /**
@@ -89,14 +93,15 @@ export class VerifierService {
    * @param enabled The new enabled state
    */
   public setEnabled(id: string, enabled: boolean): void {
-    this._verifiers.update((verifiers) =>
-      verifiers.map((v) => (v.id === id ? { ...v, enabled } : v)),
-    );
+    this._overrides.update((overrides) => {
+      const existing = overrides[id] ?? { settings: {} };
+      return { ...overrides, [id]: { ...existing, enabled } };
+    });
     this.persist();
   }
 
   /**
-   * Persist a settings input value into the shared signal. Routing changes through the
+   * Persist a settings input value into the overrides signal. Routing changes through the
    * service keeps it the single source of truth, so every consumer (side menu, bottom
    * menu) observes the same value.
    * @param verifierId The id of the verifier owning the setting
@@ -108,53 +113,33 @@ export class VerifierService {
     settingId: string,
     input: string,
   ): void {
-    this._verifiers.update((verifiers) =>
-      verifiers.map((verifier) =>
-        verifier.id === verifierId
-          ? {
-              ...verifier,
-              settings: verifier.settings?.map((setting) =>
-                setting.id === settingId ? { ...setting, input } : setting,
-              ),
-            }
-          : verifier,
-      ),
-    );
+    this._overrides.update((overrides) => {
+      const existing = overrides[verifierId] ?? { settings: {} };
+      return {
+        ...overrides,
+        [verifierId]: {
+          ...existing,
+          settings: { ...existing.settings, [settingId]: input },
+        },
+      };
+    });
     this.persist();
   }
 
   /**
-   * Push the current verifier list into the project's persistence layer (sessionStorage
+   * Push the current overrides into the project's persistence layer (sessionStorage
    * cache + `.internal/verifiers.json` project file). Called after every mutation so the
    * UI state is always in sync with the persisted state.
    */
   private persist(): void {
-    this.projectService.saveVerifiers(this._verifiers());
-  }
-
-  /**
-   * Seed every setting's `input` from its `default` when no `input` is present yet
-   * (`input ??= default ?? ''`). Applied to both the hardcoded initializer, to backend-loaded
-   * verifiers, and to cache-restored verifiers so the preinitialization rule cannot be
-   * forgotten on any path. Preserving an existing `input` is essential for the cache path —
-   * the user's typed values must survive a reload.
-   * @param verifiers The verifiers to normalize
-   */
-  private seedInputs(verifiers: Verifier[]): Verifier[] {
-    return verifiers.map((verifier) => ({
-      ...verifier,
-      settings: verifier.settings?.map((setting) => ({
-        ...setting,
-        input: setting.input ?? setting.default ?? "",
-      })),
-    }));
+    this.projectService.saveVerifierOverrides(this._overrides());
   }
 
   /**
    * Get the list of enabled verifiers.
    */
   public get activeVerifiers(): Verifier[] {
-    return this._verifiers().filter((verifier) => verifier.enabled);
+    return this.verifiers().filter((verifier) => verifier.enabled);
   }
 
   /**
@@ -163,14 +148,14 @@ export class VerifierService {
    * mirroring the {@link verifiersValid} gate. Returns an empty array when everything is valid.
    */
   public get invalidVerifierSettings(): Verifier[] {
-    return this._verifiers()
+    return this.verifiers()
       .filter((verifier) => verifier.enabled)
       .map((verifier) => ({
         ...verifier,
-        settings: (verifier.settings ?? []).filter(
+        settings: verifier.settings.filter(
           (setting) => !isSettingValid(setting),
         ),
       }))
-      .filter((verifier) => (verifier.settings ?? []).length > 0);
+      .filter((verifier) => verifier.settings.length > 0);
   }
 }

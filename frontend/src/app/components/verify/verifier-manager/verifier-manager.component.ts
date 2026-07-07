@@ -176,8 +176,8 @@ export class VerifierManagerComponent {
       .verifiers()
       .find((item) => item.id === id);
     return (
-      (verifier?.settings?.length ?? 0) > 0 ||
-      (verifier?.variables?.length ?? 0) > 0
+      (verifier?.settings.length ?? 0) > 0 ||
+      (verifier?.variables.length ?? 0) > 0
     );
   }
 

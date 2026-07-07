@@ -76,22 +76,41 @@ export interface VerifierVariable {
 
 /**
  * A verifier that can be toggled on or off and optionally configured through its settings.
+ *
+ * The base catalog is authored declaratively (currently hardcoded in `VerifierService`,
+ * eventually delivered by the backend). User modifications live in a separate
+ * {@link VerifierOverrides} record — a `Verifier` value that consumers see is the merged
+ * projection produced by {@link applyOverrides}, not the raw base.
  */
 export interface Verifier {
   id: string;
   label: string;
   enabled: boolean;
   /**
-   * Whether the user is allowed to disable this verifier. `false` means the enabled toggle
-   * is locked in the on position — the verifier is mandatory and will always run. Defaults
-   * to `true` (freely toggleable) when omitted.
+   * Whether the user can move the enabled toggle. Defaults to `true` (freely toggleable)
+   * when omitted. `false` locks the toggle at whatever `enabled` is declared as — enabling
+   * either a mandatory-on verifier (`enabled: true`) or a forced-off one (`enabled: false`).
    */
-  disableable?: boolean;
-  settings?: VerifierSetting[];
+  toggleable?: boolean;
+  settings: VerifierSetting[];
   /**
    * Domain variables the verifier operates on. Passed through to the verifier backend;
-   * the frontend does not interpret them beyond rendering. Omitted for verifiers that
-   * declare no variables.
+   * the frontend does not interpret them beyond rendering.
    */
-  variables?: VerifierVariable[];
+  variables: VerifierVariable[];
 }
+
+/**
+ * User's persisted modifications to the base verifier catalog, keyed by verifier id.
+ * Sparse: entries are created lazily on first user interaction and never removed even if
+ * the user reverts to the base value. `enabled` is optional per entry — when absent, the
+ * merged view falls back to the base's `enabled`. `settings` maps each modified setting's
+ * id to its raw input string.
+ */
+export type VerifierOverrides = Record<
+  string,
+  {
+    enabled?: boolean;
+    settings: Record<string, string>;
+  }
+>;

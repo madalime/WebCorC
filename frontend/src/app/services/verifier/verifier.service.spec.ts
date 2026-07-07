@@ -1,4 +1,5 @@
 import { TestBed } from "@angular/core/testing";
+import { Subject } from "rxjs";
 
 import { ProjectService } from "../project/project.service";
 import { VerifierService } from "./verifier.service";
@@ -8,8 +9,9 @@ describe("VerifierService", () => {
 
   beforeEach(() => {
     const projectServiceStub: Partial<ProjectService> = {
-      getVerifiers: () => null,
-      saveVerifiers: () => undefined,
+      getVerifierOverrides: () => null,
+      saveVerifierOverrides: () => undefined,
+      verifierOverridesLoaded: new Subject<void>(),
     };
     TestBed.configureTestingModule({
       providers: [{ provide: ProjectService, useValue: projectServiceStub }],
@@ -22,58 +24,68 @@ describe("VerifierService", () => {
   });
 
   it("seeds setting inputs from their default on load", () => {
-    service.load([
+    service.loadBase([
       { id: 'v', label: 'V', enabled: true, settings: [
         { id: 'withDefault', label: 'a', type: 'text', required: true, default: 'd' },
         { id: 'withoutDefault', label: 'b', type: 'text' },
-      ] },
+      ], variables: [] },
     ]);
 
-    const settings = service.verifiers()[0].settings ?? [];
+    const settings = service.verifiers()[0].settings;
     expect(settings[0].input).toBe('d');
     expect(settings[1].input).toBe('');
   });
 
   it("persists a setting input through updateSetting", () => {
-    service.load([
+    service.loadBase([
       { id: 'v', label: 'V', enabled: true, settings: [
         { id: 's', label: 's', type: 'text' },
-      ] },
+      ], variables: [] },
     ]);
 
     service.updateSetting('v', 's', 'typed');
 
-    expect(service.verifiers()[0].settings?.[0].input).toBe('typed');
+    expect(service.verifiers()[0].settings[0].input).toBe('typed');
+  });
+
+  it("reflects setEnabled in the merged verifier list", () => {
+    service.loadBase([
+      { id: 'v', label: 'V', enabled: true, settings: [], variables: [] },
+    ]);
+
+    service.setEnabled('v', false);
+
+    expect(service.verifiers()[0].enabled).toBeFalse();
   });
 
   it("ignores empty required settings of disabled verifiers for validity", () => {
-    service.load([
+    service.loadBase([
       { id: 'on', label: 'On', enabled: true, settings: [
         { id: 's', label: 's', type: 'text', required: true, default: 'ok' },
-      ] },
+      ], variables: [] },
       { id: 'off', label: 'Off', enabled: false, settings: [
         { id: 's', label: 's', type: 'text', required: true, default: '' },
-      ] },
+      ], variables: [] },
     ]);
 
     expect(service.verifiersValid()).toBeTrue();
   });
 
   it("is invalid when an enabled verifier has an empty required setting", () => {
-    service.load([
+    service.loadBase([
       { id: 'on', label: 'On', enabled: true, settings: [
         { id: 's', label: 's', type: 'text', required: true, default: '' },
-      ] },
+      ], variables: [] },
     ]);
 
     expect(service.verifiersValid()).toBeFalse();
   });
 
   it("treats a numeric setting within range and on the step grid as valid", () => {
-    service.load([
+    service.loadBase([
       { id: 'v', label: 'V', enabled: true, settings: [
         { id: 'n', label: 'n', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 10 } },
-      ] },
+      ], variables: [] },
     ]);
 
     service.updateSetting('v', 'n', '2.5');
@@ -82,10 +94,10 @@ describe("VerifierService", () => {
   });
 
   it("is invalid when a numeric setting is out of range", () => {
-    service.load([
+    service.loadBase([
       { id: 'v', label: 'V', enabled: true, settings: [
         { id: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 0, max: 10 } },
-      ] },
+      ], variables: [] },
     ]);
 
     service.updateSetting('v', 'n', '20');
@@ -94,10 +106,10 @@ describe("VerifierService", () => {
   });
 
   it("is invalid when a numeric setting violates its step (non-integer with default step 1)", () => {
-    service.load([
+    service.loadBase([
       { id: 'v', label: 'V', enabled: true, settings: [
         { id: 'n', label: 'n', type: 'text', valueType: 'number' },
-      ] },
+      ], variables: [] },
     ]);
 
     service.updateSetting('v', 'n', '4.2');
@@ -106,10 +118,10 @@ describe("VerifierService", () => {
   });
 
   it("treats an empty optional numeric setting as valid", () => {
-    service.load([
+    service.loadBase([
       { id: 'v', label: 'V', enabled: true, settings: [
         { id: 'n', label: 'n', type: 'text', valueType: 'number', range: { min: 1, max: 10 } },
-      ] },
+      ], variables: [] },
     ]);
 
     expect(service.verifiersValid()).toBeTrue();

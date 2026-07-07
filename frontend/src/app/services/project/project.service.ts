@@ -12,7 +12,7 @@ import { ProjectElementsMapperService } from "./types/project-elements-mapper.se
 import { ProjectStorageService } from "./storage/project-storage.service";
 import { Inode, LocalDirectory } from "./types/api-elements";
 import { ProjectPredicate } from "../../types/ProjectPredicate";
-import { Verifier } from "../../types/Verifier";
+import { VerifierOverrides } from "../../types/Verifier";
 import { GlobalSettingsService } from "../global-settings.service";
 
 /**
@@ -36,7 +36,7 @@ export class ProjectService {
   );
   private _saveNotify = new Subject<void>();
   private _savedFinished = new Subject<void>();
-  private _verifiersLoaded = new Subject<void>();
+  private _verifierOverridesLoaded = new Subject<void>();
   private _projectName: string = "";
   private rubbishBinName = ".rubbishBin";
 
@@ -404,8 +404,8 @@ export class ProjectService {
     return this.storage.getPredicates();
   }
 
-  public saveVerifiers(verifiers: Verifier[]) {
-    this.storage.setVerifiers(verifiers);
+  public saveVerifierOverrides(overrides: VerifierOverrides) {
+    this.storage.setVerifierOverrides(overrides);
 
     const internalDirName = ".internal";
     const verifiersFileName = "verifiers";
@@ -423,15 +423,15 @@ export class ProjectService {
     try {
       this.syncLocalFileContent(
         verifiersFileUrn,
-        JSON.stringify(verifiers, null, 2),
+        JSON.stringify(overrides, null, 2),
       );
     } catch (e) {
       console.error(`Could not sync verifiers file: ${e}`);
     }
   }
 
-  public getVerifiers(): Verifier[] | null {
-    return this.storage.getVerifiers();
+  public getVerifierOverrides(): VerifierOverrides | null {
+    return this.storage.getVerifierOverrides();
   }
 
   /**
@@ -812,9 +812,9 @@ export class ProjectService {
     try {
       const content = await this.getFileContent(verifiersFileUrn);
       if (typeof content === "string") {
-        const verifiers = JSON.parse(content) as Verifier[];
-        this.storage.setVerifiers(verifiers);
-        this._verifiersLoaded.next();
+        const overrides = JSON.parse(content) as VerifierOverrides;
+        this.storage.setVerifierOverrides(overrides);
+        this._verifierOverridesLoaded.next();
       }
     } catch (e) {
       console.log(
@@ -824,12 +824,12 @@ export class ProjectService {
   }
 
   /**
-   * Fires when the verifier list has just been hydrated from `.internal/verifiers.json`
+   * Fires when the verifier overrides have just been hydrated from `.internal/verifiers.json`
    * (e.g. after `downloadWorkspace` or `importProject`). The {@link VerifierService}
    * subscribes to this to re-read the cache and refresh its signal so the UI updates.
    */
-  public get verifiersLoaded() {
-    return this._verifiersLoaded;
+  public get verifierOverridesLoaded() {
+    return this._verifierOverridesLoaded;
   }
 
   public notifyEditortoSave() {

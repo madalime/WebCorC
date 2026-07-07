@@ -1,12 +1,12 @@
 <p-accordion [value]="expandedSections" [multiple]="true" (valueChange)="updateExpandedSections($event)">
   @for (item of items; track item.id) {
-    @if ((typeof item.settings === 'undefined' || item.settings.length === 0) && (typeof item.variables === 'undefined' || item.variables.length === 0)) {
+    @if (item.settings.length === 0 && item.variables.length === 0) {
       <p-accordion-panel [value]="item.id">
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
                 [ngModel]="item.enabled"
-                [disabled]="item.disableable === false"
+                [disabled]="item.toggleable === false"
                 (click)="$event.stopPropagation()"
                 (ngModelChange)="onToggle(item, $event)" />
             <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
@@ -28,14 +28,14 @@
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
                 [ngModel]="item.enabled"
-                [disabled]="item.disableable === false"
+                [disabled]="item.toggleable === false"
                 (click)="$event.stopPropagation()"
                 (ngModelChange)="onToggle(item, $event)" />
             <span [class.opacity-50]="!item.enabled">{{ item.label }}</span>
           </span>
         </p-accordion-header>
         <p-accordion-content>
-          @if (item.settings && item.settings.length > 0) {
+          @if (item.settings.length > 0) {
           @for (field of item.settings; track field.id) {
             <div class="field">
               @if (field.type === 'text' && field.valueType === 'number') {
@@ -139,7 +139,7 @@
           }
           }
 
-          @if (item.variables && item.variables.length > 0) {
+          @if (item.variables.length > 0) {
             <div class="variables">
               <div class="variables-header">Variables</div>
               <ul class="variables-list">
