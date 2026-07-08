@@ -12,6 +12,22 @@ p-accordion {
     overflow: auto;
 }
 
+.boolean-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0 1rem;
+}
+
+.boolean-label {
+    flex: 1 1 auto;
+}
+
+.boolean-field button .pi {
+    display: block;
+    line-height: 1;
+}
+
 .variables {
     margin-top: 0.5rem;
 }

@@ -117,6 +117,19 @@ describe("VerifierService", () => {
     expect(service.verifiersValid()).toBeFalse();
   });
 
+  it("persists a boolean setting input through updateSetting and stays valid", () => {
+    service.loadBase([
+      { id: 'v', label: 'V', enabled: true, settings: [
+        { id: 'flag', label: 'flag', type: 'boolean', default: false },
+      ], variables: [] },
+    ]);
+
+    service.updateSetting('v', 'flag', true);
+
+    expect(service.verifiers()[0].settings[0].input).toBeTrue();
+    expect(service.verifiersValid()).toBeTrue();
+  });
+
   it("treats an empty optional numeric setting as valid", () => {
     service.loadBase([
       { id: 'v', label: 'V', enabled: true, settings: [

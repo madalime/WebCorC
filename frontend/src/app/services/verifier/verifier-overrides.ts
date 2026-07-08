@@ -8,9 +8,11 @@ import { Verifier, VerifierOverrides } from "../../types/Verifier";
  * - `enabled` uses the override when present, unless the base verifier has
  *   `toggleable === false` — in which case the base's `enabled` wins and the rejected
  *   override value is `console.debug`-logged.
- * - Each setting's `input` uses the override string verbatim when present; otherwise
- *   it is seeded from `default ?? ''`. For `select` settings the override must match
- *   one of the current option ids or it falls back to the default (and is logged).
+ * - Each setting's `input` uses the override value verbatim when present; otherwise it
+ *   is seeded from the default (`default ?? ''` for string-valued settings, the
+ *   mandatory `default` for boolean ones). An override whose runtime type does not
+ *   match the setting (string vs boolean), or a `select` override that is not one of
+ *   the current option ids, falls back to the default (and is logged).
  * - Numeric-text settings pass through as-is (out-of-range / off-step values surface in
  *   the UI via mat-error rather than being sanitized here).
  * - Orphan override entries — for verifier ids not in the base, or setting ids not in
@@ -48,22 +50,30 @@ export function applyOverrides(
     return {
       ...verifier,
       enabled,
-      settings: verifier.settings.map((setting) => ({
-        ...setting,
-        input: resolveInput(verifier.id, setting, override?.settings?.[setting.id]),
-      })),
+      settings: verifier.settings.map((setting) => {
+        const overrideInput = override?.settings?.[setting.id];
+        return setting.type === "boolean"
+          ? { ...setting, input: resolveBooleanInput(verifier.id, setting, overrideInput) }
+          : { ...setting, input: resolveStringInput(verifier.id, setting, overrideInput) };
+      }),
       variables: verifier.variables,
     };
   });
 }
 
-function resolveInput(
+function resolveStringInput(
   verifierId: string,
-  setting: Verifier["settings"][number],
-  overrideInput: string | undefined,
+  setting: Exclude<Verifier["settings"][number], { type: "boolean" }>,
+  overrideInput: string | boolean | undefined,
 ): string {
   const fallback = setting.default ?? "";
   if (overrideInput === undefined) {
+    return fallback;
+  }
+  if (typeof overrideInput !== "string") {
+    console.debug(
+      `Verifier setting override for "${verifierId}.${setting.id}" (${overrideInput}) is not a string; falling back to default (${fallback}).`,
+    );
     return fallback;
   }
   if (
@@ -74,6 +84,23 @@ function resolveInput(
       `Verifier setting override for "${verifierId}.${setting.id}" (${overrideInput}) is not in current options; falling back to default (${fallback}).`,
     );
     return fallback;
+  }
+  return overrideInput;
+}
+
+function resolveBooleanInput(
+  verifierId: string,
+  setting: Extract<Verifier["settings"][number], { type: "boolean" }>,
+  overrideInput: string | boolean | undefined,
+): boolean {
+  if (overrideInput === undefined) {
+    return setting.default;
+  }
+  if (typeof overrideInput !== "boolean") {
+    console.debug(
+      `Verifier setting override for "${verifierId}.${setting.id}" (${overrideInput}) is not a boolean; falling back to default (${setting.default}).`,
+    );
+    return setting.default;
   }
   return overrideInput;
 }

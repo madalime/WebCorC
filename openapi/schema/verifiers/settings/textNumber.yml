@@ -1,6 +1,6 @@
 description: VerifierTextNumberSetting
 allOf:
-  - $ref: './abstract.yml'
+  - $ref: './stringValued.yml'
   - type: object
     properties:
       type:

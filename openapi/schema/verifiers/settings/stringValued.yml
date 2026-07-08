@@ -1,0 +1,25 @@
+description: >-
+  StringValuedVerifierSetting — value carrier shared by the text and select settings.
+  Boolean settings do not extend this: a toggle cannot produce an invalid value, so
+  they carry a real boolean `input`/`default` instead.
+allOf:
+  - $ref: './abstract.yml'
+  - type: object
+    properties:
+      input:
+        type: string
+        description: >-
+          Current, persisted value of the setting. Seeded from `default` on load. Always a
+          string — numeric settings store their value as a canonical `.`-separated decimal
+          string.
+
+      required:
+        type: boolean
+        description: >-
+          Whether the setting must be filled in. When `true`, `default` must be provided.
+
+      default:
+        type: string
+        description: >-
+          Value used to preinitialize the input. Mandatory when `required` is `true`,
+          optional otherwise.

@@ -31,7 +31,8 @@ export class VerifierService {
     ], variables: [] },
     { id: 'sec', label: 'Security', enabled: true, settings: [
         { id: 'test_value1', label: 'test_label1', type: 'text', default: 'test_default1' },
-        { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' }],
+        { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' },
+        { id: 'test_flag', label: 'test_flag', description: 'Test boolean setting rendered as a toggle', type: 'boolean', default: false }],
       variables: [
         { id: 'test', name: 'test', type: 'int', description: 'test description' },
         { id: 'test2', name: 'test2', type: 'boolean' },
@@ -106,12 +107,13 @@ export class VerifierService {
    * menu) observes the same value.
    * @param verifierId The id of the verifier owning the setting
    * @param settingId The id (key) of the setting to update
-   * @param input The new input value
+   * @param input The new input value — a string for text/select settings, a boolean for
+   *   boolean settings
    */
   public updateSetting(
     verifierId: string,
     settingId: string,
-    input: string,
+    input: string | boolean,
   ): void {
     this._overrides.update((overrides) => {
       const existing = overrides[verifierId] ?? { settings: {} };

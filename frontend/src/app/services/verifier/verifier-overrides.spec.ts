@@ -104,6 +104,77 @@ describe("applyOverrides", () => {
     expect(message).toContain("a");
   });
 
+  it("seeds a boolean setting from its default and applies a boolean override verbatim", () => {
+    const base: Verifier[] = [
+      {
+        id: "v",
+        label: "V",
+        enabled: true,
+        settings: [
+          { id: "seeded", label: "seeded", type: "boolean", default: true },
+          { id: "flag", label: "flag", type: "boolean", default: false },
+        ],
+        variables: [],
+      },
+    ];
+    const overrides: VerifierOverrides = { v: { settings: { flag: true } } };
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].settings[0].input).toBeTrue();
+    expect(merged[0].settings[1].input).toBeTrue();
+  });
+
+  it("falls back to the default when a boolean setting override is not a boolean", () => {
+    const base: Verifier[] = [
+      {
+        id: "v",
+        label: "V",
+        enabled: true,
+        settings: [
+          { id: "flag", label: "flag", type: "boolean", default: false },
+        ],
+        variables: [],
+      },
+    ];
+    // the legacy canonical-string form must be rejected too, not silently coerced
+    const overrides: VerifierOverrides = { v: { settings: { flag: "true" } } };
+    const debug = spyOn(console, "debug");
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].settings[0].input).toBeFalse();
+    expect(debug).toHaveBeenCalled();
+    const message = debug.calls.mostRecent().args.join(" ");
+    expect(message).toContain("v");
+    expect(message).toContain("flag");
+    expect(message).toContain("true");
+    expect(message).toContain("false");
+  });
+
+  it("falls back to the default when a string setting override is not a string", () => {
+    const base: Verifier[] = [
+      {
+        id: "v",
+        label: "V",
+        enabled: true,
+        settings: [{ id: "s", label: "s", type: "text", default: "d" }],
+        variables: [],
+      },
+    ];
+    const overrides: VerifierOverrides = { v: { settings: { s: true } } };
+    const debug = spyOn(console, "debug");
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].settings[0].input).toBe("d");
+    expect(debug).toHaveBeenCalled();
+    const message = debug.calls.mostRecent().args.join(" ");
+    expect(message).toContain("v");
+    expect(message).toContain("s");
+    expect(message).toContain("d");
+  });
+
   it("passes a numeric text override through verbatim even when out of range", () => {
     const base: Verifier[] = [
       {

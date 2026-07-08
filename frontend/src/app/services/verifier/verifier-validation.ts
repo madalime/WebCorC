@@ -61,12 +61,16 @@ export function numberInputError(
 }
 
 /**
- * Whether a single setting is currently valid for the purpose of gating a run. Required
- * settings must be non-empty; non-empty numeric settings must satisfy their constraints.
- * Empty optional settings are valid.
+ * Whether a single setting is currently valid for the purpose of gating a run. Boolean
+ * settings are always valid — a toggle can only produce `true`/`false` and its default
+ * is mandatory. Required string-valued settings must be non-empty; non-empty numeric
+ * settings must satisfy their constraints. Empty optional settings are valid.
  * @param setting The setting to validate
  */
 export function isSettingValid(setting: VerifierSetting): boolean {
+  if (setting.type === 'boolean') {
+    return true;
+  }
   const input = setting.input ?? '';
   if (setting.required && input.trim().length === 0) {
     return false;

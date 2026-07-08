@@ -94,12 +94,14 @@ export class VerifierManagerComponent {
 
   /**
    * Persist a settings input change to the shared service, keeping it the single source of
-   * truth across every consuming component. Every input (text, numeric, select) binds as a
-   * plain string — numeric settings render as `type="text"` so non-numeric text survives to
-   * be validated rather than being swallowed by a native number input; `null`/`undefined` is
-   * coerced to `''`, so emptiness is always `''`. Invalid values are persisted on purpose:
-   * the field flags them via `mat-error` and the service's `verifiersValid` gate blocks their
-   * use, so the model never lies about its view.
+   * truth across every consuming component. Text, numeric and select inputs bind as plain
+   * strings — numeric settings render as `type="text"` so non-numeric text survives to be
+   * validated rather than being swallowed by a native number input; `null`/`undefined` is
+   * coerced to `''`, so emptiness is always `''`. Boolean toggles report a real boolean that
+   * is passed through untouched — a toggle cannot produce an invalid value, so there is
+   * nothing to round-trip. Invalid string values are persisted on purpose: the field flags
+   * them via `mat-error` and the service's `verifiersValid` gate blocks their use, so the
+   * model never lies about its view.
    * @param item The verifier owning the setting
    * @param setting The setting that changed
    * @param value The new input value as reported by the bound control
@@ -107,12 +109,12 @@ export class VerifierManagerComponent {
   public onSettingChange(
     item: Verifier,
     setting: VerifierSetting,
-    value: string | number | null,
+    value: string | number | boolean | null,
   ) {
     this.verifierService.updateSetting(
       item.id,
       setting.id,
-      value == null ? "" : String(value),
+      typeof value === "boolean" ? value : value == null ? "" : String(value),
     );
   }
 
@@ -153,7 +155,12 @@ export class VerifierManagerComponent {
    */
   public getDescription(field: VerifierSetting): string | undefined {
     const description = field.description;
-    const defaultValue = field.default;
+    // `false` is a real boolean default and must still be shown; only undefined and the
+    // empty string mean "no default"
+    const defaultValue =
+      field.default === undefined || field.default === ""
+        ? undefined
+        : String(field.default);
     if (description && defaultValue) {
       return description + " (default: " + defaultValue + ")";
     } else if (description) {

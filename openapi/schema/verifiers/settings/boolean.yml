@@ -1,0 +1,29 @@
+description: VerifierBooleanSetting
+allOf:
+  - $ref: './abstract.yml'
+  - type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - boolean
+        description: Rendered as a toggle switch.
+
+      input:
+        type: boolean
+        description: >-
+          Current, persisted value of the setting. Seeded from `default` on load.
+          A real boolean, unlike the string-valued settings — a toggle cannot
+          produce an invalid value, so there is nothing to round-trip for
+          validation.
+
+      default:
+        type: boolean
+        description: >-
+          Value used to preinitialize the toggle. Mandatory — a toggle always
+          shows a state, so the catalog must declare the initial one; there is no
+          unset value and `required` does not apply.
+
+    required:
+      - type
+      - default

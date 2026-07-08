@@ -134,6 +134,25 @@
                     </button>
                   }
                 </mat-form-field>
+              } @else if (field.type === 'boolean') {
+                <div class="boolean-field">
+                  <span class="boolean-label">{{ field.label }}</span>
+                  @if (getDescription(field); as description) {
+                    <button
+                        mat-icon-button
+                        type="button"
+                        [matTooltip]="description"
+                        [attr.aria-label]="description"
+                        (click)="$event.stopPropagation()">
+                      <i class="pi pi-info-circle"></i>
+                    </button>
+                  }
+                  <p-toggleswitch
+                      [ngModel]="field.input ?? field.default"
+                      (ngModelChange)="onSettingChange(item, field, $event)"
+                      [ngModelOptions]="{ standalone: true }"
+                      [attr.aria-label]="field.label" />
+                </div>
               }
             </div>
           }
