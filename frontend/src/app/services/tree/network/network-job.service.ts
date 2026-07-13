@@ -117,6 +117,9 @@ export class NetworkJobService {
    * @param statementNode The statement node being verified
    * @param projectId The id of the project
    * @param urn urn of the file being verified
+   * @param functionalOnly when true, instructs the backend to run only the default (functional) verification
+   *                       and ignore the project-wide verifiers stored in `.internal/verifiers.json`;
+   *                       when false, runs all enabled project-wide verifiers
    * @param onComplete Callback to execute when verification completes (success or error)
    */
   public verifyStatement(
@@ -124,9 +127,10 @@ export class NetworkJobService {
     statementNode: AbstractStatementNode,
     projectId: string | undefined,
     urn: string,
+    functionalOnly: boolean,
     onComplete: () => void,
   ) {
-    let params = new HttpParams();
+    let params = new HttpParams().set("functionalOnly", functionalOnly ? "true" : "false");
 
     if (projectId) {
       params = params.set("projectId", projectId);

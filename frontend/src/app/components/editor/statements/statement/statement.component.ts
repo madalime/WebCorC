@@ -199,6 +199,7 @@ export class StatementComponent {
       this._node,
       this.projectService.projectId,
       this.treeService.urn,
+      this.verifierService.functionalOnly(),
       () => {
         this.isVerifying.set(false);
       },

@@ -88,6 +88,24 @@ export class VerifierService {
   }
 
   /**
+   * Whether verification runs only the default functional verification instead of all
+   * enabled verifiers. Selected via the global verify split button and applied to both
+   * the global verify and per-statement verify. Session state only — not persisted with
+   * the overrides.
+   */
+  private _functionalOnly: WritableSignal<boolean> = signal(false);
+  public readonly functionalOnly: Signal<boolean> =
+    this._functionalOnly.asReadonly();
+
+  /**
+   * Select between functional-only and all-verifiers verification.
+   * @param functionalOnly When true, only the default functional verification runs
+   */
+  public setFunctionalOnly(functionalOnly: boolean): void {
+    this._functionalOnly.set(functionalOnly);
+  }
+
+  /**
    * Update whether the verifier with the given id is enabled. Mutating shared state
    * goes through the service so every consumer observes the same enabled state.
    * @param id The id of the verifier to toggle

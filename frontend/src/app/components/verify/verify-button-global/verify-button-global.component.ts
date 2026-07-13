@@ -1,7 +1,6 @@
 import {
   Component,
   Signal,
-  WritableSignal,
   computed,
   signal,
   inject,
@@ -59,7 +58,7 @@ export class VerifyButtonGlobalComponent {
   private _verifyOptions: MenuItem[] = [
     {
       id: "all",
-      label: "Verify",
+      label: "Verify all",
       command: () => this.updateVerifyButtonState("all"),
     },
     {
@@ -74,9 +73,14 @@ export class VerifyButtonGlobalComponent {
     { id: "functional", label: signal("Verify functional") },
   ];
 
-  private _verifyButtonState: WritableSignal<VerifyState> = signal(
-    this._verifyStates[0],
-  );
+  /**
+   * The selected verify mode, derived from the shared functional-only flag in
+   * {@link VerifierService} so per-statement verification uses the same selection.
+   */
+  private _verifyButtonState: Signal<VerifyState> = computed(() => {
+    const id = this.verifierService.functionalOnly() ? "functional" : "all";
+    return this._verifyStates.find((state) => state.id === id)!;
+  });
 
   /**
    * Triggered on pressing the verify Button.
@@ -132,7 +136,7 @@ export class VerifyButtonGlobalComponent {
             this.treeService.rootFormula,
             this.projectService.projectId,
             this.treeService.urn,
-            this._verifyButtonState().id !== "all",
+            this.verifierService.functionalOnly(),
           );
         },
       });
@@ -142,7 +146,7 @@ export class VerifyButtonGlobalComponent {
         this.treeService.rootFormula,
         this.projectService.projectId,
         this.treeService.urn,
-        this._verifyButtonState().id !== "all",
+        this.verifierService.functionalOnly(),
       );
     }
   }
@@ -158,10 +162,7 @@ export class VerifyButtonGlobalComponent {
   }
 
   protected updateVerifyButtonState(id: string) {
-    const state = this._verifyStates.find((state) => state.id === id);
-    if (state) {
-      this._verifyButtonState.set(state);
-    }
+    this.verifierService.setFunctionalOnly(id === "functional");
   }
 
   /**
