@@ -201,9 +201,38 @@
 
     <p-accordion [multiple]="true" [(value)]="openPanels">
         @for (item of items; track item.id) {
+            @if (!hasBody(item)) {
+                <p-accordion-panel [value]="item.id">
+                    <p-accordion-header>
+                        <span class="flex items-center gap-2 w-full min-w-0">
+                            <span>{{ item.label }}</span>
+                            @if (item.status_placeholder) {
+                                <span class="verifier-status"
+                                      [matTooltip]="item.status_placeholder"
+                                      [attr.aria-label]="item.status_placeholder">{{ item.status_placeholder }}</span>
+                            }
+                        </span>
+                        <!--
+                          Bodyless panels (status-only verifiers) are static: no chevron, no
+                          expandable content. An empty #toggleicon template overrides PrimeNG's
+                          default chevron slot. The "Unused constant toggleicon" hint is
+                          editor-only (Angular Language Service): the ref is consumed by
+                          AccordionHeader's ContentChild query, not the template.
+                        -->
+                        <ng-template #toggleicon></ng-template>
+                    </p-accordion-header>
+                </p-accordion-panel>
+            } @else {
             <p-accordion-panel [value]="item.id">
                 <p-accordion-header>
-                    <span class="flex items-center gap-2 w-full">{{ item.label }}</span>
+                    <span class="flex items-center gap-2 w-full min-w-0">
+                        <span>{{ item.label }}</span>
+                        @if (item.status_placeholder) {
+                            <span class="verifier-status"
+                                  [matTooltip]="item.status_placeholder"
+                                  [attr.aria-label]="item.status_placeholder">{{ item.status_placeholder }}</span>
+                        }
+                    </span>
                 </p-accordion-header>
                 <p-accordion-content>
                     <div class="popup-flex-row">
@@ -309,6 +338,7 @@
                     </div>
                 </p-accordion-content>
             </p-accordion-panel>
+            }
         }
     </p-accordion>
 

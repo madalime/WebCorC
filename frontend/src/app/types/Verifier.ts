@@ -119,6 +119,7 @@ export interface Verifier {
   id: string;
   label: string;
   enabled: boolean;
+  status_placeholder?: string;
   /**
    * Whether the user can move the enabled toggle. Defaults to `true` (freely toggleable)
    * when omitted. `false` locks the toggle at whatever `enabled` is declared as — enabling

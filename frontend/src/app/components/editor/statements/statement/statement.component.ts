@@ -44,6 +44,7 @@ import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-s
 import {VerifierService} from "../../../../services/verifier/verifier.service";
 import {PRIMARY_VERIFIER_ID, Verifier} from "../../../../types/Verifier";
 import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
+import { MatTooltip } from "@angular/material/tooltip";
 import { BehaviorSubject } from "rxjs";
 import { ICondition } from "../../../../types/condition/condition";
 
@@ -81,6 +82,7 @@ import { ICondition } from "../../../../types/condition/condition";
     AccordionPanel,
     AccordionHeader,
     AccordionContent,
+    MatTooltip,
   ],
   templateUrl: "./statement.component.html",
   styleUrl: "./statement.component.css",
@@ -181,6 +183,10 @@ export class StatementComponent {
     }
   }
 
+  public getStatementLabel(node: AbstractStatementNode): string {
+    return node.statement.nodeState.replace(/-/g, " ");
+  }
+
   public verifyStatement(): void {
     if (this.isVerifying()) {
       return;
@@ -238,9 +244,22 @@ export class StatementComponent {
   };
 
   /**
-   * The verifiers shown as popup accordion panels: enabled ones whose panel has
-   * content — the primary verifier (statement + the node's own pre/post) and any
-   * verifier that declares variables (verifier-specific pre/post).
+   * Whether the verifier's popup panel has an expandable body (pre/statement/post
+   * columns): true for the primary verifier and any verifier with variables. A
+   * status-only verifier renders as a static header, matching the settings-less
+   * pattern in verifier-manager.
+   */
+  public hasBody(verifier: Verifier): boolean {
+    return (
+        verifier.id === PRIMARY_VERIFIER_ID || verifier.variables.length > 0
+    );
+  }
+
+  /**
+   * The verifiers shown as popup accordion panels: enabled ones that either have
+   * expandable content (primary verifier or a verifier with variables) or that
+   * carry a `status` string to surface in the header. Status-only verifiers render
+   * as a static header (no chevron, no body).
    */
   public get items(): Verifier[] {
     return this.verifierService
@@ -248,8 +267,8 @@ export class StatementComponent {
       .filter(
         (verifier) =>
           verifier.enabled &&
-          (verifier.id === PRIMARY_VERIFIER_ID ||
-            verifier.variables.length > 0),
+          (this.hasBody(verifier) ||
+            verifier.status_placeholder),
       );
   }
 

@@ -8,6 +8,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [
           { id: "withDefault", label: "a", type: "text", required: true, default: "d" },
           { id: "withoutDefault", label: "b", type: "text" },
@@ -25,7 +26,7 @@ describe("applyOverrides", () => {
 
   it("applies an enabled override on a toggleable verifier", () => {
     const base: Verifier[] = [
-      { id: "v", label: "V", enabled: false, settings: [], variables: [] },
+      { id: "v", label: "V", enabled: false, status_placeholder: "", settings: [], variables: [] },
     ];
     const overrides: VerifierOverrides = { v: { enabled: true, settings: {} } };
 
@@ -36,7 +37,7 @@ describe("applyOverrides", () => {
 
   it("rejects an enabled override on a toggleable:false verifier and logs the rejected value", () => {
     const base: Verifier[] = [
-      { id: "v", label: "V", enabled: true, toggleable: false, settings: [], variables: [] },
+      { id: "v", label: "V", enabled: true, status_placeholder: "", toggleable: false, settings: [], variables: [] },
     ];
     const overrides: VerifierOverrides = { v: { enabled: false, settings: {} } };
     const debug = spyOn(console, "debug");
@@ -57,6 +58,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [{ id: "s", label: "s", type: "text", default: "d" }],
         variables: [],
       },
@@ -74,6 +76,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [
           {
             id: "sel",
@@ -110,6 +113,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [
           { id: "seeded", label: "seeded", type: "boolean", default: true },
           { id: "flag", label: "flag", type: "boolean", default: false },
@@ -131,6 +135,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [
           { id: "flag", label: "flag", type: "boolean", default: false },
         ],
@@ -158,6 +163,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [{ id: "s", label: "s", type: "text", default: "d" }],
         variables: [],
       },
@@ -181,6 +187,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [
           { id: "n", label: "n", type: "text", valueType: "number", range: { min: 0, max: 10 } },
         ],
@@ -196,7 +203,7 @@ describe("applyOverrides", () => {
 
   it("drops overrides for unknown verifier ids silently and logs a note", () => {
     const base: Verifier[] = [
-      { id: "v", label: "V", enabled: true, settings: [], variables: [] },
+      { id: "v", label: "V", enabled: true, status_placeholder: "", settings: [], variables: [] },
     ];
     const overrides: VerifierOverrides = {
       ghost: { enabled: false, settings: { s: "x" } },
@@ -217,6 +224,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         settings: [{ id: "known", label: "known", type: "text", default: "d" }],
         variables: [],
       },
@@ -242,6 +250,7 @@ describe("applyOverrides", () => {
         id: "v",
         label: "V",
         enabled: true,
+        status_placeholder: "",
         toggleable: false,
         settings: [{ id: "s", label: "s", type: "text", default: "d" }],
         variables: [],

@@ -25,11 +25,11 @@ export class VerifierService {
 
   private static readonly DEFAULT_VERIFIERS: Verifier[] = [
     { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
-    { id: 'eebc', label: 'Energy efficiency', enabled: true, settings: [
+    { id: 'eebc', label: 'Energy efficiency', enabled: true,settings: [
       { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
       { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
     ], variables: [] },
-    { id: 'sec', label: 'Security', enabled: true, settings: [
+    { id: 'sec', label: 'Security', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [
         { id: 'test_value1', label: 'test_label1', type: 'text', default: 'test_default1' },
         { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' },
         { id: 'test_flag', label: 'test_flag', description: 'Test boolean setting rendered as a toggle', type: 'boolean', default: false }],
@@ -37,7 +37,7 @@ export class VerifierService {
         { id: 'test', name: 'test', type: 'int', description: 'test description' },
         { id: 'test2', name: 'test2', type: 'boolean' },
     ] },
-    { id: 'maintain', label: 'Maintainability', enabled: false, settings: [], variables: [] },
+    { id: 'maintain', label: 'Maintainability', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [], variables: [] },
   ];
 
   private _base: WritableSignal<Verifier[]> = signal(VerifierService.DEFAULT_VERIFIERS);

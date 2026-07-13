@@ -145,3 +145,13 @@
   position: static;
   white-space: nowrap;
 }
+
+.verifier-status {
+  margin-left: auto;
+  margin-right: 0.5rem;
+  min-width: 0;
+  color: var(--mat-sys-outline, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
