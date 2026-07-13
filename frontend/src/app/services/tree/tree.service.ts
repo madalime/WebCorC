@@ -1,5 +1,6 @@
-import { Injectable, signal, Signal, WritableSignal } from "@angular/core";
+import { inject, Injectable, signal, Signal, WritableSignal } from "@angular/core";
 import { Subject } from "rxjs";
+import { VerifierService } from "../verifier/verifier.service";
 import {
   AbstractStatement,
   IAbstractStatement,
@@ -39,12 +40,41 @@ export class TreeService {
   private rootStatementNode: RootStatementNode | undefined;
   private _urn = "";
 
+  private readonly verifierService = inject(VerifierService);
+
   public constructor() {
     this._verificationResultNotifier = new Subject<AbstractStatement>();
     this._verifyNotifier = new Subject<void>();
     this._exportNotifier = new Subject<void>();
     this._resetVerifyNotifier = new Subject<void>();
     this._finalizeNotifier = new Subject<void>();
+
+    this.verifierService.overridesChanged.subscribe(() =>
+      this.markVerifiedAllAsSettingsChanged(),
+    );
+  }
+
+  /**
+   * Transition every `verified-all` statement in the tree to `settings-changed`,
+   * signalling that a user-driven verifier override change has invalidated the
+   * previously computed all-verifiers proof. `verified-functional` results are
+   * left alone — the functional verifier is not settings-driven.
+   */
+  private markVerifiedAllAsSettingsChanged(): void {
+    if (!this.rootStatementNode) {
+      return;
+    }
+    const subtreeNodes = this.collectSubtreeNodes(this.rootStatementNode);
+    let touched = false;
+    for (const node of subtreeNodes) {
+      if (node.statement.nodeState === "verified-all") {
+        node.statement.nodeState = "settings-changed";
+        touched = true;
+      }
+    }
+    if (touched) {
+      this.refreshNodes();
+    }
   }
 
   setFormula(newFormula: LocalCBCFormula, urn: string) {

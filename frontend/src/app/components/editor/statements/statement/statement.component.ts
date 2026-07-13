@@ -172,12 +172,19 @@ export class StatementComponent {
 
   public getStatementSeverity(
     node: AbstractStatementNode,
-  ): "success" | "secondary" | "warn" {
+  ): "success" | "secondary" | "warn" | "danger" {
     switch (node.statement.nodeState) {
-      case "verified":
+      case "verified-all":
         return "success";
-      case "failed":
+      case "verified-functional":
+        if (!this.verifierService.functionalOnly()) {
+          return "warn";
+        }
+        return "success";
+      case "settings-changed":
         return "warn";
+      case "failed":
+        return "danger";
       case "unverified":
         return "secondary";
     }
@@ -185,6 +192,19 @@ export class StatementComponent {
 
   public getStatementLabel(node: AbstractStatementNode): string {
     return node.statement.nodeState.replace(/-/g, " ");
+  }
+
+  public getStatementIcon(severity: string): string {
+    if (this.isVerifying()) return 'pi pi-spin pi-spinner';
+
+    switch (severity) {
+      case "warn":
+        return "pi pi-exclamation-triangle";
+      case "danger":
+        return "pi pi-times-circle";
+      default:
+        return "pi pi-check-circle";
+    }
   }
 
   public verifyStatement(): void {

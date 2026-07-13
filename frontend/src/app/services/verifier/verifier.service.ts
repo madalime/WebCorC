@@ -1,4 +1,5 @@
 import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
+import { Observable, Subject } from "rxjs";
 import { Verifier, VerifierOverrides } from "../../types/Verifier";
 import { ProjectService } from "../project/project.service";
 import { applyOverrides } from "./verifier-overrides";
@@ -117,6 +118,7 @@ export class VerifierService {
       return { ...overrides, [id]: { ...existing, enabled } };
     });
     this.persist();
+    this._overridesChanged.next();
   }
 
   /**
@@ -144,7 +146,17 @@ export class VerifierService {
       };
     });
     this.persist();
+    this._overridesChanged.next();
   }
+
+  /**
+   * Fires after each user-driven change to the overrides (setEnabled / updateSetting).
+   * Does not fire on initial hydration from persisted overrides, so consumers can
+   * distinguish "the user changed a verifier setting" from "we just loaded the project".
+   */
+  private readonly _overridesChanged = new Subject<void>();
+  public readonly overridesChanged: Observable<void> =
+    this._overridesChanged.asObservable();
 
   /**
    * Push the current overrides into the project's persistence layer (sessionStorage

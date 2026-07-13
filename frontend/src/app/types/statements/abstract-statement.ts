@@ -50,9 +50,16 @@ export interface IAbstractStatement {
   postCondition: ICondition;
   verifierConditions?: IVerifierConditions;
   isProven: boolean;
-  nodeState: 'verified' | 'unverified' | 'failed';
+  nodeState: NodeState;
   position?: IPosition;
 }
+
+export type NodeState =
+  | 'verified-all'
+  | 'verified-functional'
+  | 'settings-changed'
+  | 'unverified'
+  | 'failed';
 
 /**
  * Data only representation of the statements edited in the editor.
@@ -74,7 +81,7 @@ export class AbstractStatement implements IAbstractStatement {
 
   public readonly id: string;
   public isProven = false;
-  public nodeState: 'verified' | 'unverified' | 'failed';
+  public nodeState: NodeState;
   public verifierConditions: IVerifierConditions = {};
 
   public toJSON(): Record<string, unknown> {

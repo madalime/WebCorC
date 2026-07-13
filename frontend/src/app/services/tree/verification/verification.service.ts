@@ -4,7 +4,7 @@ import { ProjectService } from "../../project/project.service";
 import { TreeService } from "../tree.service";
 import { IRootStatement } from "../../../types/statements/root-statement";
 import { ConsoleService } from "../../console/console.service";
-import { IAbstractStatement } from "../../../types/statements/abstract-statement";
+import { IAbstractStatement, NodeState } from "../../../types/statements/abstract-statement";
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { GlobalSettingsService } from "../../global-settings.service";
 import { ConsoleInfoLine, ConsoleLogGroup } from "../../console/log";
@@ -53,8 +53,12 @@ export class VerificationService {
     group: ConsoleLogGroup,
     formula: LocalCBCFormula,
     urn: string,
+    functionalOnly: boolean,
   ) {
     this.consoleService.finishLoading();
+    const verifiedState: NodeState = functionalOnly
+      ? "verified-functional"
+      : "verified-all";
     if (formula.statement) {
       const currentFormula = await this.projectService.getFileContent(urn);
       const currentStatements = this.treeService.getStatementsFromFormula(
@@ -64,7 +68,7 @@ export class VerificationService {
       // The statements should be in the same order, since the structure should be unchanged.
       currentStatements.forEach((stmt, index) => {
         stmt.isProven = newStatements[index]?.isProven;
-        stmt.nodeState = newStatements[index]?.isProven ? "verified" : "failed";
+        stmt.nodeState = newStatements[index]?.isProven ? verifiedState : "failed";
       });
       if (
         (currentFormula as LocalCBCFormula).statement &&
@@ -72,7 +76,7 @@ export class VerificationService {
         (formula.statement as IRootStatement).statement?.isProven
       ) {
         (currentFormula as LocalCBCFormula).statement!.isProven = true;
-        (currentFormula as LocalCBCFormula).statement!.nodeState = "verified";
+        (currentFormula as LocalCBCFormula).statement!.nodeState = verifiedState;
       }
       this.projectService.syncLocalFileContent(urn, currentFormula);
     }
@@ -107,7 +111,11 @@ export class VerificationService {
     formula: LocalCBCFormula,
     statementNode: AbstractStatementNode,
     urn: string,
+    functionalOnly: boolean,
   ) {
+    const verifiedState: NodeState = functionalOnly
+      ? "verified-functional"
+      : "verified-all";
     this.consoleService.finishLoading();
 
     if (!formula.statement) {
@@ -156,6 +164,7 @@ export class VerificationService {
       const node = subtreeNodes.find((n) => n.statement.id === subtreeStmt.id);
       if (node) {
         node.statement.isProven = resultStmt.isProven || false;
+        node.statement.nodeState = resultStmt.isProven ? verifiedState : "failed";
       }
     }
 
@@ -165,6 +174,7 @@ export class VerificationService {
       (formula.statement as IRootStatement).statement?.isProven
     ) {
       statementNode.statement.isProven = true;
+      statementNode.statement.nodeState = verifiedState;
     }
 
     // Refresh nodes to trigger UI update

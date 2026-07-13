@@ -5,15 +5,19 @@
     width: fit-content;
 }
 
-.refinementBox--unverified {
+.refinementBox--secondary {
     border-color: slategray;
 
 }
 
-.refinementBox--verified {
+.refinementBox--success {
   border-color: lightgreen;
 }
-.refinementBox--failed {
+.refinementBox--warn {
+  border-color: orange;
+}
+
+.refinementBox--danger {
     border-color: lightcoral;
 }
 
