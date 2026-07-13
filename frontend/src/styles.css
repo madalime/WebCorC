@@ -65,3 +65,26 @@ app-skip-refinement {
   --grey-webcorc: #989696;
   --grey-background-light-webcorc: #dadada;
 }
+
+/*
+ * Disabled + checked ToggleSwitch: PrimeNG's default forces the slider and handle
+ * to the disabled gray tones regardless of the checked state, which makes an "on but
+ * locked" toggle indistinguishable from an "off but locked" one. Blend the checked
+ * green with the disabled gray so a disabled=true state still reads as green (just
+ * muted) rather than fully neutral.
+ */
+.p-toggleswitch.p-disabled.p-toggleswitch-checked .p-toggleswitch-slider {
+  background: color-mix(
+    in srgb,
+    var(--p-toggleswitch-checked-background) 45%,
+    var(--p-toggleswitch-disabled-background)
+  );
+}
+
+.p-toggleswitch.p-disabled.p-toggleswitch-checked .p-toggleswitch-handle {
+  background: color-mix(
+    in srgb,
+    var(--p-toggleswitch-handle-checked-background) 65%,
+    var(--p-toggleswitch-handle-disabled-background)
+  );
+}
