@@ -1,6 +1,6 @@
 import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
 import { Observable, Subject } from "rxjs";
-import { Verifier, VerifierOverrides } from "../../types/Verifier";
+import { PRIMARY_VERIFIER_ID, Verifier, VerifierOverrides } from "../../types/Verifier";
 import { ProjectService } from "../project/project.service";
 import { applyOverrides } from "./verifier-overrides";
 import { isSettingValid } from "./verifier-validation";
@@ -41,7 +41,7 @@ export class VerifierService {
     { id: 'maintain', label: 'Maintainability', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [], variables: [] },
   ];
 
-  private _base: WritableSignal<Verifier[]> = signal(VerifierService.DEFAULT_VERIFIERS);
+  private _base: WritableSignal<Verifier[]> = signal(this.sortVerifiers(VerifierService.DEFAULT_VERIFIERS));
   private _overrides: WritableSignal<VerifierOverrides> = signal({});
 
   constructor() {
@@ -165,6 +165,34 @@ export class VerifierService {
    */
   private persist(): void {
     this.projectService.saveVerifierOverrides(this._overrides());
+  }
+
+  /**
+   * Sort Verifiers by:
+   * 1. functional Verifier (top)
+   * 2. variable + text
+   * 3. variable
+   * 4. text + settings
+   * 5. settings
+   * 6. text
+   * 7. nothing (bottom)
+   * @param verifiers
+   * @private
+   */
+  private sortVerifiers(verifiers: Verifier[]): Verifier[] {
+    const rank = (verifier: Verifier): number => {
+      if (verifier.id === PRIMARY_VERIFIER_ID) return 0;
+      const hasVariables = verifier.variables.length > 0;
+      const hasText = verifier.status_placeholder !== undefined;
+      const hasSettings = verifier.settings.length > 0;
+      if (hasVariables && hasText) return 1;
+      if (hasVariables) return 2;
+      if (hasText && hasSettings) return 3;
+      if (hasSettings) return 4;
+      if (hasText) return 5;
+      return 6;
+    };
+    return [...verifiers].sort((a, b) => rank(a) - rank(b));
   }
 
   /**
