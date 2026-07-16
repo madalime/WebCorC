@@ -185,12 +185,20 @@ export class StatementComponent {
         return "warn";
       case "failed":
         return "danger";
+      case "failed-non-functional":
+        if (this.verifierService.functionalOnly()) {
+          return "success";
+        }
+        return "danger";
       case "unverified":
         return "secondary";
     }
   }
 
   public getStatementLabel(node: AbstractStatementNode): string {
+    if (node.statement.nodeState === "failed-non-functional" && this.verifierService.functionalOnly()) {
+        return "verified-functional";
+    }
     return node.statement.nodeState.replace(/-/g, " ");
   }
 

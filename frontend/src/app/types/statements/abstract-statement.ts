@@ -59,7 +59,8 @@ export type NodeState =
   | 'verified-functional'
   | 'settings-changed'
   | 'unverified'
-  | 'failed';
+  | 'failed'
+  | 'failed-non-functional';
 
 /**
  * Data only representation of the statements edited in the editor.
