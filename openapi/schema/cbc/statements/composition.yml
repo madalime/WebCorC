@@ -6,15 +6,6 @@ allOf:
       intermediateCondition:
         $ref: '../condition.yml'
 
-      verifierIntermediateConditions:
-        type: object
-        description: >
-          Verifier-specific intermediate conditions, keyed by verifier id.
-          Sparse like verifierConditions; the primary (functional) verifier's
-          intermediate condition is the statement's own intermediateCondition.
-        additionalProperties:
-          $ref: '../condition.yml'
-
       leftStatement:
         $ref: '../statement.yml'
 

@@ -12,7 +12,6 @@ import {
 import {
   CompositionStatement,
   ICompositionStatement,
-  IVerifierIntermediateConditions,
 } from "../../../types/statements/composition-statement";
 import {
   IRepetitionStatement,
@@ -248,10 +247,6 @@ export class CbcFormulaMapperService {
     newCompositionStatement.verifierConditions = this.importVerifierConditions(
       statement.verifierConditions,
     );
-    newCompositionStatement.verifierIntermediateConditions =
-      this.importVerifierIntermediateConditions(
-        statement.verifierIntermediateConditions,
-      );
     return newCompositionStatement;
   }
 
@@ -296,21 +291,17 @@ export class CbcFormulaMapperService {
     conditions: IVerifierConditions | undefined,
   ): IVerifierConditions {
     const imported: IVerifierConditions = {};
-    for (const [verifierId, pair] of Object.entries(conditions ?? {})) {
+    for (const [verifierId, conditionSet] of Object.entries(conditions ?? {})) {
       imported[verifierId] = {
-        preCondition: this.importCondition(pair.preCondition),
-        postCondition: this.importCondition(pair.postCondition),
+        preCondition: this.importCondition(conditionSet.preCondition),
+        postCondition: this.importCondition(conditionSet.postCondition),
       };
-    }
-    return imported;
-  }
-
-  private importVerifierIntermediateConditions(
-    conditions: IVerifierIntermediateConditions | undefined,
-  ): IVerifierIntermediateConditions {
-    const imported: IVerifierIntermediateConditions = {};
-    for (const [verifierId, condition] of Object.entries(conditions ?? {})) {
-      imported[verifierId] = this.importCondition(condition);
+      // Only compositions carry an intermediate condition, and only when non-empty.
+      if (conditionSet.intermediateCondition) {
+        imported[verifierId].intermediateCondition = this.importCondition(
+          conditionSet.intermediateCondition,
+        );
+      }
     }
     return imported;
   }

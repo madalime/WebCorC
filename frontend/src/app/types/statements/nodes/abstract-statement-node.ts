@@ -209,9 +209,10 @@ export class AbstractStatementNode {
    * Persisted form of the verifier conditions: stored entries of verifiers whose
    * subjects were never instantiated are kept as-is, instantiated ones are written
    * back, and entries whose conditions are both empty are dropped to keep the
-   * record sparse.
+   * record sparse. Subclasses owning further verifier conditions extend the entries
+   * by overriding this (see {@link CompositionStatementNode.finalizeVerifierConditions}).
    */
-  private finalizeVerifierConditions(): IVerifierConditions {
+  protected finalizeVerifierConditions(): IVerifierConditions {
     const conditions: IVerifierConditions = {
       ...this.statement.verifierConditions,
     };

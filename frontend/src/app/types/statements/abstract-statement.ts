@@ -22,15 +22,24 @@ export type StatementType =
   | "REPETITION";
 
 /**
- * Verifier-specific pre/postcondition pairs of a statement, keyed by verifier id.
- * Sparse: only verifiers with at least one non-empty condition have an entry. The
- * primary (functional) verifier never appears here — its conditions are the
- * statement's own `preCondition`/`postCondition`.
+ * The conditions one verifier attaches to a statement. Mirrors the statement's own
+ * condition properties: every statement has a pre- and a postcondition, and a
+ * composition additionally has an intermediate condition — which is only present
+ * for compositions, and only when non-empty.
  */
-export type IVerifierConditions = Record<
-  string,
-  { preCondition: ICondition; postCondition: ICondition }
->;
+export interface IVerifierConditionSet {
+  preCondition: ICondition;
+  postCondition: ICondition;
+  intermediateCondition?: ICondition;
+}
+
+/**
+ * Verifier-specific conditions of a statement, keyed by verifier id. Sparse: only
+ * verifiers with at least one non-empty condition have an entry. The primary
+ * (functional) verifier never appears here — its conditions are the statement's
+ * own `preCondition`/`postCondition`/`intermediateCondition`.
+ */
+export type IVerifierConditions = Record<string, IVerifierConditionSet>;
 
 /**
  * Data only representation of the statements edited in the editor
