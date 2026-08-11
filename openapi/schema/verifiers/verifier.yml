@@ -13,12 +13,14 @@ properties:
     type: boolean
     description: Whether the verifier is selected to run.
 
-  disableable:
+  toggleable:
     type: boolean
     description: >-
-      Whether the user is allowed to disable this verifier. `false` locks the
-      enabled toggle in the on position — the verifier is mandatory and will
-      always run. Defaults to `true` (freely toggleable) when omitted.
+      Whether the user can move the enabled toggle. Defaults to `true` (freely
+      toggleable) when omitted. `false` locks the toggle at whatever `enabled`
+      is declared as — either a mandatory-on verifier (`enabled: true`) or a
+      forced-off one (`enabled: false`). A locked verifier's `enabled` is
+      catalog-owned: a saved override contradicting it is ignored on load.
 
   settings:
     type: array
@@ -33,6 +35,15 @@ properties:
       backend; the frontend does not interpret them beyond rendering.
     items:
       $ref: './variable.yml'
+
+  allowFunctionalVariables:
+    type: boolean
+    description: >-
+      Whether the functional variables — the statement's own program variables —
+      may be referenced inside this verifier's non-functional conditions,
+      alongside its own `variables`. Only meaningful for a verifier that declares
+      `variables` at all; defaults to `false` (not allowed) when omitted, so a
+      catalog must opt in explicitly.
 
 required:
   - id

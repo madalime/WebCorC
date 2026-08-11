@@ -132,6 +132,13 @@ export interface Verifier {
    * the frontend does not interpret them beyond rendering.
    */
   variables: VerifierVariable[];
+  /**
+   * Whether the functional variables — the statement's own program variables — may be
+   * referenced inside this verifier's non-functional conditions, alongside its own
+   * {@link variables}. Only meaningful for a verifier that declares `variables` at all;
+   * omitted / `undefined` means **not** allowed, so a catalog must opt in explicitly.
+   */
+  allowFunctionalVariables?: boolean;
 }
 
 /**

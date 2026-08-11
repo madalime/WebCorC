@@ -37,7 +37,7 @@ export class VerifierService {
       variables: [
         { id: 'test', name: 'test', type: 'int', description: 'test description' },
         { id: 'test2', name: 'test2', type: 'boolean' },
-    ] },
+    ], allowFunctionalVariables: true },
     { id: 'maintain', label: 'Maintainability', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [], variables: [] },
   ];
 

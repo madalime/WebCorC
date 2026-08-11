@@ -265,4 +265,24 @@ describe("applyOverrides", () => {
     expect(merged[0].enabled).toBeTrue();
     expect(merged[0].settings[0].input).toBe("typed");
   });
+
+  it("passes allowFunctionalVariables through from the base and leaves it undefined when unset", () => {
+    const base: Verifier[] = [
+      {
+        id: "allowed",
+        label: "Allowed",
+        enabled: true,
+        settings: [],
+        variables: [{ id: "x", name: "x", type: "int" }],
+        allowFunctionalVariables: true,
+      },
+      { id: "unset", label: "Unset", enabled: true, settings: [], variables: [] },
+    ];
+    const overrides: VerifierOverrides = { allowed: { enabled: false, settings: {} } };
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].allowFunctionalVariables).toBeTrue();
+    expect(merged[1].allowFunctionalVariables).toBeUndefined();
+  });
 });

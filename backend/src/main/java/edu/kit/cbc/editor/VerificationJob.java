@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.kit.cbc.common.corc.FileUtil;
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
 import edu.kit.cbc.common.corc.proof.ProofContext;
-import edu.kit.cbc.editor.verifier.Verifier;
+import edu.kit.cbc.editor.verifier.VerifierOverride;
 import edu.kit.cbc.projects.files.controller.FilesController;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,8 +14,10 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -58,7 +60,7 @@ public class VerificationJob extends Thread {
             .includeFiles(new ArrayList<>())
             .javaSrcFiles(new ArrayList<>())
             .existingProofFiles(new ArrayList<>())
-            .verifiers(new ArrayList<>())
+            .verifierOverrides(new HashMap<>())
             .logger((msg) -> log(msg));
 
         if (projectId.isPresent()) {
@@ -74,31 +76,30 @@ public class VerificationJob extends Thread {
             context.existingProofFiles(existingKeyFiles);
 
             if (!functionalOnly) {
-                context.verifiers(loadVerifiers(projectId.get(), filesController));
+                context.verifierOverrides(loadVerifierOverrides(projectId.get(), filesController));
             }
         }
         log("verification initialized");
     }
 
     /**
-     * Load the project-wide verifiers from {@code .internal/verifiers.json}. Returns an empty
-     * list when the file is missing (legacy projects, or new projects that have not persisted
-     * yet). On parse failure the error is logged and an empty list is returned; once the KeY
-     * step actually consumes verifiers this should additionally surface the error to the user
-     * and fall back to functional-only verification per the verifier-persistence design.
+     * Load the user's verifier overrides from {@code .internal/verifiers.json}, keyed by
+     * verifier id. Returns an empty map when the file is missing, and logs the error and
+     * returns an empty map when it fails to parse.
      */
-    private static List<Verifier> loadVerifiers(String projectId, FilesController filesController) throws IOException {
+    private static Map<String, VerifierOverride> loadVerifierOverrides(String projectId, FilesController filesController)
+        throws IOException {
         Optional<byte[]> raw = filesController.retrieveFileBytes(projectId, VERIFIERS_FILE_URN);
         if (raw.isEmpty()) {
-            return new ArrayList<>();
+            return new HashMap<>();
         }
         try {
-            return VERIFIERS_MAPPER.readValue(raw.get(), new TypeReference<List<Verifier>>() {});
+            return VERIFIERS_MAPPER.readValue(raw.get(), new TypeReference<Map<String, VerifierOverride>>() {});
         } catch (IOException e) {
             LOGGER.warning(String.format(
-                "Failed to parse %s for project %s: %s. Continuing without verifiers.",
+                "Failed to parse %s for project %s: %s. Continuing without verifier overrides.",
                 VERIFIERS_FILE_URN, projectId, e.getMessage()));
-            return new ArrayList<>();
+            return new HashMap<>();
         }
     }
 

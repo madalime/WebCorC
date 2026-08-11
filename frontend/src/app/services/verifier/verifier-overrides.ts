@@ -19,7 +19,8 @@ import { Verifier, VerifierOverrides } from "../../types/Verifier";
  *   the base verifier's settings — are silently dropped, with a `console.debug` note.
  *   The override record itself is not mutated; the next {@link Verifier} mutation naturally
  *   trims orphans on the next persist since mutators only write ids they know about.
- * - `variables` are copied from the base verbatim.
+ * - `variables` are copied from the base verbatim, as is `allowFunctionalVariables` — both
+ *   are catalog-owned and not user-overridable.
  */
 export function applyOverrides(
   base: Verifier[],
