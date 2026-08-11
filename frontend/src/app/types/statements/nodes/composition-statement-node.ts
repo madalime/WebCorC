@@ -1,12 +1,12 @@
 import { ICompositionStatement } from "../composition-statement";
-import { ICondition } from "../../condition/condition";
+import { Condition, ICondition } from "../../condition/condition";
 import { BehaviorSubject } from "rxjs";
 import { AbstractStatementNode } from "./abstract-statement-node";
 import {
   createEmptyStatementNode,
   statementNodeUtils,
 } from "./statement-node-utils";
-import { StatementType } from "../abstract-statement";
+import { IVerifierConditions, StatementType } from "../abstract-statement";
 
 export class CompositionStatementNode extends AbstractStatementNode {
   public intermediateCondition: BehaviorSubject<ICondition>;
@@ -67,7 +67,7 @@ export class CompositionStatementNode extends AbstractStatementNode {
     return this.slotVerifierCondition(
       this.intermediateCondition,
       verifierId,
-      this.statement.verifierIntermediateConditions?.[verifierId],
+      this.statement.verifierConditions?.[verifierId]?.intermediateCondition,
     );
   }
 
@@ -86,13 +86,71 @@ export class CompositionStatementNode extends AbstractStatementNode {
   override finalize() {
     super.finalize();
     this.statement.intermediateCondition = this.intermediateCondition.getValue();
-    this.statement.verifierIntermediateConditions =
-      CompositionStatementNode.finalizeSlotConditions(
-        this.intermediateCondition,
-        this.statement.verifierIntermediateConditions,
-      );
     this.firstStatementNode?.finalize();
     this.secondStatementNode?.finalize();
+  }
+
+  /**
+   * Extends every verifier's entry by its intermediate condition, so a composition
+   * persists all of its verifier conditions in the single `verifierConditions`
+   * record. Verifiers that only carry an intermediate condition get an entry with
+   * empty pre- and postconditions; cleared intermediate conditions are dropped to
+   * keep the entries sparse.
+   */
+  protected override finalizeVerifierConditions(): IVerifierConditions {
+    const conditions = super.finalizeVerifierConditions();
+    const intermediateConditions =
+      CompositionStatementNode.finalizeSlotConditions(
+        this.intermediateCondition,
+        this.storedIntermediateConditions(),
+      );
+    const verifierIds = new Set([
+      ...Object.keys(conditions),
+      ...Object.keys(intermediateConditions),
+    ]);
+
+    const finalized: IVerifierConditions = {};
+    for (const verifierId of verifierIds) {
+      const conditionSet = conditions[verifierId];
+      const intermediateCondition = intermediateConditions[verifierId];
+      if (!intermediateCondition) {
+        if (
+          conditionSet &&
+          !(
+            conditionSet.preCondition.condition === "" &&
+            conditionSet.postCondition.condition === ""
+          )
+        ) {
+          finalized[verifierId] = {
+            preCondition: conditionSet.preCondition,
+            postCondition: conditionSet.postCondition,
+          };
+        }
+        continue;
+      }
+      finalized[verifierId] = {
+        preCondition: conditionSet?.preCondition ?? new Condition(""),
+        postCondition: conditionSet?.postCondition ?? new Condition(""),
+        intermediateCondition,
+      };
+    }
+    return finalized;
+  }
+
+  /**
+   * The persisted intermediate conditions of all verifiers, in the flat form
+   * {@link AbstractStatementNode.finalizeSlotConditions} expects.
+   */
+  private storedIntermediateConditions(): Record<string, ICondition> {
+    const stored: Record<string, ICondition> = {};
+    for (const [verifierId, conditionSet] of Object.entries(
+      this.statement.verifierConditions ?? {},
+    )) {
+      if (conditionSet.intermediateCondition) {
+        stored[verifierId] = conditionSet.intermediateCondition;
+      }
+    }
+    return stored;
   }
 
   override deleteChild(node: AbstractStatementNode) {
