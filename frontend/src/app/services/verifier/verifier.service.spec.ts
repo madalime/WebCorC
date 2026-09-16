@@ -9,7 +9,7 @@ import { Subject } from "rxjs";
 import { environment } from "../../../environments/environment";
 import { Verifier, VerifierOverrides } from "../../types/Verifier";
 import { ConsoleService } from "../console/console.service";
-import { ConsoleErrorLine, ConsoleLogLine, isError, isGroup } from "../console/log";
+import { ConsoleErrorLine, ConsoleInfoLine, ConsoleLogLine, isError, isGroup, isInfo } from "../console/log";
 import { ProjectService } from "../project/project.service";
 import { VerifierService } from "./verifier.service";
 
@@ -26,6 +26,11 @@ describe("VerifierService", () => {
   let consoleService: ConsoleService;
   let projectServiceStub: Partial<ProjectService>;
   let overridesLoaded: Subject<void>;
+
+  /** A locked-off entry exactly as the backend serves it for an unavailable Verifier. */
+  const lockedOff = (id: string): Verifier => ({
+    id, label: id + ' (offline)', enabled: false, toggleable: false, settings: [], variables: [],
+  });
 
   /**
    * Answer the Catalog request issued at construction with the given entries — the seam
@@ -123,6 +128,55 @@ describe("VerifierService", () => {
       loadCatalog([]);
 
       expect(consoleService.numberOfLogs).toBe(0);
+    });
+
+    it("forwards the Catalog's message verbatim to the console when present", () => {
+      const message = "2 verifiers unavailable: eebc (unreachable), sec (invalid description)";
+      httpTesting.expectOne(catalogUrl).flush({
+        verifiers: [
+          functionalVerifier,
+          lockedOff('eebc'),
+          lockedOff('sec'),
+        ],
+        message,
+      });
+
+      expect(consoleService.numberOfLogs).toBe(1);
+      const line = consoleService.logs[0];
+      expect(isGroup(line)).toBeFalse();
+      expect(isInfo(line as ConsoleLogLine)).toBeTrue();
+      expect((line as ConsoleInfoLine).message).toBe(message);
+    });
+
+    it("shows locked-off entries exactly as the backend serves them", () => {
+      loadCatalog([
+        functionalVerifier,
+        lockedOff('eebc'),
+      ]);
+
+      const eebc = service.verifiers().find((verifier) => verifier.id === 'eebc')!;
+      expect(eebc.label).toBe('eebc (offline)');
+      expect(eebc.enabled).toBeFalse();
+      expect(eebc.toggleable).toBeFalse();
+    });
+
+    it("keeps saved Overrides for a locked-off Verifier without applying them", () => {
+      const persisted: VerifierOverrides = { eebc: { enabled: true, settings: { s: 'saved' } } };
+      projectServiceStub.getVerifierOverrides = () => persisted;
+      const saved = jasmine.createSpy("saveVerifierOverrides");
+      projectServiceStub.saveVerifierOverrides = saved;
+      overridesLoaded.next();
+      loadCatalog([
+        functionalVerifier,
+        lockedOff('eebc'),
+      ]);
+
+      const eebc = service.verifiers().find((verifier) => verifier.id === 'eebc')!;
+      expect(eebc.enabled).toBeFalse();
+      expect(saved).not.toHaveBeenCalled();
+
+      service.setEnabled('other', true);
+      expect(saved).toHaveBeenCalledWith(jasmine.objectContaining({ eebc: persisted['eebc'] }));
     });
   });
 

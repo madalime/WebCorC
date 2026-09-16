@@ -28,8 +28,9 @@ import org.junit.jupiter.api.Test;
  * <p>Expected: the Functional Verifier first and locked on; the mock's entry carrying the
  * label, all four kinds of settings, the variables, {@code allowFunctionalVariables} and the
  * status placeholder of its Self-Description, in Registry order after {@code func}. The dead
- * entry is left out and no {@code message} is composed — locked-off entries are a later
- * milestone.
+ * entry is present in its Registry place but locked off — {@code enabled: false},
+ * {@code toggleable: false}, empty settings and variables, the fallback label
+ * {@code "dead (offline)"} — and the envelope's {@code message} names it as unreachable.
  */
 @MicronautTest
 @Property(name = "verifiers[0].id", value = "mock")
@@ -56,15 +57,29 @@ class VerifierCatalogIT {
 
         JsonNode catalog = mapper.readTree(response.body());
         Assertions.assertTrue(catalog.isObject(), "Catalog is an envelope object");
-        Assertions.assertFalse(catalog.has("message"), "No message is composed yet");
+        Assertions.assertEquals("1 verifier unavailable: dead (unreachable)", catalog.get("message").asText(),
+            "One backend-composed console line names the locked-off Verifier and why");
 
         JsonNode verifiers = catalog.get("verifiers");
         Assertions.assertNotNull(verifiers, "Envelope carries the verifiers array");
-        Assertions.assertEquals(List.of("func", "mock"), ids(verifiers),
-            "func first, then Registry order; the unreachable entry is left out for now");
+        Assertions.assertEquals(List.of("func", "mock", "dead"), ids(verifiers),
+            "func first, then Registry order; the unreachable entry keeps its place, locked off");
 
         assertFunctionalVerifier(verifiers.get(0));
         assertMockVerifier(verifiers.get(1));
+        assertLockedOffVerifier(verifiers.get(2));
+    }
+
+    private static void assertLockedOffVerifier(JsonNode dead) {
+        Assertions.assertEquals("dead (offline)", dead.get("label").asText(), "Fallback label");
+        Assertions.assertFalse(dead.get("enabled").asBoolean(), "Locked off");
+        Assertions.assertFalse(dead.get("toggleable").asBoolean(), "Locked off");
+        Assertions.assertTrue(dead.get("settings").isArray() && dead.get("settings").isEmpty(),
+            "No settings (present, empty)");
+        Assertions.assertTrue(dead.get("variables").isArray() && dead.get("variables").isEmpty(),
+            "No variables (present, empty)");
+        Assertions.assertFalse(dead.has("statusPlaceholder"));
+        Assertions.assertFalse(dead.has("allowFunctionalVariables"));
     }
 
     private static List<String> ids(JsonNode verifiers) {

@@ -94,6 +94,11 @@ export class VerifierService {
    * construction — the Catalog is frozen for the backend's lifetime and refreshed here only
    * by a page reload. Does not persist — the Catalog is backend-supplied, not user state.
    *
+   * If the Catalog carries a `message` — the backend's one console line naming the Verifiers
+   * it locked off and why — it is forwarded verbatim to the console, like a verification log
+   * line. The frontend performs no reasoning about why an entry is locked off: the entry
+   * itself already says everything the panel needs (`enabled: false`, `toggleable: false`).
+   *
    * On any failure the Catalog becomes exactly the locally built Functional Verifier and one
    * console line reports it, so the editor stays usable for pure correctness-by-construction
    * work; verification itself surfaces backend unavailability separately.
@@ -102,7 +107,12 @@ export class VerifierService {
     this.http
       .get<VerifierCatalog>(environment.apiUrl + VerifierService.catalogPath)
       .subscribe({
-        next: (catalog) => this._catalog.set(this.sortVerifiers(catalog.verifiers)),
+        next: (catalog) => {
+          this._catalog.set(this.sortVerifiers(catalog.verifiers));
+          if (catalog.message) {
+            this.consoleService.addStringInfo(catalog.message, "pi pi-exclamation-triangle");
+          }
+        },
         error: (error: HttpErrorResponse) => {
           this._catalog.set([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
           this.consoleService.addErrorResponse(

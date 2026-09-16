@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The backend boots with a Verifier Registry that lists entries and binds them in
  * configuration order. Nobody listens at their URLs, so fetching their Self-Descriptions fails
- * at startup; until unavailable Verifiers are locked off (a later milestone) they are left out
- * and the Catalog holds only the Functional Verifier.
+ * at startup; both are locked off in the Catalog, in Registry order after the Functional
+ * Verifier, and the {@code message} names them.
  */
 @MicronautTest
 @Property(name = "verifiers[0].id", value = "eebc")
@@ -46,10 +46,19 @@ class VerifierRegistryIT {
     }
 
     @Test
-    void unreachableEntriesAreLeftOutOfTheCatalogForNow() throws Exception {
+    void unreachableEntriesAreLockedOffInRegistryOrder() throws Exception {
         JsonNode catalog = mapper.readTree(client.toBlocking().retrieve("/editor/verifiers"));
 
-        Assertions.assertEquals(1, catalog.get("verifiers").size());
-        Assertions.assertEquals("func", catalog.get("verifiers").get(0).get("id").asText());
+        JsonNode verifiers = catalog.get("verifiers");
+        Assertions.assertEquals(3, verifiers.size());
+        Assertions.assertEquals("func", verifiers.get(0).get("id").asText());
+        Assertions.assertEquals("eebc", verifiers.get(1).get("id").asText());
+        Assertions.assertEquals("eebc (offline)", verifiers.get(1).get("label").asText());
+        Assertions.assertFalse(verifiers.get(1).get("enabled").asBoolean());
+        Assertions.assertFalse(verifiers.get(1).get("toggleable").asBoolean());
+        Assertions.assertEquals("sec", verifiers.get(2).get("id").asText());
+        Assertions.assertEquals("sec (offline)", verifiers.get(2).get("label").asText());
+        Assertions.assertEquals("2 verifiers unavailable: eebc (unreachable), sec (unreachable)",
+            catalog.get("message").asText());
     }
 }

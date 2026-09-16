@@ -3,7 +3,19 @@
 #
 # `mock` is the mock-verifier/ Caddy container built by docker-compose.dev.yml,
 # reachable on the compose network under its service name.
+#
+# To see a locked-off Verifier in the panel, add an entry at a URL nobody listens on, e.g.
+#   - id: dead
+#     url: http://127.0.0.1:9
+# After a restart it appears greyed out and locked, and the console reports it.
 
 verifiers:
   - id: mock
     url: http://mock-verifier:80
+
+# Startup retries for an unreachable Verifier (container start-order races); see the
+# `verifier-catalog` block in backend/src/main/resources/application.yml for the semantics
+# and defaults.
+verifier-catalog:
+  retries: 3
+  retry-delay: 2s
