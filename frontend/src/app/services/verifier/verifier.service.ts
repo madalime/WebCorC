@@ -1,6 +1,6 @@
 import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
 import { Observable, Subject } from "rxjs";
-import { PRIMARY_VERIFIER_ID, Verifier, VerifierOverrides } from "../../types/Verifier";
+import { FUNCTIONAL_VERIFIER_ID, Verifier, VerifierOverrides } from "../../types/Verifier";
 import { ProjectService } from "../project/project.service";
 import { applyOverrides } from "./verifier-overrides";
 import { isSettingValid } from "./verifier-validation";
@@ -30,7 +30,7 @@ export class VerifierService {
       { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
       { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
     ], variables: [] },
-    { id: 'sec', label: 'Security', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [
+    { id: 'sec', label: 'Security', enabled: true, statusPlaceholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [
         { id: 'test_value1', label: 'test_label1', type: 'text', default: 'test_default1' },
         { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' },
         { id: 'test_flag', label: 'test_flag', description: 'Test boolean setting rendered as a toggle', type: 'boolean', default: false }],
@@ -38,7 +38,7 @@ export class VerifierService {
         { id: 'test', name: 'test', type: 'int', description: 'test description' },
         { id: 'test2', name: 'test2', type: 'boolean' },
     ], allowFunctionalVariables: true },
-    { id: 'maintain', label: 'Maintainability', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [], variables: [] },
+    { id: 'maintain', label: 'Maintainability', enabled: true, statusPlaceholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [], variables: [] },
   ];
 
   private _base: WritableSignal<Verifier[]> = signal(this.sortVerifiers(VerifierService.DEFAULT_VERIFIERS));
@@ -181,9 +181,9 @@ export class VerifierService {
    */
   private sortVerifiers(verifiers: Verifier[]): Verifier[] {
     const rank = (verifier: Verifier): number => {
-      if (verifier.id === PRIMARY_VERIFIER_ID) return 0;
+      if (verifier.id === FUNCTIONAL_VERIFIER_ID) return 0;
       const hasVariables = verifier.variables.length > 0;
-      const hasText = verifier.status_placeholder !== undefined;
+      const hasText = verifier.statusPlaceholder !== undefined;
       const hasSettings = verifier.settings.length > 0;
       if (hasVariables && hasText) return 1;
       if (hasVariables) return 2;

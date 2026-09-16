@@ -42,7 +42,7 @@ import { AsyncPipe, NgTemplateOutlet } from "@angular/common";
 import { AiChatService } from "../../../../services/ai-chat/ai-chat.service";
 import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-statement-node";
 import {VerifierService} from "../../../../services/verifier/verifier.service";
-import {PRIMARY_VERIFIER_ID, Verifier} from "../../../../types/Verifier";
+import {FUNCTIONAL_VERIFIER_ID, Verifier} from "../../../../types/Verifier";
 import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
 import { MatTooltip } from "@angular/material/tooltip";
 import { BehaviorSubject } from "rxjs";
@@ -124,9 +124,9 @@ export class StatementComponent {
   }>;
 
   public dialogVisible = false;
-  public readonly primaryVerifierId = PRIMARY_VERIFIER_ID;
-  /** Panels open in the popup accordion; the primary verifier starts open. */
-  public openPanels: string[] = [PRIMARY_VERIFIER_ID];
+  public readonly functionalVerifierId = FUNCTIONAL_VERIFIER_ID;
+  /** Panels open in the popup accordion; the Functional Verifier starts open. */
+  public openPanels: string[] = [FUNCTIONAL_VERIFIER_ID];
   private popupColumnStates = new Map<
     string,
     { pre: boolean; mid: boolean; post: boolean }
@@ -273,19 +273,19 @@ export class StatementComponent {
 
   /**
    * Whether the verifier's popup panel has an expandable body (pre/statement/post
-   * columns): true for the primary verifier and any verifier with variables. A
+   * columns): true for the Functional Verifier and any verifier with variables. A
    * status-only verifier renders as a static header, matching the settings-less
    * pattern in verifier-manager.
    */
   public hasBody(verifier: Verifier): boolean {
     return (
-        verifier.id === PRIMARY_VERIFIER_ID || verifier.variables.length > 0
+        verifier.id === FUNCTIONAL_VERIFIER_ID || verifier.variables.length > 0
     );
   }
 
   /**
    * The verifiers shown as popup accordion panels: enabled ones that either have
-   * expandable content (primary verifier or a verifier with variables) or that
+   * expandable content (Functional Verifier or a verifier with variables) or that
    * carry a `status` string to surface in the header. Status-only verifiers render
    * as a static header (no chevron, no body).
    */
@@ -296,7 +296,7 @@ export class StatementComponent {
         (verifier) =>
           verifier.enabled &&
           (this.hasBody(verifier) ||
-            verifier.status_placeholder),
+            verifier.statusPlaceholder),
       );
   }
 
@@ -327,10 +327,10 @@ export class StatementComponent {
 
   /**
    * The pre condition edited in the given verifier's panel: the node's own for the
-   * primary verifier, the verifier-specific one otherwise.
+   * Functional Verifier, the verifier-specific one otherwise.
    */
   public popupPrecondition(verifier: Verifier): BehaviorSubject<ICondition> {
-    return verifier.id === PRIMARY_VERIFIER_ID
+    return verifier.id === FUNCTIONAL_VERIFIER_ID
       ? this._node.precondition
       : this._node.verifierPrecondition(verifier.id);
   }
@@ -340,7 +340,7 @@ export class StatementComponent {
    * @see popupPrecondition
    */
   public popupPostcondition(verifier: Verifier): BehaviorSubject<ICondition> {
-    return verifier.id === PRIMARY_VERIFIER_ID
+    return verifier.id === FUNCTIONAL_VERIFIER_ID
       ? this._node.postcondition
       : this._node.verifierPostcondition(verifier.id);
   }

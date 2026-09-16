@@ -1,10 +1,10 @@
 /**
- * Well-known id of the primary (functional correctness) verifier. Every catalog is
- * contractually guaranteed to contain it and to keep it enabled (`toggleable: false`).
- * Unlike the other verifiers, its pre/postconditions are the statement's own
- * `preCondition`/`postCondition`, not verifier-specific ones.
+ * Well-known id of the Functional Verifier. Every catalog is contractually guaranteed to
+ * contain it and to keep it enabled (`toggleable: false`). Unlike the other verifiers, its
+ * pre/postconditions are the statement's own `preCondition`/`postCondition`, not
+ * verifier-specific ones.
  */
-export const PRIMARY_VERIFIER_ID = "func";
+export const FUNCTIONAL_VERIFIER_ID = "func";
 
 /**
  * Whether a string-valued setting must be filled in. A required setting must declare a
@@ -119,7 +119,7 @@ export interface Verifier {
   id: string;
   label: string;
   enabled: boolean;
-  status_placeholder?: string;
+  statusPlaceholder?: string;
   /**
    * Whether the user can move the enabled toggle. Defaults to `true` (freely toggleable)
    * when omitted. `false` locks the toggle at whatever `enabled` is declared as — enabling

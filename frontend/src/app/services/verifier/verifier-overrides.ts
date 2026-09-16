@@ -16,9 +16,10 @@ import { Verifier, VerifierOverrides } from "../../types/Verifier";
  * - Numeric-text settings pass through as-is (out-of-range / off-step values surface in
  *   the UI via mat-error rather than being sanitized here).
  * - Orphan override entries — for verifier ids not in the base, or setting ids not in
- *   the base verifier's settings — are silently dropped, with a `console.debug` note.
- *   The override record itself is not mutated; the next {@link Verifier} mutation naturally
- *   trims orphans on the next persist since mutators only write ids they know about.
+ *   the base verifier's settings — are omitted from the merged view, with a `console.debug`
+ *   note. The override record itself is not mutated here: orphan entries survive in the
+ *   persisted record (e.g. a Verifier that is temporarily offline) and are only hidden from
+ *   this merged view, not trimmed from storage.
  * - `variables` are copied from the base verbatim, as is `allowFunctionalVariables` — both
  *   are catalog-owned and not user-overridable.
  */
