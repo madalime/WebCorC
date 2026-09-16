@@ -1,6 +1,14 @@
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
 import { Observable, Subject } from "rxjs";
-import { FUNCTIONAL_VERIFIER_ID, Verifier, VerifierOverrides } from "../../types/Verifier";
+import { environment } from "../../../environments/environment";
+import {
+  FUNCTIONAL_VERIFIER_ID,
+  Verifier,
+  VerifierCatalog,
+  VerifierOverrides,
+} from "../../types/Verifier";
+import { ConsoleService } from "../console/console.service";
 import { ProjectService } from "../project/project.service";
 import { applyOverrides } from "./verifier-overrides";
 import { isSettingValid } from "./verifier-validation";
@@ -9,9 +17,9 @@ import { isSettingValid } from "./verifier-validation";
  * Service that owns the verifier state and shares it across components.
  *
  * State is split in two:
- * - the read-only **base catalog** ({@link _base}) — currently hardcoded in
- *   {@link DEFAULT_VERIFIERS}, later delivered by the backend once per session via
- *   {@link loadBase};
+ * - the read-only **Verifier Catalog** ({@link _catalog}) — fetched from the backend once per
+ *   page load, at construction (see {@link fetchCatalog}); held in memory only, never in
+ *   sessionStorage, so a reload always shows the deployment's current Catalog;
  * - a sparse **overrides** record ({@link _overrides}) that stores only the fields the
  *   user has modified (enabled toggle and setting inputs).
  *
@@ -23,28 +31,30 @@ import { isSettingValid } from "./verifier-validation";
 })
 export class VerifierService {
   private projectService = inject(ProjectService);
+  private http = inject(HttpClient);
+  private consoleService = inject(ConsoleService);
 
-  private static readonly DEFAULT_VERIFIERS: Verifier[] = [
-    { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
-    { id: 'eebc', label: 'Energy efficiency', enabled: true,settings: [
-      { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
-      { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
-    ], variables: [] },
-    { id: 'sec', label: 'Security', enabled: true, statusPlaceholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [
-        { id: 'test_value1', label: 'test_label1', type: 'text', default: 'test_default1' },
-        { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' },
-        { id: 'test_flag', label: 'test_flag', description: 'Test boolean setting rendered as a toggle', type: 'boolean', default: false }],
-      variables: [
-        { id: 'test', name: 'test', type: 'int', description: 'test description' },
-        { id: 'test2', name: 'test2', type: 'boolean' },
-    ], allowFunctionalVariables: true },
-    { id: 'maintain', label: 'Maintainability', enabled: true, statusPlaceholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [], variables: [] },
-  ];
+  private static readonly catalogPath = "/editor/verifiers";
 
-  private _base: WritableSignal<Verifier[]> = signal(this.sortVerifiers(VerifierService.DEFAULT_VERIFIERS));
+  /**
+   * The Functional Verifier built locally: what the panel shows until the Catalog arrives
+   * and all it shows when the Catalog cannot be fetched. Mirrors the backend's own entry so
+   * the invariant "every Catalog contains `func`, locked on" holds at every moment.
+   */
+  private static readonly FUNCTIONAL_VERIFIER_FALLBACK: Verifier = {
+    id: FUNCTIONAL_VERIFIER_ID,
+    label: "Functional correctness",
+    enabled: true,
+    toggleable: false,
+    settings: [],
+    variables: [],
+  };
+
+  private _catalog: WritableSignal<Verifier[]> = signal([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
   private _overrides: WritableSignal<VerifierOverrides> = signal({});
 
   constructor() {
+    this.fetchCatalog();
     const cached = this.projectService.getVerifierOverrides();
     if (cached) {
       this._overrides.set(cached);
@@ -59,10 +69,10 @@ export class VerifierService {
 
   /**
    * Read-only signal of the available verifiers, shared across all consuming components.
-   * Recomputed automatically when either the base catalog or the overrides change.
+   * Recomputed automatically when either the Catalog or the overrides change.
    */
   public readonly verifiers: Signal<Verifier[]> = computed(() =>
-    applyOverrides(this._base(), this._overrides()),
+    applyOverrides(this._catalog(), this._overrides()),
   );
 
   /**
@@ -80,12 +90,27 @@ export class VerifierService {
   );
 
   /**
-   * Replace the base verifier catalog, e.g. once it has been fetched from the backend.
-   * Does not persist — the catalog is backend-supplied, not user state.
-   * @param verifiers The verifiers to load as the new base
+   * Fetch the Verifier Catalog from the backend. Called once, at
+   * construction — the Catalog is frozen for the backend's lifetime and refreshed here only
+   * by a page reload. Does not persist — the Catalog is backend-supplied, not user state.
+   *
+   * On any failure the Catalog becomes exactly the locally built Functional Verifier and one
+   * console line reports it, so the editor stays usable for pure correctness-by-construction
+   * work; verification itself surfaces backend unavailability separately.
    */
-  public loadBase(verifiers: Verifier[]): void {
-    this._base.set(verifiers);
+  private fetchCatalog(): void {
+    this.http
+      .get<VerifierCatalog>(environment.apiUrl + VerifierService.catalogPath)
+      .subscribe({
+        next: (catalog) => this._catalog.set(this.sortVerifiers(catalog.verifiers)),
+        error: (error: HttpErrorResponse) => {
+          this._catalog.set([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
+          this.consoleService.addErrorResponse(
+            error,
+            "Verifier Catalog could not be fetched; showing only the Functional Verifier",
+          );
+        },
+      });
   }
 
   /**

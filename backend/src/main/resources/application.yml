@@ -48,3 +48,7 @@ xai.accessToken: '${XAI_ACCESS_TOKEN:changeme}'
 google.accessToken: '${GOOGLE_ACCESS_TOKEN:changeme}'
 
 development: '${DEVELOPMENT:false}'
+
+# Verifier Registry: the Verifiers this deployment provides, in presentation order.
+# Empty by default; a deployment mounts its own list via MICRONAUT_CONFIG_FILES.
+verifiers: []

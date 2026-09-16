@@ -110,15 +110,19 @@ export interface VerifierVariable {
 /**
  * A verifier that can be toggled on or off and optionally configured through its settings.
  *
- * The base catalog is authored declaratively (currently hardcoded in `VerifierService`,
- * eventually delivered by the backend). User modifications live in a separate
- * {@link VerifierOverrides} record — a `Verifier` value that consumers see is the merged
- * projection produced by {@link applyOverrides}, not the raw base.
+ * An entry of the Verifier Catalog, which the backend delivers through
+ * `GET /editor/verifiers` (see {@link VerifierCatalog}). User modifications live in a
+ * separate {@link VerifierOverrides} record — a `Verifier` value that consumers see is the
+ * merged projection produced by {@link applyOverrides}, not the raw Catalog entry.
  */
 export interface Verifier {
   id: string;
   label: string;
   enabled: boolean;
+  /**
+   * Text shown in place of a verification status until a live status for this verifier
+   * arrives. Absent when the verifier declares none.
+   */
   statusPlaceholder?: string;
   /**
    * Whether the user can move the enabled toggle. Defaults to `true` (freely toggleable)
@@ -142,10 +146,21 @@ export interface Verifier {
 }
 
 /**
- * User's persisted modifications to the base verifier catalog, keyed by verifier id.
+ * The Verifier Catalog as served by `GET /editor/verifiers`: the read-only set of verifier
+ * entries the backend presents — the Functional Verifier first, then one entry per
+ * registered verifier in Verifier Registry order. `message` is one backend-composed console
+ * line naming verifiers that are unavailable and why; absent when every verifier loaded.
+ */
+export interface VerifierCatalog {
+  verifiers: Verifier[];
+  message?: string;
+}
+
+/**
+ * User's persisted modifications to the Verifier Catalog, keyed by verifier id.
  * Sparse: entries are created lazily on first user interaction and never removed even if
- * the user reverts to the base value. `enabled` is optional per entry — when absent, the
- * merged view falls back to the base's `enabled`. `settings` maps each modified setting's
+ * the user reverts to the Catalog value. `enabled` is optional per entry — when absent, the
+ * merged view falls back to the Catalog entry's `enabled`. `settings` maps each modified setting's
  * id to its raw input — a string for text/select settings, a real boolean for boolean
  * settings.
  */

@@ -7,6 +7,8 @@ import edu.kit.cbc.common.corc.codegeneration.CodeGenerator;
 import edu.kit.cbc.editor.llm.LLMClientRegistry;
 import edu.kit.cbc.editor.llm.LLMQueryDto;
 import edu.kit.cbc.editor.llm.LLMResponse;
+import edu.kit.cbc.editor.verifier.VerifierCatalog;
+import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import edu.kit.cbc.projects.files.controller.FilesController;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
@@ -41,11 +43,17 @@ public class EditorController {
     private final FilesController filesController;
     private final LLMClientRegistry llmRegistry;
     private final VerificationOrchestrator orchestrator;
+    private final VerifierCatalogService catalogService;
 
-    EditorController(FilesController filesController, LLMClientRegistry llmRegistry, VerificationOrchestrator orchestrator) {
+    EditorController(
+        FilesController filesController,
+        LLMClientRegistry llmRegistry,
+        VerificationOrchestrator orchestrator,
+        VerifierCatalogService catalogService) {
         this.filesController = filesController;
         this.llmRegistry = llmRegistry;
         this.orchestrator = orchestrator;
+        this.catalogService = catalogService;
     }
 
     @Post(uri = "/export")
@@ -80,6 +88,16 @@ public class EditorController {
 
         UUID jobId = orchestrator.addJob(projectId, functionalOnly, formula, filesController);
         return HttpResponse.ok(jobId);
+    }
+
+    /**
+     * The Verifier Catalog, served from the cache built at startup — no Verifier is contacted
+     * per request.
+     */
+    @Get(uri = "/verifiers")
+    @Produces(MediaType.APPLICATION_JSON)
+    public VerifierCatalog verifiers() {
+        return catalogService.catalog();
     }
 
     @Post(uri = "/javaGen")

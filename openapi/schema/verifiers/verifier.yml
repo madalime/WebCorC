@@ -22,6 +22,12 @@ properties:
       forced-off one (`enabled: false`). A locked verifier's `enabled` is
       catalog-owned: a saved override contradicting it is ignored on load.
 
+  statusPlaceholder:
+    type: string
+    description: >-
+      Text shown in place of a verification status until a live status for this
+      verifier arrives. Optional; a verifier without one renders no status text.
+
   settings:
     type: array
     description: Configurable settings of the verifier.
