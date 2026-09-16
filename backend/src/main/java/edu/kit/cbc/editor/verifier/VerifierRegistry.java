@@ -4,6 +4,7 @@ import io.micronaut.core.order.OrderUtil;
 import jakarta.inject.Singleton;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -12,6 +13,10 @@ import java.util.Set;
  * {@link VerifierRegistryEntry}); the application default is an empty list, so a deployment
  * with no Registry file mounted has no registered Verifiers and the Catalog holds only the
  * Functional Verifier.
+ *
+ * <p>Answers "which Verifiers exist, in what order" ({@link #ids()}) and "URL and policy for
+ * id" ({@link #entry(String)}). Inside the backend a Verifier is addressed by id; only the
+ * {@link VerifierClient} turns an id into a URL.
  *
  * <p>The Functional Verifier is built in, not registered: its id
  * ({@link VerifierCatalogService#FUNCTIONAL_VERIFIER_ID}) is reserved.
@@ -32,6 +37,21 @@ public class VerifierRegistry {
     /** Every registered Verifier in Registry (configuration) order. Immutable. */
     public List<VerifierRegistryEntry> entries() {
         return entries;
+    }
+
+    /** The ids of every registered Verifier in Registry (configuration) order. Immutable. */
+    public List<String> ids() {
+        return entries.stream().map(VerifierRegistryEntry::getId).toList();
+    }
+
+    /**
+     * The Registry entry — URL and policy — of one Verifier.
+     *
+     * @param id a Verifier id
+     * @return the entry, or empty if no Verifier is registered under {@code id}
+     */
+    public Optional<VerifierRegistryEntry> entry(String id) {
+        return entries.stream().filter(entry -> entry.getId().equals(id)).findFirst();
     }
 
     private static void validate(List<VerifierRegistryEntry> entries) {

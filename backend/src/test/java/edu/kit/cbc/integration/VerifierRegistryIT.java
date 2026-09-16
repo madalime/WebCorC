@@ -14,9 +14,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * The backend boots with a Verifier Registry that lists entries, binds them in configuration
- * order, and — nothing reading them yet — still serves a Catalog of only the Functional
- * Verifier.
+ * The backend boots with a Verifier Registry that lists entries and binds them in
+ * configuration order. Nobody listens at their URLs, so fetching their Self-Descriptions fails
+ * at startup; until unavailable Verifiers are locked off (a later milestone) they are left out
+ * and the Catalog holds only the Functional Verifier.
  */
 @MicronautTest
 @Property(name = "verifiers[0].id", value = "eebc")
@@ -45,7 +46,7 @@ class VerifierRegistryIT {
     }
 
     @Test
-    void registeredEntriesDoNotYetReachTheCatalog() throws Exception {
+    void unreachableEntriesAreLeftOutOfTheCatalogForNow() throws Exception {
         JsonNode catalog = mapper.readTree(client.toBlocking().retrieve("/editor/verifiers"));
 
         Assertions.assertEquals(1, catalog.get("verifiers").size());

@@ -9,15 +9,16 @@ import java.util.logging.Logger;
  * Builds the Verifier Catalog once at application startup and serves it from an immutable
  * cache for the backend's lifetime — no refresh, no liveness checks per request.
  *
- * <p>The Catalog is assembled by iterating the {@link VerifierRegistry} in order and merging
- * each Verifier's {@link SelfDescription} into a Catalog entry via
+ * <p>The Catalog is assembled by iterating the {@link VerifierRegistry} in order, fetching each
+ * Verifier's {@link SelfDescription} through the {@link VerifierClient} (by id — this service
+ * never sees a URL) and merging it into a Catalog entry via
  * {@link #merge(String, SelfDescription)}. The Functional Verifier is prepended through the
  * very same merge step from the constant {@link #FUNCTIONAL_SELF_DESCRIPTION}; moving it behind
  * the Verifier API later means deleting the constant and adding a Registry entry, nothing else.
  *
- * <p>Registered Verifiers are not contacted yet: fetching their Self-Descriptions over the
- * Verifier API is a later milestone, so a non-empty Registry currently contributes no entries
- * and no {@code message} is composed.
+ * <p>A Verifier whose Self-Description could not be obtained — <em>unreachable</em> or
+ * <em>invalid response</em> — is logged and left out of the Catalog for now. Locked-off
+ * entries, the startup retry and the Catalog {@code message} are a later milestone.
  */
 @Context
 public class VerifierCatalogService {
@@ -43,8 +44,8 @@ public class VerifierCatalogService {
 
     private final VerifierCatalog catalog;
 
-    public VerifierCatalogService(VerifierRegistry registry) {
-        this.catalog = build(registry);
+    public VerifierCatalogService(VerifierRegistry registry, VerifierClient client) {
+        this.catalog = build(registry, client);
     }
 
     /** The cached Verifier Catalog. The same instance on every call. */
@@ -54,7 +55,9 @@ public class VerifierCatalogService {
 
     /**
      * The merge step every Catalog entry passes through: the Registry-assigned id joined with
-     * the Verifier's Self-Description. Registry policy is not applied yet.
+     * the Verifier's Self-Description. Settings and variables the Verifier omitted become
+     * empty lists, since the Catalog always carries the arrays. Registry policy is not applied
+     * yet.
      *
      * @param id the id the Verifier Registry assigns to the Verifier
      * @param description what the Verifier declares about itself
@@ -67,19 +70,23 @@ public class VerifierCatalogService {
             description.enabled(),
             description.toggleable(),
             description.statusPlaceholder(),
-            List.copyOf(description.settings()),
-            List.copyOf(description.variables()),
+            description.settings() == null ? List.of() : List.copyOf(description.settings()),
+            description.variables() == null ? List.of() : List.copyOf(description.variables()),
             description.allowFunctionalVariables()
         );
     }
 
-    private static VerifierCatalog build(VerifierRegistry registry) {
+    private static VerifierCatalog build(VerifierRegistry registry, VerifierClient client) {
         List<Verifier> verifiers = new ArrayList<>();
         verifiers.add(merge(FUNCTIONAL_VERIFIER_ID, FUNCTIONAL_SELF_DESCRIPTION));
-        for (VerifierRegistryEntry entry : registry.entries()) {
-            LOGGER.info(String.format(
-                "Verifier '%s' is registered at %s but not fetched yet: the Verifier API is not called in this milestone",
-                entry.getId(), entry.getUrl()));
+        for (String id : registry.ids()) {
+            try {
+                verifiers.add(merge(id, client.describe(id)));
+                LOGGER.info(String.format("Verifier '%s' described itself and joins the Verifier Catalog", id));
+            } catch (VerifierClientException e) {
+                LOGGER.warning(String.format(
+                    "Verifier '%s' is left out of the Verifier Catalog: %s", id, e.getMessage()));
+            }
         }
         LOGGER.info(String.format("Verifier Catalog built with %d entries", verifiers.size()));
         return new VerifierCatalog(verifiers, null);

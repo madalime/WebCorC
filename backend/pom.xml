@@ -285,6 +285,36 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!-- Builds the mock Verifier image (mock-verifier/ at the repo root, the same
+                     image docker-compose.dev.yml runs) so that Micronaut Test Resources can
+                     start it as a generic container for the integration tests; see
+                     test-resources.containers.mock-verifier in application-test.yml. -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>build-mock-verifier-image</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skipTests}</skip>
+                            <executable>docker</executable>
+                            <!-- combine.self="override": the Micronaut parent pre-configures
+                                 java-launch arguments (-classpath ...) that must not merge in. -->
+                            <arguments combine.self="override">
+                                <argument>build</argument>
+                                <argument>--quiet</argument>
+                                <argument>--tag</argument>
+                                <argument>webcorc-mock-verifier</argument>
+                                <argument>${project.basedir}/../mock-verifier</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>3.2.5</version>

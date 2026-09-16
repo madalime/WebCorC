@@ -2,6 +2,7 @@ package edu.kit.cbc.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micronaut.context.annotation.Property;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
@@ -10,15 +11,31 @@ import io.micronaut.http.client.HttpClient;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * Seam 1 of the Verifier Catalog spec: {@code GET /editor/verifiers} over HTTP with an empty
- * Verifier Registry. The Catalog then holds exactly the Functional Verifier and carries no
- * {@code message}.
+ * Seam 1 of the Verifier Catalog spec: {@code GET /editor/verifiers} over HTTP with the mock
+ * Verifier registered. The mock Verifier image ({@code mock-verifier/}, the same one the dev
+ * compose stack runs) is started by Micronaut Test Resources as a generic container — see
+ * {@code test-resources.containers.mock-verifier} in {@code application-test.yml} — and its
+ * address is injected as the first Registry entry through the {@code mock-verifier.host} and
+ * {@code mock-verifier.port} properties the container resolves. A second entry points at a
+ * URL nobody listens on.
+ *
+ * <p>Expected: the Functional Verifier first and locked on; the mock's entry carrying the
+ * label, all four kinds of settings, the variables, {@code allowFunctionalVariables} and the
+ * status placeholder of its Self-Description, in Registry order after {@code func}. The dead
+ * entry is left out and no {@code message} is composed — locked-off entries are a later
+ * milestone.
  */
 @MicronautTest
+@Property(name = "verifiers[0].id", value = "mock")
+@Property(name = "verifiers[0].url", value = "http://${mock-verifier.host}:${mock-verifier.port}")
+@Property(name = "verifiers[1].id", value = "dead")
+@Property(name = "verifiers[1].url", value = "http://127.0.0.1:9")
 class VerifierCatalogIT {
 
     @Inject
@@ -28,7 +45,7 @@ class VerifierCatalogIT {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void emptyRegistry_catalogHoldsOnlyTheFunctionalVerifier() throws Exception {
+    void catalogListsTheRegisteredMockVerifierAfterTheFunctionalVerifier() throws Exception {
         HttpResponse<String> response = client.toBlocking()
             .exchange(HttpRequest.GET("/editor/verifiers"), String.class);
 
@@ -39,23 +56,78 @@ class VerifierCatalogIT {
 
         JsonNode catalog = mapper.readTree(response.body());
         Assertions.assertTrue(catalog.isObject(), "Catalog is an envelope object");
-        Assertions.assertFalse(catalog.has("message"), "No message when every Verifier loaded");
+        Assertions.assertFalse(catalog.has("message"), "No message is composed yet");
 
         JsonNode verifiers = catalog.get("verifiers");
         Assertions.assertNotNull(verifiers, "Envelope carries the verifiers array");
-        Assertions.assertTrue(verifiers.isArray());
-        Assertions.assertEquals(1, verifiers.size(), "Only the Functional Verifier");
+        Assertions.assertEquals(List.of("func", "mock"), ids(verifiers),
+            "func first, then Registry order; the unreachable entry is left out for now");
 
-        JsonNode func = verifiers.get(0);
-        Assertions.assertEquals("func", func.get("id").asText());
+        assertFunctionalVerifier(verifiers.get(0));
+        assertMockVerifier(verifiers.get(1));
+    }
+
+    private static List<String> ids(JsonNode verifiers) {
+        List<String> ids = new ArrayList<>();
+        verifiers.forEach(verifier -> ids.add(verifier.get("id").asText()));
+        return ids;
+    }
+
+    private static void assertFunctionalVerifier(JsonNode func) {
         Assertions.assertEquals("Functional correctness", func.get("label").asText());
         Assertions.assertTrue(func.get("enabled").asBoolean());
-        Assertions.assertFalse(func.get("toggleable").asBoolean());
+        Assertions.assertFalse(func.get("toggleable").asBoolean(), "Locked on");
         Assertions.assertTrue(func.get("settings").isArray() && func.get("settings").isEmpty(),
             "Functional Verifier declares no settings (present, empty)");
         Assertions.assertTrue(func.get("variables").isArray() && func.get("variables").isEmpty(),
             "Functional Verifier declares no variables (present, empty)");
         Assertions.assertFalse(func.has("statusPlaceholder"), "Functional Verifier has no status placeholder");
         Assertions.assertFalse(func.has("allowFunctionalVariables"));
+    }
+
+    /** The mock's Self-Description as preset in {@code mock-verifier/description.json}. */
+    private static void assertMockVerifier(JsonNode mock) {
+        Assertions.assertEquals("Mock Verifier", mock.get("label").asText());
+        Assertions.assertTrue(mock.get("enabled").asBoolean());
+        Assertions.assertTrue(mock.get("toggleable").asBoolean());
+        Assertions.assertEquals("Waiting for mock verification…", mock.get("statusPlaceholder").asText());
+        Assertions.assertTrue(mock.get("allowFunctionalVariables").asBoolean());
+
+        JsonNode variables = mock.get("variables");
+        Assertions.assertEquals(1, variables.size());
+        Assertions.assertEquals("energyBudget", variables.get(0).get("id").asText());
+        Assertions.assertEquals("double", variables.get(0).get("type").asText());
+        Assertions.assertEquals("Energy budget", variables.get(0).get("name").asText());
+
+        JsonNode settings = mock.get("settings");
+        Assertions.assertEquals(List.of("reportTitle", "threshold", "strategy", "verbose"), ids(settings),
+            "All four kinds of settings, addressable by id");
+
+        JsonNode reportTitle = settings.get(0);
+        Assertions.assertEquals("text", reportTitle.get("type").asText());
+        Assertions.assertEquals("string", reportTitle.get("valueType").asText());
+        Assertions.assertEquals("Report title", reportTitle.get("label").asText());
+        Assertions.assertEquals("Mock verification", reportTitle.get("default").asText());
+        Assertions.assertFalse(reportTitle.get("required").asBoolean());
+
+        JsonNode threshold = settings.get(1);
+        Assertions.assertEquals("text", threshold.get("type").asText());
+        Assertions.assertEquals("number", threshold.get("valueType").asText());
+        Assertions.assertEquals(0.5, threshold.get("step").asDouble());
+        Assertions.assertEquals(0, threshold.get("range").get("min").asDouble());
+        Assertions.assertEquals(100, threshold.get("range").get("max").asDouble());
+        Assertions.assertTrue(threshold.get("required").asBoolean());
+        Assertions.assertEquals("50", threshold.get("default").asText());
+
+        JsonNode strategy = settings.get(2);
+        Assertions.assertEquals("select", strategy.get("type").asText());
+        Assertions.assertEquals(List.of("strict", "lenient"), ids(strategy.get("options")));
+        Assertions.assertEquals("Strict", strategy.get("options").get(0).get("label").asText());
+        Assertions.assertEquals("strict", strategy.get("default").asText());
+
+        JsonNode verbose = settings.get(3);
+        Assertions.assertEquals("boolean", verbose.get("type").asText());
+        Assertions.assertTrue(verbose.get("default").isBoolean(), "Boolean settings carry a real boolean default");
+        Assertions.assertTrue(verbose.get("default").asBoolean());
     }
 }

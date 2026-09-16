@@ -27,6 +27,9 @@ services:
   mock-verifier:
     build:
       context: mock-verifier
+    # Same tag the backend's Maven build gives the image it starts for the integration tests
+    # (Micronaut Test Resources generic container), independent of the compose project name.
+    image: webcorc-mock-verifier
     ports:
       - "8081:80"
 

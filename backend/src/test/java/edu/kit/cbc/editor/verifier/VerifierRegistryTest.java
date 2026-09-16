@@ -24,6 +24,25 @@ class VerifierRegistryTest {
     }
 
     @Test
+    void idsFollowConfigurationOrder() {
+        VerifierRegistry registry = new VerifierRegistry(List.of(
+            entry(1, "sec", "http://sec"),
+            entry(0, "eebc", "http://eebc")));
+
+        Assertions.assertEquals(List.of("eebc", "sec"), registry.ids());
+    }
+
+    @Test
+    void answersTheEntryForAnId() {
+        VerifierRegistry registry = new VerifierRegistry(List.of(
+            entry(0, "eebc", "http://eebc"),
+            entry(1, "sec", "http://sec")));
+
+        Assertions.assertEquals("http://sec", registry.entry("sec").orElseThrow().getUrl());
+        Assertions.assertTrue(registry.entry("unknown").isEmpty());
+    }
+
+    @Test
     void rejectsDuplicateIds() {
         IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
             () -> new VerifierRegistry(List.of(entry(0, "eebc", "http://a"), entry(1, "eebc", "http://b"))));

@@ -14,10 +14,10 @@ import java.util.List;
  * {@link VerifierCatalogService#merge(String, SelfDescription)}: the id is Registry-assigned,
  * everything else comes from the Verifier's {@link SelfDescription}.
  *
- * <p>{@code settings} and {@code variables} are kept as raw {@link JsonNode} entries: their
- * shapes are declared by the Verifier and rendered by the frontend, so they round-trip
- * losslessly. They are always present (possibly empty) on the wire — the frontend relies on
- * the arrays existing.
+ * <p>{@code settings} are typed ({@link VerifierSetting}) so that they are addressable by
+ * setting id; {@code variables} are kept as raw {@link JsonNode} entries — their shape is
+ * declared by the Verifier and rendered by the frontend, so they round-trip losslessly. Both
+ * are always present (possibly empty) on the wire — the frontend relies on the arrays existing.
  *
  * <p>{@code toggleable} is optional (nullable {@code Boolean}): {@code false} locks the enabled
  * toggle at whatever {@code enabled} is declared as — either a mandatory-on verifier
@@ -47,7 +47,7 @@ public record Verifier(
     boolean enabled,
     Boolean toggleable,
     String statusPlaceholder,
-    List<JsonNode> settings,
+    List<VerifierSetting> settings,
     List<JsonNode> variables,
     Boolean allowFunctionalVariables
 ) {}
