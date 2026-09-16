@@ -24,6 +24,12 @@ services:
     ports:
       - "27017:27017"
 
+  mock-verifier:
+    build:
+      context: mock-verifier
+    ports:
+      - "8081:80"
+
   webcorc-backend:
     build:
       context: backend
@@ -32,6 +38,14 @@ services:
       - docker-compose.env
     environment:
       DEVELOPMENT: true
+    # Deviation from the ticket's "MICRONAUT_CONFIG_FILES in environment:": an OS-level env
+    # var here is inherited by the Micronaut Test Resources sidecar `mvn mn:run` also forks,
+    # which has no YAML loader on its classpath and fails startup on a mounted .yml file (see
+    # ticket Comments). A -D system property appended to the existing ENTRYPOINT is forwarded
+    # by micronaut-maven-plugin to the app JVM only.
+    command: ["-Dmicronaut.config.files=/config/verifiers.dev.yml"]
+    volumes:
+      - ./verifiers.dev.yml:/config/verifiers.dev.yml:ro
     ports:
       - "8080:8080"
     develop:
@@ -47,6 +61,8 @@ services:
       rustfs:
         condition: service_started
       mongo:
+        condition: service_started
+      mock-verifier:
         condition: service_started
 
   webcorc-frontend:
