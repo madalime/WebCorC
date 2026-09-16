@@ -126,12 +126,33 @@ class VerifierCatalogServiceTest {
     private static VerifierRegistry registryOf(String... ids) {
         List<VerifierRegistryEntry> entries = new ArrayList<>();
         for (int i = 0; i < ids.length; i++) {
-            VerifierRegistryEntry entry = new VerifierRegistryEntry(i);
-            entry.setId(ids[i]);
-            entry.setUrl("http://" + ids[i]);
-            entries.add(entry);
+            entries.add(policyEntry(i, ids[i], null, null, null, Map.of()));
         }
         return new VerifierRegistry(entries);
+    }
+
+    private static VerifierRegistry registryOf(VerifierRegistryEntry entry) {
+        return new VerifierRegistry(List.of(entry));
+    }
+
+    /** A Registry entry at index 0 carrying the given policy; {@code null} fields stay unset. */
+    private static VerifierRegistryEntry policyEntry(
+        String id, String label, Boolean enabled, Boolean toggleable, Map<String, Map<String, Object>> settings
+    ) {
+        return policyEntry(0, id, label, enabled, toggleable, settings);
+    }
+
+    private static VerifierRegistryEntry policyEntry(
+        int index, String id, String label, Boolean enabled, Boolean toggleable, Map<String, Map<String, Object>> settings
+    ) {
+        VerifierRegistryEntry entry = new VerifierRegistryEntry(index);
+        entry.setId(id);
+        entry.setUrl("http://" + id);
+        entry.setLabel(label);
+        entry.setEnabled(enabled);
+        entry.setToggleable(toggleable);
+        entry.setSettings(settings);
+        return entry;
     }
 
     /** Startup configuration with {@code retries} extra attempts and no delay between them. */
@@ -550,5 +571,91 @@ class VerifierCatalogServiceTest {
 
         Assertions.assertTrue(reason.contains("'a'") && reason.contains("'b'"),
             "An operator sees every problem at once, not one per restart: " + reason);
+    }
+
+    // --- Registry policy ------------------------------------------------------------------
+
+    @Test
+    void policyOverridesLabelEnabledAndToggleable() {
+        SelfDescription description = new SelfDescription("Original", false, true, null, List.of(), List.of(), null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("eebc", description);
+        VerifierRegistryEntry policy = policyEntry("eebc", "Renamed", true, false, Map.of());
+
+        Verifier verifier = entry(build(registryOf(policy), client), "eebc");
+
+        Assertions.assertEquals("Renamed", verifier.label());
+        Assertions.assertTrue(verifier.enabled());
+        Assertions.assertEquals(Boolean.FALSE, verifier.toggleable());
+    }
+
+    @Test
+    void policyLeavesFieldsItDoesNotSetAtTheSelfDescriptionsValues() {
+        SelfDescription description = new SelfDescription("Original", true, null, null, List.of(), List.of(), null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("eebc", description);
+        VerifierRegistryEntry policy = policyEntry("eebc", null, null, null, Map.of());
+
+        Verifier verifier = entry(build(registryOf(policy), client), "eebc");
+
+        Assertions.assertEquals("Original", verifier.label());
+        Assertions.assertTrue(verifier.enabled());
+        Assertions.assertNull(verifier.toggleable(), "Unset in policy, unset in the Self-Description: stays unset");
+    }
+
+    @Test
+    void policyOverridesASettingDefaultById() {
+        VerifierSetting threshold = new VerifierSetting("threshold", "text", "number", "Threshold", null,
+            true, JsonNode.createStringNode("50"), null, null, null, null);
+        VerifierSetting untouched = new VerifierSetting("verbose", "boolean", null, "Verbose", null,
+            null, JsonNode.createBooleanNode(false), null, null, null, null);
+        SelfDescription description = new SelfDescription(
+            "Mock", true, null, null, List.of(threshold, untouched), List.of(), null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("mock", description);
+        VerifierRegistryEntry policy = policyEntry("mock", null, null, null,
+            Map.of("threshold", Map.of("default", "75")));
+
+        Verifier verifier = entry(build(registryOf(policy), client), "mock");
+
+        Assertions.assertEquals(JsonNode.createStringNode("75"),
+            verifier.settings().stream().filter(s -> s.id().equals("threshold")).findFirst().orElseThrow().defaultValue());
+        Assertions.assertEquals(untouched,
+            verifier.settings().stream().filter(s -> s.id().equals("verbose")).findFirst().orElseThrow(),
+            "A setting the policy does not name is untouched");
+    }
+
+    @Test
+    void unknownSettingIdInPolicyIsWarnedAboutAndIgnored() {
+        SelfDescription description = new SelfDescription("Mock", true, null, null, List.of(), List.of(), null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("mock", description);
+        VerifierRegistryEntry policy = policyEntry("mock", null, null, null,
+            Map.of("typo", Map.of("default", "x")));
+
+        VerifierCatalog catalog = build(registryOf(policy), client);
+
+        Assertions.assertNull(catalog.message(), "An unknown setting id in policy is a warning, not an unavailability");
+        Assertions.assertTrue(warningAbout("mock").contains("typo"), warningAbout("mock"));
+    }
+
+    @Test
+    void lockedOffEntryHonoursALabelOverrideButNotEnabledOrToggleable() {
+        FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
+        VerifierRegistryEntry policy = policyEntry("dead", "Custom label", true, true, Map.of());
+
+        VerifierCatalog catalog = new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+
+        Verifier verifier = entry(catalog, "dead");
+        Assertions.assertEquals("Custom label", verifier.label(), "Policy label wins over the fallback, even locked off");
+        Assertions.assertFalse(verifier.enabled(), "Policy must not re-enable a locked-off entry");
+        Assertions.assertEquals(Boolean.FALSE, verifier.toggleable(), "Policy must not re-enable a locked-off entry");
+        Assertions.assertEquals(List.of(), verifier.settings());
+    }
+
+    @Test
+    void lockedOffEntryWithoutALabelPolicyKeepsTheFallbackLabel() {
+        FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
+        VerifierRegistryEntry policy = policyEntry("dead", null, null, null, Map.of());
+
+        VerifierCatalog catalog = new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+
+        Assertions.assertEquals("dead (offline)", entry(catalog, "dead").label());
     }
 }

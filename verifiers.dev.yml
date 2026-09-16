@@ -8,6 +8,15 @@
 #   - id: dead
 #     url: http://127.0.0.1:9
 # After a restart it appears greyed out and locked, and the console reports it.
+#
+# To try Registry policy against the mock (see verifiers.yml at the repo root for the full
+# field reference), uncomment and adjust:
+#   - id: mock
+#     url: http://mock-verifier:80
+#     label: "Renamed Mock"
+#     settings:
+#       threshold:
+#         default: "90"
 
 verifiers:
   - id: mock

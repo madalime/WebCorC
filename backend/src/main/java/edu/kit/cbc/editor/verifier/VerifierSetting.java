@@ -52,6 +52,15 @@ public record VerifierSetting(
     List<Option> options
 ) {
 
+    /**
+     * The same Setting with its {@link #defaultValue()} replaced, for the Verifier Registry's
+     * {@code settings.<id>.default} policy. Nothing else about the Setting is overridable.
+     */
+    public VerifierSetting withDefault(JsonNode defaultValue) {
+        return new VerifierSetting(id, type, valueType, label, description, required, defaultValue,
+            input, step, range, options);
+    }
+
     /** Inclusive bounds of a numeric setting; each bound is optional. */
     @Serdeable
     @JsonInclude(JsonInclude.Include.NON_NULL)

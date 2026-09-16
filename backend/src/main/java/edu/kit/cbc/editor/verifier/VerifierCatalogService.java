@@ -4,6 +4,7 @@ import io.micronaut.context.annotation.Context;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -23,10 +24,19 @@ import java.util.stream.Collectors;
  * <p>A Verifier that is <em>unreachable</em> — still, after the retries of the
  * {@link VerifierCatalogConfiguration} — or whose Self-Description is <em>invalid</em> (does
  * not parse, or violates the schema; never retried) is not dropped but <strong>locked
- * off</strong>: it keeps its place in Registry order as {@link #lockedOff(String)}, so the
- * user's Verifier Overrides for it survive, and the backend log carries a warning with the
- * detailed reason. The Catalog then carries one {@code message} naming every unavailable
- * Verifier and why, for the frontend console.
+ * off</strong>: it keeps its place in Registry order as
+ * {@link #lockedOff(String, VerifierRegistryEntry)}, so the user's Verifier Overrides for it
+ * survive, and the backend log carries a warning with the detailed reason. The Catalog then
+ * carries one {@code message} naming every unavailable Verifier and why, for the frontend
+ * console.
+ *
+ * <p>Once a Self-Description is validated, the Registry entry's policy is applied over it —
+ * {@code label}, {@code enabled}, {@code toggleable} and any {@code settings.<id>.default} — by
+ * {@link #applyPolicy(Verifier, VerifierRegistryEntry)}. A policy naming a setting id the
+ * Verifier does not declare is logged as a warning and otherwise ignored. A locked-off entry
+ * only takes the policy's {@code label} (over the {@code "<id> (offline)"} fallback); its
+ * {@code enabled}/{@code toggleable} stay locked regardless of policy, and it has no settings to
+ * override.
  */
 @Context
 public class VerifierCatalogService {
@@ -90,15 +100,66 @@ public class VerifierCatalogService {
 
     /**
      * The locked-off entry of a Verifier that is unavailable at startup: {@code enabled: false},
-     * {@code toggleable: false}, no settings, no variables, no status placeholder, and the
-     * fallback label {@code "<id> (offline)"}. Goes through the same merge step as every other
-     * entry, so it is shaped exactly like one.
+     * {@code toggleable: false}, no settings, no variables, no status placeholder. The label is
+     * the fallback {@code "<id> (offline)"}, unless {@code policy} overrides it — the one policy
+     * field a locked-off entry still honours; {@code enabled}/{@code toggleable} stay locked
+     * regardless of policy. Goes through the same merge step as every other entry, so it is
+     * shaped exactly like one.
      *
      * @param id the Verifier's Registry id
+     * @param policy the Registry entry, for its {@code label} override, or {@code null}
      * @return the Catalog entry
      */
-    static Verifier lockedOff(String id) {
-        return merge(id, new SelfDescription(id + " (offline)", false, false, null, List.of(), List.of(), null));
+    static Verifier lockedOff(String id, VerifierRegistryEntry policy) {
+        String label = policy != null && policy.getLabel() != null ? policy.getLabel() : id + " (offline)";
+        return merge(id, new SelfDescription(label, false, false, null, List.of(), List.of(), null));
+    }
+
+    /**
+     * Applies a Registry entry's policy over an already-merged Catalog entry: {@code label},
+     * {@code enabled} and {@code toggleable} are replaced where the policy sets them, and every
+     * setting the policy names a {@code default} for is replaced accordingly. A policy field left
+     * unset ({@code null}, or a setting id absent from {@code settings}) keeps the Verifier's own
+     * value. Not used for locked-off entries — see {@link #lockedOff(String, VerifierRegistryEntry)}.
+     *
+     * @param verifier the plain merge of id and Self-Description
+     * @param policy the Registry entry the Verifier is registered under
+     * @return the Catalog entry with policy applied
+     */
+    static Verifier applyPolicy(Verifier verifier, VerifierRegistryEntry policy) {
+        return new Verifier(
+            verifier.id(),
+            policy.getLabel() != null ? policy.getLabel() : verifier.label(),
+            policy.getEnabled() != null ? policy.getEnabled() : verifier.enabled(),
+            policy.getToggleable() != null ? policy.getToggleable() : verifier.toggleable(),
+            verifier.statusPlaceholder(),
+            applySettingDefaults(verifier.id(), verifier.settings(), policy),
+            verifier.variables(),
+            verifier.allowFunctionalVariables()
+        );
+    }
+
+    /**
+     * Replaces the {@code default} of every setting {@code policy} names one for; a policy
+     * {@code settings.<id>.default} for a setting id the Verifier does not declare is logged as a
+     * warning and ignored.
+     */
+    private static List<VerifierSetting> applySettingDefaults(
+        String id, List<VerifierSetting> settings, VerifierRegistryEntry policy
+    ) {
+        if (policy.getSettings().isEmpty()) {
+            return settings;
+        }
+        Set<String> knownSettingIds = settings.stream().map(VerifierSetting::id).collect(Collectors.toSet());
+        for (String settingId : policy.policedSettingIds()) {
+            if (!knownSettingIds.contains(settingId)) {
+                LOGGER.warning(String.format(
+                    "Verifier Registry policy for '%s' overrides unknown setting id '%s'; ignored", id, settingId));
+            }
+        }
+        return settings.stream()
+            .map(setting -> policy.settingDefault(setting.id()).map(setting::withDefault).orElse(setting))
+            .toList();
     }
 
     /** Why a Verifier is unavailable, in the words of the Catalog {@code message}. */
@@ -124,16 +185,17 @@ public class VerifierCatalogService {
         List<Verifier> verifiers = new ArrayList<>();
         List<Unavailable> unavailable = new ArrayList<>();
         verifiers.add(merge(FUNCTIONAL_VERIFIER_ID, FUNCTIONAL_SELF_DESCRIPTION));
-        for (String id : registry.ids()) {
+        for (VerifierRegistryEntry policy : registry.entries()) {
+            String id = policy.getId();
             try {
                 SelfDescription description = describeWithRetry(id, client, configuration);
                 SelfDescriptionValidator.validate(id, description);
-                verifiers.add(merge(id, description));
+                verifiers.add(applyPolicy(merge(id, description), policy));
                 LOGGER.info(String.format("Verifier '%s' described itself and joins the Verifier Catalog", id));
             } catch (VerifierUnreachableException e) {
-                lockOff(verifiers, unavailable, id, Unavailability.UNREACHABLE, e);
+                lockOff(verifiers, unavailable, id, Unavailability.UNREACHABLE, e, policy);
             } catch (InvalidSelfDescriptionException e) {
-                lockOff(verifiers, unavailable, id, Unavailability.INVALID_DESCRIPTION, e);
+                lockOff(verifiers, unavailable, id, Unavailability.INVALID_DESCRIPTION, e, policy);
             }
         }
         LOGGER.info(String.format("Verifier Catalog built with %d entries, %d locked off",
@@ -192,9 +254,10 @@ public class VerifierCatalogService {
         List<Unavailable> unavailable,
         String id,
         Unavailability why,
-        VerifierClientException cause
+        VerifierClientException cause,
+        VerifierRegistryEntry policy
     ) {
-        verifiers.add(lockedOff(id));
+        verifiers.add(lockedOff(id, policy));
         unavailable.add(new Unavailable(id, why));
         LOGGER.warning(String.format("Verifier '%s' is locked off in the Verifier Catalog (%s): %s",
             id, why.wording, cause.getMessage()));

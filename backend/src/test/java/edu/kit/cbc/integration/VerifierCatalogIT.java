@@ -27,14 +27,18 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Expected: the Functional Verifier first and locked on; the mock's entry carrying the
  * label, all four kinds of settings, the variables, {@code allowFunctionalVariables} and the
- * status placeholder of its Self-Description, in Registry order after {@code func}. The dead
- * entry is present in its Registry place but locked off — {@code enabled: false},
- * {@code toggleable: false}, empty settings and variables, the fallback label
- * {@code "dead (offline)"} — and the envelope's {@code message} names it as unreachable.
+ * status placeholder of its Self-Description, in Registry order after {@code func} — with the
+ * Registry policy below applied: the label renamed and the {@code threshold} setting's default
+ * overridden. The dead entry is present in its Registry place but locked off —
+ * {@code enabled: false}, {@code toggleable: false}, empty settings and variables, the fallback
+ * label {@code "dead (offline)"} — and the envelope's {@code message} names it as unreachable.
  */
 @MicronautTest
 @Property(name = "verifiers[0].id", value = "mock")
 @Property(name = "verifiers[0].url", value = "http://${mock-verifier.host}:${mock-verifier.port}")
+@Property(name = "verifiers[0].label", value = "Mock Verifier (renamed by policy)")
+@Property(name = "verifiers[0].toggleable", value = "false")
+@Property(name = "verifiers[0].settings.threshold.default", value = "75")
 @Property(name = "verifiers[1].id", value = "dead")
 @Property(name = "verifiers[1].url", value = "http://127.0.0.1:9")
 class VerifierCatalogIT {
@@ -100,11 +104,17 @@ class VerifierCatalogIT {
         Assertions.assertFalse(func.has("allowFunctionalVariables"));
     }
 
-    /** The mock's Self-Description as preset in {@code mock-verifier/description.json}. */
+    /**
+     * The mock's Self-Description as preset in {@code mock-verifier/description.json}, with the
+     * Registry policy from this test's {@code @Property}s applied: the label renamed, toggling
+     * locked off, and the {@code threshold} setting's default overridden to {@code 75}.
+     */
     private static void assertMockVerifier(JsonNode mock) {
-        Assertions.assertEquals("Mock Verifier", mock.get("label").asText());
+        Assertions.assertEquals("Mock Verifier (renamed by policy)", mock.get("label").asText(),
+            "The Registry's label policy wins over the Self-Description's own label");
         Assertions.assertTrue(mock.get("enabled").asBoolean());
-        Assertions.assertTrue(mock.get("toggleable").asBoolean());
+        Assertions.assertFalse(mock.get("toggleable").asBoolean(),
+            "The Registry's toggleable policy (false) wins over the Self-Description's own true");
         Assertions.assertEquals("Waiting for mock verification…", mock.get("statusPlaceholder").asText());
         Assertions.assertTrue(mock.get("allowFunctionalVariables").asBoolean());
 
@@ -132,7 +142,8 @@ class VerifierCatalogIT {
         Assertions.assertEquals(0, threshold.get("range").get("min").asDouble());
         Assertions.assertEquals(100, threshold.get("range").get("max").asDouble());
         Assertions.assertTrue(threshold.get("required").asBoolean());
-        Assertions.assertEquals("50", threshold.get("default").asText());
+        Assertions.assertEquals("75", threshold.get("default").asText(),
+            "The Registry's settings.threshold.default policy wins over the Self-Description's own 50");
 
         JsonNode strategy = settings.get(2);
         Assertions.assertEquals("select", strategy.get("type").asText());
