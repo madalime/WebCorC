@@ -1,63 +1,25 @@
-# Verifier Registry — production template.
+# Verifier Registry — the file this deployment's backend actually reads.
 #
-# Copy this file, fill in the Verifiers your deployment actually runs, and it is mounted
-# read-only into the backend container via MICRONAUT_CONFIG_FILES (see docker-compose.env and
-# the `webcorc-backend` service in docker-compose.yml). A deployment with this file absent, or
-# with `verifiers: []`, serves the Functional Verifier (`func`, built in, always present) only.
+# docker-compose.yml mounts it read-only into the `webcorc-backend` container at
+# /config/verifiers.yml, and MICRONAUT_CONFIG_FILES in docker-compose.env points Micronaut at
+# that path, so it is loaded on top of the backend's own application.yml. Changes take effect
+# on the next `docker compose up`/restart of the backend; Verifiers are only registered at
+# startup.
 #
-# Each entry:
-#   id           — required. Stable identifier the backend addresses the Verifier by; assigned
-#                  here, not by the Verifier itself, so the same Verifier image can be
-#                  registered under any id, or twice with different ids/defaults. Must not be
-#                  `func` (reserved for the built-in Functional Verifier).
-#   url          — required. The Verifier's base URL; the Verifier API paths (e.g.
-#                  `/description`) are appended to it.
+# `verifiers: []` registers nothing: the Catalog then holds the Functional Verifier (`func`,
+# built in, always present) only. To run more Verifiers, replace the `[]` with a list of entries,
+# template_verifiers.yml next to this file documents every field (id, url, and the optional
+# label/enabled/toggleable/settings policy) with a worked example to copy from.
 #
-# Everything else is deployment *policy*, applied on top of the Verifier's own Self-Description
-# in the Verifier Catalog. Every field is optional; a field left out keeps the Verifier's own
-# value. Nothing about a Setting other than its default — not its id, type, label, description
-# or required flag — is overridable here.
-#   label                  — renames the Verifier in the Catalog.
-#   enabled                — pre-enables (true) or forces off (false) the Verifier by default.
-#   toggleable             — false locks the enabled toggle so a user cannot change it (the
-#                             Verifier stays exactly at its `enabled` value); true or omitted
-#                             leaves it freely toggleable.
-#   settings.<id>.default  — overrides one Setting's default value, addressed by the Setting's
-#                             own id (see the Verifier's Self-Description, e.g. `GET
-#                             <url>/description`, for the ids it declares). Quote the value so
-#                             it round-trips as the string the Settings schema expects (the
-#                             backend does not re-validate a policy default's type).
-#
-# A field the Registry does not recognise here (a typo in one of the names above) fails the
-# backend at startup rather than being silently ignored.
-#
-# Verifiers are presented to the frontend in the order listed here, `func` always first; the
-# frontend's own ranking then refines that baseline order.
+# The dev stack (docker-compose.dev.yml) does not use this file; it mounts verifiers.dev.yml
+# instead.
 
-verifiers:
-  # A Verifier registered with every policy field in use, as an example — remove or adjust
-  # before deploying.
-  - id: energy
-    url: http://energy-verifier:8080
-    label: "Energy Efficiency"
-    enabled: true
-    toggleable: true
-    settings:
-      threshold:
-        default: "75"
+verifiers: []
 
-  # A Verifier registered without any policy: its Self-Description decides label, default
-  # enabled/toggleable state and every Setting's default.
-  - id: security
-    url: http://security-verifier:8080
-
-# Startup fetch of each Verifier's Self-Description: an unreachable Verifier (connect failure,
-# timeout, 5xx — a container start-order race) is retried `retries` times, `retry-delay` apart,
-# before being locked off in the Catalog until the next restart; an invalid Self-Description
-# (violates the Settings schema) is never retried. Each attempt uses the application's
-# `micronaut.http.client` timeouts (backend/src/main/resources/application.yml); override them
-# in this same file if a Verifier needs longer to answer, e.g.:
-#   micronaut.http.client.read-timeout: 30s
+# Startup fetch of each registered Verifier's Self-Description: an unreachable Verifier
+# (connect failure, timeout, 5xx — a container start-order race) is retried `retries` times,
+# `retry-delay` apart, before being locked off in the Catalog until the next restart. See
+# template_verifiers.yml for the details and how to lengthen the HTTP client timeouts.
 verifier-catalog:
   retries: 3
   retry-delay: 2s

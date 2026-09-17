@@ -9,8 +9,8 @@
 #     url: http://127.0.0.1:9
 # After a restart it appears greyed out and locked, and the console reports it.
 #
-# To try Registry policy against the mock (see verifiers.yml at the repo root for the full
-# field reference), uncomment and adjust:
+# To try Registry policy against the mock (see template_verifiers.yml at the repo root for the
+# full field reference), uncomment and adjust:
 #   - id: mock
 #     url: http://mock-verifier:80
 #     label: "Renamed Mock"
@@ -21,6 +21,9 @@
 verifiers:
   - id: mock
     url: http://mock-verifier:80
+
+  - id: dead
+    url: http://not-a-real-host:9
 
 # Startup retries for an unreachable Verifier (container start-order races); see the
 # `verifier-catalog` block in backend/src/main/resources/application.yml for the semantics

@@ -27,8 +27,6 @@ services:
   mock-verifier:
     build:
       context: mock-verifier
-    # Same tag the backend's Maven build gives the image it starts for the integration tests
-    # (Micronaut Test Resources generic container), independent of the compose project name.
     image: webcorc-mock-verifier
     ports:
       - "8081:80"
@@ -41,12 +39,6 @@ services:
       - docker-compose.env
     environment:
       DEVELOPMENT: true
-      # docker-compose.env sets MICRONAUT_CONFIG_FILES for the production compose file
-      # (verifiers.yml); blanked out again here because an OS-level env var is inherited by
-      # the Micronaut Test Resources sidecar `mvn mn:run` also forks, which has no YAML loader
-      # on its classpath and fails startup trying to read it (see ticket 06's Comments). A -D
-      # system property appended to the existing ENTRYPOINT below is forwarded by
-      # micronaut-maven-plugin to the app JVM only, so it is used for verifiers.dev.yml instead.
       MICRONAUT_CONFIG_FILES: ""
     command: ["-Dmicronaut.config.files=/config/verifiers.dev.yml"]
     volumes:
