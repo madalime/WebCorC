@@ -1,8 +1,6 @@
 :80 {
 	# A stand-in Verifier with preset, static responses. /description implements
-	# the one operation openapi/verifier-api.yml currently defines. /verify answers
-	# ahead of that document (spec: "Mock Verifier") so the mock stays a complete
-	# implementation once a verification operation is specified; both answer
+	# the one operation openapi/verifier-api.yml currently defines and answers
 	# regardless of input.
 
 	root * /srv
@@ -11,13 +9,6 @@
 	handle @description {
 		header Content-Type application/json
 		rewrite * /description.json
-		file_server
-	}
-
-	@verify path /verify
-	handle @verify {
-		header Content-Type application/json
-		rewrite * /verify.json
 		file_server
 	}
 
