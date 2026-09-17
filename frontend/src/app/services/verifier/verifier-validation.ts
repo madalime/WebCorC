@@ -61,13 +61,6 @@ export function numberInputError(
 }
 
 /**
- * Whether a single setting is currently valid for the purpose of gating a run. Boolean
- * settings are always valid — a toggle can only produce `true`/`false` and its default
- * is mandatory. Required string-valued settings must be non-empty; non-empty numeric
- * settings must satisfy their constraints. Empty optional settings are valid.
- * @param setting The setting to validate
- */
-/**
  * Whether a fetched Catalog matches the contract every consumer relies on without checking:
  * an array of entries, each carrying `settings` and `variables` as arrays (the backend always
  * sends them — omitted ones become `[]`, per the Verifier Catalog's own invariant — so their
@@ -86,6 +79,25 @@ export function isWellFormedCatalog(catalog: VerifierCatalog): boolean {
   );
 }
 
+/**
+ * Whether a Verifier carries status text worth surfacing. `statusPlaceholder` is
+ * `undefined` when the verifier declares no status at all, and can also be set to `""`
+ * (e.g. by an override) — neither renders anything, so both count as "no status" here.
+ * Shared by {@link VerifierService.sortVerifiers} and the statement popup's accordion
+ * filter so a Verifier with `statusPlaceholder=""` is treated consistently by both.
+ * @param verifier The Verifier to check
+ */
+export function hasStatus(verifier: { statusPlaceholder?: string }): boolean {
+  return !!verifier.statusPlaceholder;
+}
+
+/**
+ * Whether a single setting is currently valid for the purpose of gating a run. Boolean
+ * settings are always valid — a toggle can only produce `true`/`false` and its default
+ * is mandatory. Required string-valued settings must be non-empty; non-empty numeric
+ * settings must satisfy their constraints. Empty optional settings are valid.
+ * @param setting The setting to validate
+ */
 export function isSettingValid(setting: VerifierSetting): boolean {
   if (setting.type === 'boolean') {
     return true;

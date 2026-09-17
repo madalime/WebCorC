@@ -11,7 +11,7 @@ import { ConsoleService } from "../console/console.service";
 import { ProjectService } from "../project/project.service";
 import { VerifierNetworkService } from "./network/verifier-network.service";
 import { applyOverrides } from "./verifier-overrides";
-import { isSettingValid, isWellFormedCatalog } from "./verifier-validation";
+import { hasStatus, isSettingValid, isWellFormedCatalog } from "./verifier-validation";
 
 /** How the Verifier Catalog fetch is going; see {@link VerifierService.catalogFetch}. */
 export type CatalogFetchState =
@@ -304,7 +304,7 @@ export class VerifierService {
     const rank = (verifier: Verifier): number => {
       if (verifier.id === FUNCTIONAL_VERIFIER_ID) return 0;
       const hasVariables = verifier.variables.length > 0;
-      const hasText = verifier.statusPlaceholder !== undefined;
+      const hasText = hasStatus(verifier);
       const hasSettings = verifier.settings.length > 0;
       if (hasVariables && hasText) return 1;
       if (hasVariables) return 2;

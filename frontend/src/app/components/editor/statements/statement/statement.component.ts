@@ -42,6 +42,7 @@ import { AsyncPipe, NgTemplateOutlet } from "@angular/common";
 import { AiChatService } from "../../../../services/ai-chat/ai-chat.service";
 import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-statement-node";
 import {VerifierService} from "../../../../services/verifier/verifier.service";
+import {hasStatus} from "../../../../services/verifier/verifier-validation";
 import {FUNCTIONAL_VERIFIER_ID, Verifier} from "../../../../types/Verifier";
 import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
 import { MatTooltip } from "@angular/material/tooltip";
@@ -296,7 +297,7 @@ export class StatementComponent {
         (verifier) =>
           verifier.enabled &&
           (this.hasBody(verifier) ||
-            verifier.statusPlaceholder),
+            hasStatus(verifier)),
       );
   }
 
