@@ -185,17 +185,17 @@ public class VerifierCatalogService {
         List<Verifier> verifiers = new ArrayList<>();
         List<Unavailable> unavailable = new ArrayList<>();
         verifiers.add(merge(FUNCTIONAL_VERIFIER_ID, FUNCTIONAL_SELF_DESCRIPTION));
-        for (VerifierRegistryEntry policy : registry.entries()) {
-            String id = policy.getId();
+        for (VerifierRegistryEntry entry : registry.entries()) {
+            String id = entry.getId();
             try {
                 SelfDescription description = describeWithRetry(id, client, configuration);
                 SelfDescriptionValidator.validate(id, description);
-                verifiers.add(applyPolicy(merge(id, description), policy));
+                verifiers.add(applyPolicy(merge(id, description), entry));
                 LOGGER.info(String.format("Verifier '%s' described itself and joins the Verifier Catalog", id));
             } catch (VerifierUnreachableException e) {
-                lockOff(verifiers, unavailable, id, Unavailability.UNREACHABLE, e, policy);
+                lockOff(verifiers, unavailable, id, Unavailability.UNREACHABLE, e, entry);
             } catch (InvalidSelfDescriptionException e) {
-                lockOff(verifiers, unavailable, id, Unavailability.INVALID_DESCRIPTION, e, policy);
+                lockOff(verifiers, unavailable, id, Unavailability.INVALID_DESCRIPTION, e, entry);
             }
         }
         LOGGER.info(String.format("Verifier Catalog built with %d entries, %d locked off",
@@ -255,9 +255,9 @@ public class VerifierCatalogService {
         String id,
         Unavailability why,
         VerifierClientException cause,
-        VerifierRegistryEntry policy
+        VerifierRegistryEntry entry
     ) {
-        verifiers.add(lockedOff(id, policy));
+        verifiers.add(lockedOff(id, entry));
         unavailable.add(new Unavailable(id, why));
         LOGGER.warning(String.format("Verifier '%s' is locked off in the Verifier Catalog (%s): %s",
             id, why.wording, cause.getMessage()));
