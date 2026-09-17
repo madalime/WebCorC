@@ -9,6 +9,11 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -30,6 +35,11 @@ import org.junit.jupiter.api.Test;
  * order, {@code enabled: false}, {@code toggleable: false}, empty settings and variables,
  * labelled {@code "<id> (offline)"}. The Catalog then carries one {@code message} naming every
  * unavailable Verifier and why, and the backend log a warning with the detailed reason.
+ *
+ * <p>The build runs on the executor handed to the service, so that constructing it — which
+ * Micronaut does while starting the application context, before the HTTP server binds — does
+ * not wait for the Verifiers; these tests hand it a same-thread executor to build synchronously,
+ * except where the off-thread behaviour itself is under test.
  */
 class VerifierCatalogServiceTest {
 
@@ -164,7 +174,15 @@ class VerifierCatalogServiceTest {
     }
 
     private static VerifierCatalog build(VerifierRegistry registry, VerifierClient client) {
-        return new VerifierCatalogService(registry, client, retries(0)).catalog();
+        return build(registry, client, retries(0));
+    }
+
+    /** Builds the Catalog on the calling thread and returns it once built. */
+    private static VerifierCatalog build(
+        VerifierRegistry registry, VerifierClient client, VerifierCatalogConfiguration configuration
+    ) {
+        return new VerifierCatalogService(registry, client, configuration, Runnable::run)
+            .catalog().toCompletableFuture().join();
     }
 
     private static List<String> ids(VerifierCatalog catalog) {
@@ -335,13 +353,56 @@ class VerifierCatalogServiceTest {
             "The backend log carries the detailed reason: " + warnings());
     }
 
+    // --- Startup ------------------------------------------------------------------------------
+
+    @Test
+    void constructingDoesNotWaitForTheVerifiers() throws Exception {
+        CountDownLatch verifierAnswers = new CountDownLatch(1);
+        VerifierClient stalling = id -> {
+            try {
+                verifierAnswers.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new VerifierUnreachableException("interrupted", e);
+            }
+            return MINIMAL;
+        };
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            VerifierCatalogService service =
+                new VerifierCatalogService(registryOf("eebc"), stalling, retries(0), executor);
+            CompletableFuture<VerifierCatalog> catalog = service.catalog().toCompletableFuture();
+
+            Assertions.assertFalse(catalog.isDone(), "The build runs on the executor, not in the constructor");
+
+            verifierAnswers.countDown();
+            Assertions.assertEquals(List.of("func", "eebc"), ids(catalog.get(5, TimeUnit.SECONDS)),
+                "The Catalog completes once the last Verifier answered");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void everyCallerGetsTheSameCatalog() {
+        FakeVerifierClient client = new FakeVerifierClient().describing("eebc", MINIMAL);
+        VerifierCatalogService service =
+            new VerifierCatalogService(registryOf("eebc"), client, retries(0), Runnable::run);
+
+        Assertions.assertSame(
+            service.catalog().toCompletableFuture().join(),
+            service.catalog().toCompletableFuture().join(),
+            "Built once, served from the cache");
+        Assertions.assertEquals(1, client.calls("eebc"));
+    }
+
     // --- Retry --------------------------------------------------------------------------------
 
     @Test
     void unreachableVerifierIsRetriedTheConfiguredNumberOfTimes() {
         FakeVerifierClient client = new FakeVerifierClient().failing("eebc", UNREACHABLE);
 
-        VerifierCatalog catalog = new VerifierCatalogService(registryOf("eebc"), client, retries(3)).catalog();
+        VerifierCatalog catalog = build(registryOf("eebc"), client, retries(3));
 
         Assertions.assertEquals(4, client.calls("eebc"), "One attempt plus three retries");
         assertLockedOff(entry(catalog, "eebc"));
@@ -354,7 +415,7 @@ class VerifierCatalogServiceTest {
             .failingFirst(2, "eebc", UNREACHABLE)
             .describing("eebc", MINIMAL);
 
-        VerifierCatalog catalog = new VerifierCatalogService(registryOf("eebc"), client, retries(3)).catalog();
+        VerifierCatalog catalog = build(registryOf("eebc"), client, retries(3));
 
         Assertions.assertEquals(3, client.calls("eebc"), "Stops retrying once the Verifier answered");
         Assertions.assertEquals("Minimal", entry(catalog, "eebc").label());
@@ -367,7 +428,7 @@ class VerifierCatalogServiceTest {
     void invalidSelfDescriptionIsNotRetried() {
         FakeVerifierClient client = new FakeVerifierClient().failing("sec", NOT_PARSEABLE);
 
-        VerifierCatalog catalog = new VerifierCatalogService(registryOf("sec"), client, retries(3)).catalog();
+        VerifierCatalog catalog = build(registryOf("sec"), client, retries(3));
 
         Assertions.assertEquals(1, client.calls("sec"), "Invalid is not transient: no retry");
         assertLockedOff(entry(catalog, "sec"));
@@ -377,7 +438,7 @@ class VerifierCatalogServiceTest {
     void zeroRetriesMeansASingleAttempt() {
         FakeVerifierClient client = new FakeVerifierClient().failing("eebc", UNREACHABLE);
 
-        new VerifierCatalogService(registryOf("eebc"), client, retries(0)).catalog();
+        build(registryOf("eebc"), client, retries(0));
 
         Assertions.assertEquals(1, client.calls("eebc"));
     }
@@ -442,7 +503,7 @@ class VerifierCatalogServiceTest {
     private String lockedOffReason(SelfDescription description) {
         FakeVerifierClient client = new FakeVerifierClient().describing("sec", description);
 
-        VerifierCatalog catalog = new VerifierCatalogService(registryOf("sec"), client, retries(3)).catalog();
+        VerifierCatalog catalog = build(registryOf("sec"), client, retries(3));
 
         assertLockedOff(entry(catalog, "sec"));
         Assertions.assertEquals("1 verifier unavailable: sec (invalid description)", catalog.message());
@@ -906,7 +967,7 @@ class VerifierCatalogServiceTest {
         FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
         VerifierRegistryEntry policy = policyEntry("dead", "Custom label", true, true, Map.of());
 
-        VerifierCatalog catalog = new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+        VerifierCatalog catalog = build(registryOf(policy), client, retries(0));
 
         Verifier verifier = entry(catalog, "dead");
         Assertions.assertEquals("Custom label", verifier.label(), "Policy label wins over the fallback, even locked off");
@@ -920,7 +981,7 @@ class VerifierCatalogServiceTest {
         FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
         VerifierRegistryEntry policy = policyEntry("dead", null, null, null, Map.of());
 
-        VerifierCatalog catalog = new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+        VerifierCatalog catalog = build(registryOf(policy), client, retries(0));
 
         Assertions.assertEquals("dead (offline)", entry(catalog, "dead").label());
     }
@@ -931,7 +992,7 @@ class VerifierCatalogServiceTest {
         VerifierRegistryEntry policy = policyEntry("dead", null, null, null,
             Map.of("threshold", Map.of("default", "1")));
 
-        VerifierCatalog catalog = new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+        VerifierCatalog catalog = build(registryOf(policy), client, retries(0));
 
         Assertions.assertEquals("1 verifier unavailable: dead (unreachable)", catalog.message(),
             "The unchecked policy is a log warning only, not part of the Catalog message");
@@ -946,7 +1007,7 @@ class VerifierCatalogServiceTest {
         FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
         VerifierRegistryEntry policy = policyEntry("dead", "Custom label", null, null, Map.of());
 
-        new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+        build(registryOf(policy), client, retries(0));
 
         List<String> aboutDead = warnings().stream().filter(message -> message.contains("'dead'")).toList();
         Assertions.assertEquals(1, aboutDead.size(), "Nothing to report beyond the lock-off itself: " + aboutDead);

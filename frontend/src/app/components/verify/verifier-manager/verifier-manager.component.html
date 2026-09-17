@@ -1,3 +1,16 @@
+@if (catalogFetch(); as fetch) {
+  @if (fetch.status === 'fetching') {
+    <p class="catalog-status" role="status">
+      <i class="pi pi-spin pi-spinner"></i>
+      <span>
+        Fetching Verifier Catalog…
+        @if (fetch.attempt > 1) {
+          <br>Backend not reachable yet, attempt {{ fetch.attempt }} of {{ maxFetchAttempts }}
+        }
+      </span>
+    </p>
+  }
+}
 <p-accordion [value]="expandedSections" [multiple]="true" (valueChange)="updateExpandedSections($event)">
   @for (item of items; track item.id) {
     @if (item.settings.length === 0 && item.variables.length === 0) {

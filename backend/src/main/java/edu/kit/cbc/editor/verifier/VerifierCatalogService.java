@@ -2,11 +2,16 @@ package edu.kit.cbc.editor.verifier;
 
 import io.micronaut.context.annotation.Context;
 import io.micronaut.json.tree.JsonNode;
+import io.micronaut.scheduling.TaskExecutors;
+import jakarta.inject.Named;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -14,6 +19,14 @@ import java.util.stream.Collectors;
  * Builds the Verifier Catalog once at application startup and serves it from an immutable
  * cache for the backend's lifetime — no refresh, no liveness checks per request. A Verifier
  * that comes back online is picked up only on backend restart.
+ *
+ * <p>The build starts when the application context creates this bean, but runs on the blocking
+ * task executor rather than on the startup thread: the retries for an unreachable Verifier can
+ * take a while (retries × retry delay, per Verifier), and the HTTP server binds its port only
+ * once the context has started, so building inline would keep the whole backend unreachable
+ * until the slowest Verifier gave up. {@link #catalog()} is therefore a {@link CompletionStage}
+ * — a request for the Catalog arriving before the build is done is held and answered the moment
+ * it completes; every later one is answered from the cache at once.
  *
  * <p>The Catalog is assembled by iterating the {@link VerifierRegistry} in order, fetching each
  * Verifier's {@link SelfDescription} through the {@link VerifierClient} (by id — this service
@@ -67,18 +80,23 @@ public class VerifierCatalogService {
 
     private static final Logger LOGGER = Logger.getGlobal();
 
-    private final VerifierCatalog catalog;
+    private final CompletableFuture<VerifierCatalog> catalog;
 
     public VerifierCatalogService(
         VerifierRegistry registry,
         VerifierClient client,
-        VerifierCatalogConfiguration configuration
+        VerifierCatalogConfiguration configuration,
+        @Named(TaskExecutors.BLOCKING) Executor executor
     ) {
-        this.catalog = build(registry, client, configuration);
+        this.catalog = CompletableFuture.supplyAsync(() -> build(registry, client, configuration), executor);
     }
 
-    /** The cached Verifier Catalog. The same instance on every call. */
-    public VerifierCatalog catalog() {
+    /**
+     * The cached Verifier Catalog: a stage that completes once the startup build is done and
+     * yields the same instance on every call. It never completes exceptionally — an unavailable
+     * Verifier is locked off inside the Catalog, not raised.
+     */
+    public CompletionStage<VerifierCatalog> catalog() {
         return catalog;
     }
 

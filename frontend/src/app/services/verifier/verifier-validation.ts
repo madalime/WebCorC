@@ -1,4 +1,4 @@
-import { VerifierSetting } from "../../types/Verifier";
+import { Verifier, VerifierCatalog, VerifierSetting } from "../../types/Verifier";
 
 /** Tolerance for floating-point step-grid comparisons (e.g. 0.1 + 0.2 drift). */
 const STEP_EPSILON = 1e-9;
@@ -67,6 +67,25 @@ export function numberInputError(
  * settings must satisfy their constraints. Empty optional settings are valid.
  * @param setting The setting to validate
  */
+/**
+ * Whether a fetched Catalog matches the contract every consumer relies on without checking:
+ * an array of entries, each carrying `settings` and `variables` as arrays (the backend always
+ * sends them — omitted ones become `[]`, per the Verifier Catalog's own invariant — so their
+ * absence here means the body does not match the Verifier Catalog contract, e.g. a
+ * frontend/backend version mismatch). {@link applyOverrides} and the Catalog's own sorting
+ * index into both fields unconditionally, so a body that fails this check must be rejected
+ * before either runs, not passed through and left to fail wherever it is first read.
+ * @param catalog The parsed response body to check before trusting it
+ */
+export function isWellFormedCatalog(catalog: VerifierCatalog): boolean {
+  return (
+    Array.isArray(catalog?.verifiers) &&
+    catalog.verifiers.every(
+      (verifier: Verifier) => Array.isArray(verifier?.settings) && Array.isArray(verifier?.variables),
+    )
+  );
+}
+
 export function isSettingValid(setting: VerifierSetting): boolean {
   if (setting.type === 'boolean') {
     return true;

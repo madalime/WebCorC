@@ -3,7 +3,7 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from "@angular/common/http/testing";
-import { TestBed } from "@angular/core/testing";
+import { TestBed, fakeAsync, tick } from "@angular/core/testing";
 import { Subject } from "rxjs";
 
 import { environment } from "../../../environments/environment";
@@ -106,10 +106,11 @@ describe("VerifierService", () => {
       ]);
     });
 
-    it("falls back to exactly the Functional Verifier and logs one console line when the fetch fails", () => {
-      httpTesting.expectOne(catalogUrl).flush("backend down", { status: 503, statusText: "Service Unavailable" });
+    it("falls back to exactly the Functional Verifier and logs one console line when the fetch fails for good", () => {
+      httpTesting.expectOne(catalogUrl).flush("no such route", { status: 404, statusText: "Not Found" });
 
       expect(service.verifiers()).toEqual([functionalVerifier]);
+      expect(service.catalogFetch()).toEqual({ status: 'failed' });
       expect(consoleService.numberOfLogs).toBe(1);
       const line = consoleService.logs[0];
       expect(isGroup(line)).toBeFalse();
@@ -117,11 +118,94 @@ describe("VerifierService", () => {
       expect((line as ConsoleErrorLine).action).toContain("Verifier Catalog");
     });
 
-    it("falls back to the Functional Verifier on a network error", () => {
-      httpTesting.expectOne(catalogUrl).error(new ProgressEvent("error"));
+    describe("while the backend is not reachable", () => {
+      const delay = VerifierService.CATALOG_FETCH_DELAY_MS;
+      const attempts = VerifierService.CATALOG_FETCH_ATTEMPTS;
 
-      expect(service.verifiers().map((verifier) => verifier.id)).toEqual(['func']);
+      /** Fail the pending Catalog request the way a backend that is not listening does. */
+      function failUnreachable(): void {
+        httpTesting.expectOne(catalogUrl).error(new ProgressEvent("error"));
+      }
+
+      it("reports the first attempt as fetching until the Catalog arrives", () => {
+        expect(service.catalogFetch()).toEqual({ status: 'fetching', attempt: 1 });
+        loadCatalog([]);
+        expect(service.catalogFetch()).toEqual({ status: 'loaded' });
+      });
+
+      it("retries after the delay on a network error and shows the Catalog once the backend answers", fakeAsync(() => {
+        failUnreachable();
+        expect(service.verifiers().map((verifier) => verifier.id)).toEqual(['func']);
+        expect(consoleService.numberOfLogs).toBe(0);
+        expect(service.catalogFetch()).toEqual({ status: 'fetching', attempt: 2 });
+
+        httpTesting.expectNone(catalogUrl);
+        tick(delay);
+        loadCatalog([functionalVerifier, lockedOff('eebc')]);
+
+        expect(service.verifiers().map((verifier) => verifier.id)).toEqual(['func', 'eebc']);
+        expect(service.catalogFetch()).toEqual({ status: 'loaded' });
+        expect(consoleService.numberOfLogs).toBe(0);
+      }));
+
+      for (const status of [502, 503, 504]) {
+        it(`retries on a ${status} from a proxy in front of a backend that is still starting`, fakeAsync(() => {
+          httpTesting.expectOne(catalogUrl).flush("starting", { status, statusText: "Unavailable" });
+          tick(delay);
+          loadCatalog([functionalVerifier]);
+
+          expect(service.verifiers()).toEqual([functionalVerifier]);
+          expect(consoleService.numberOfLogs).toBe(0);
+        }));
+      }
+
+      it("does not retry on an error that is not a connectivity problem", fakeAsync(() => {
+        httpTesting.expectOne(catalogUrl).flush("bug", { status: 500, statusText: "Internal Server Error" });
+        tick(delay);
+
+        httpTesting.expectNone(catalogUrl);
+        expect(service.catalogFetch()).toEqual({ status: 'failed' });
+        expect(consoleService.numberOfLogs).toBe(1);
+      }));
+
+      it("sends one request at a time, spaced by the delay", fakeAsync(() => {
+        failUnreachable();
+        tick(delay - 1);
+        httpTesting.expectNone(catalogUrl);
+        tick(1);
+        failUnreachable();
+        tick(delay);
+        loadCatalog([]);
+      }));
+
+      it("gives up after the last attempt with the Functional Verifier and one console line", fakeAsync(() => {
+        for (let attempt = 1; attempt < attempts; attempt++) {
+          failUnreachable();
+          expect(service.catalogFetch()).toEqual({ status: 'fetching', attempt: attempt + 1 });
+          tick(delay);
+        }
+        failUnreachable();
+        tick(delay);
+
+        httpTesting.expectNone(catalogUrl);
+        expect(service.verifiers()).toEqual([functionalVerifier]);
+        expect(service.catalogFetch()).toEqual({ status: 'failed' });
+        expect(consoleService.numberOfLogs).toBe(1);
+        expect(isError(consoleService.logs[0] as ConsoleLogLine)).toBeTrue();
+      }));
+    });
+
+    it("does not get stuck \"fetching\" forever when the backend sends a shape-invalid Catalog", () => {
+      // A Verifier entry missing the required `settings`/`variables` arrays: well-formed JSON,
+      // a 200 status, but not a Catalog the frontend's own contract allows through unchecked.
+      httpTesting.expectOne(catalogUrl).flush({
+        verifiers: [{ id: 'func', label: 'Functional correctness', enabled: true }],
+      });
+
+      expect(service.verifiers()).toEqual([functionalVerifier]);
+      expect(service.catalogFetch()).toEqual({ status: 'failed' });
       expect(consoleService.numberOfLogs).toBe(1);
+      expect(isError(consoleService.logs[0] as ConsoleLogLine)).toBeTrue();
     });
 
     it("logs nothing when the Catalog is fetched successfully", () => {

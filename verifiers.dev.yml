@@ -23,7 +23,8 @@ verifiers:
     url: http://mock-verifier:80
 
   # Intentionally unreachable: exercises the locked-off path (retries, then a greyed-out
-  # Verifier in the panel) on every dev start. Costs retries × retry-delay at startup.
+  # Verifier in the panel) on every dev start. Costs retries × retry-delay before the Catalog
+  # is served; the backend answers meanwhile and the panel says it is still fetching.
   - id: dead
     url: http://not-a-real-host:9
 

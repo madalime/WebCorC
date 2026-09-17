@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.UUID;
+import java.util.concurrent.CompletionStage;
 import java.util.logging.Logger;
 
 @Controller("/editor")
@@ -92,11 +93,12 @@ public class EditorController {
 
     /**
      * The Verifier Catalog, served from the cache built at startup — no Verifier is contacted
-     * per request.
+     * per request. A request arriving while that build is still running is held (without
+     * blocking an event-loop thread) and answered as soon as the Catalog exists.
      */
     @Get(uri = "/verifiers")
     @Produces(MediaType.APPLICATION_JSON)
-    public VerifierCatalog verifiers() {
+    public CompletionStage<VerifierCatalog> verifiers() {
         return catalogService.catalog();
     }
 
