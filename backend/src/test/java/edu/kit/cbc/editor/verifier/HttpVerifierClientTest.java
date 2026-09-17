@@ -212,4 +212,28 @@ class HttpVerifierClientTest {
         Assertions.assertThrows(IllegalArgumentException.class, () -> client.describe("nope"));
         Assertions.assertTrue(REQUESTED_PATHS.isEmpty());
     }
+
+    @Test
+    void malformedRegistryUrlIsAnInvalidResponseNotAProgrammingError() {
+        InvalidSelfDescriptionException e = Assertions.assertThrows(InvalidSelfDescriptionException.class,
+            () -> clientFor("mock", "http://${mock-verifier.host}:${mock-verifier.port}").describe("mock"),
+            "An unresolved Registry placeholder is not valid URI syntax; it must be classified and locked off "
+                + "like any other unavailable Verifier, not escape as an unchecked exception");
+
+        Assertions.assertTrue(e.getMessage().contains("mock"), e.getMessage());
+        Assertions.assertTrue(REQUESTED_PATHS.isEmpty(), "Nothing is requested when the URL cannot even be built");
+    }
+
+    @Test
+    void nonStandardStatusCodeIsUnreachable() {
+        RESPONSES.put("/description", new CannedResponse(520, "text/plain", "unknown error"));
+
+        VerifierUnreachableException e = Assertions.assertThrows(VerifierUnreachableException.class,
+            () -> clientFor("mock", standInUrl("")).describe("mock"),
+            "A status code HttpStatus does not recognize (e.g. Cloudflare's 520-527) must still be classified, "
+                + "not throw IllegalArgumentException out of the enum lookup");
+
+        Assertions.assertTrue(e.getMessage().contains("mock"), e.getMessage());
+        Assertions.assertTrue(e.getMessage().contains("520"), e.getMessage());
+    }
 }

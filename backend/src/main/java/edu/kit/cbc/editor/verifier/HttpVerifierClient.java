@@ -18,9 +18,11 @@ import java.net.URI;
  * operation paths of the Verifier API ({@code openapi/verifier-api.yml}) are appended to it.
  *
  * <p>Failures are classified as the contract promises: a connection failure, a timeout or a
- * 5xx status is <em>unreachable</em>; any other non-2xx status or a body that does not parse
- * to {@link SelfDescription} is an <em>invalid response</em>. The body is fetched as text and
- * parsed separately so that the two classifications cannot bleed into each other.
+ * 5xx status is <em>unreachable</em>; any other non-2xx status — including one {@link HttpStatus}
+ * does not recognize — or a body that does not parse to {@link SelfDescription} is an
+ * <em>invalid response</em>, and so is a Registry entry whose URL is not syntactically valid.
+ * The body is fetched as text and parsed separately so that the two classifications cannot bleed
+ * into each other.
  *
  * <p>Uses the application's default HTTP client (and therefore its {@code micronaut.http.client}
  * timeouts) with absolute request URIs; the client is not bound to any base URL.
@@ -65,16 +67,25 @@ public class HttpVerifierClient implements VerifierClient {
      * @param id the Verifier's Registry id
      * @param operationPath a Verifier API path starting with {@code /}
      * @return the absolute URI of the operation
-     * @throws IllegalArgumentException if no Verifier is registered under {@code id}
+     * @throws IllegalArgumentException if no Verifier is registered under {@code id} — a
+     *     programming error, since the caller always got {@code id} from the same Registry
+     * @throws InvalidSelfDescriptionException if the Registry entry's URL is not syntactically
+     *     valid once the operation path is appended — a Registry misconfiguration, not retried
      */
-    private URI operationUri(String id, String operationPath) {
+    private URI operationUri(String id, String operationPath) throws InvalidSelfDescriptionException {
         VerifierRegistryEntry entry = registry.entry(id)
             .orElseThrow(() -> new IllegalArgumentException("Verifier '" + id + "' is not registered"));
         String base = entry.getUrl();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return URI.create(base + operationPath);
+        String target = base + operationPath;
+        try {
+            return URI.create(target);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidSelfDescriptionException(
+                "Verifier '" + id + "' is registered with a malformed URL '" + target + "': " + e.getMessage(), e);
+        }
     }
 
     private String fetch(String id, URI uri) throws VerifierUnreachableException, InvalidSelfDescriptionException {
@@ -83,9 +94,11 @@ public class HttpVerifierClient implements VerifierClient {
                 .exchange(HttpRequest.GET(uri).accept(MediaType.APPLICATION_JSON_TYPE), String.class);
             return response.getBody().orElse("");
         } catch (HttpClientResponseException e) {
-            HttpStatus status = e.getStatus();
-            String answered = "Verifier '" + id + "' answered " + status.getCode() + " to GET " + uri.getPath();
-            if (status.getCode() >= HttpStatus.INTERNAL_SERVER_ERROR.getCode()) {
+            // The raw code, not e.getStatus(): a non-standard code (e.g. Cloudflare 520-527) has
+            // no HttpStatus constant and getStatus() throws IllegalArgumentException on lookup.
+            int code = e.getResponse().code();
+            String answered = "Verifier '" + id + "' answered " + code + " to GET " + uri.getPath();
+            if (code >= HttpStatus.INTERNAL_SERVER_ERROR.getCode()) {
                 throw new VerifierUnreachableException(answered, e);
             }
             throw new InvalidSelfDescriptionException(answered + " instead of a Self-Description", e);
