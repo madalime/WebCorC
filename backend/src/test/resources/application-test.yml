@@ -12,7 +12,8 @@ verifier-catalog:
 # runs) as a Micronaut Test Resources generic container. It is started on first use, i.e. when
 # a test resolves ${mock-verifier.host} / ${mock-verifier.port} — see VerifierCatalogIT, which
 # registers it as its first Verifier Registry entry. The image is built by the backend's Maven
-# build before the integration tests run (see the exec-maven-plugin execution in pom.xml).
+# build before the integration tests run (see the exec-maven-plugin execution in pom.xml;
+# skipped with -DskipTests, -DskipITs or -Dskip.mock.verifier.image=true).
 test-resources:
   containers:
     mock-verifier:
