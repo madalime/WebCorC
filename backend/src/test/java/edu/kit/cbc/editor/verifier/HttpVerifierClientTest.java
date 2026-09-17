@@ -141,6 +141,16 @@ class HttpVerifierClientTest {
     }
 
     @Test
+    void omittedEnabledIsAbsentRatherThanFalse() throws Exception {
+        serveJson("/bare/description", "{\"label\": \"Bare\"}");
+
+        SelfDescription description = clientFor("bare", standInUrl("/bare")).describe("bare");
+
+        Assertions.assertNull(description.enabled(),
+            "The schema requires enabled; an omitted one must reach the validator as absent, not as a silent false");
+    }
+
+    @Test
     void appendsTheOperationPathWithoutDoublingSlashes() throws Exception {
         serveJson("/mock/description", MOCK_DESCRIPTION);
 

@@ -494,6 +494,66 @@ class VerifierCatalogServiceTest {
         Assertions.assertTrue(reason.contains("'s'") && reason.contains("select") && reason.contains("string"), reason);
     }
 
+    // Each setting kind is a closed object (settings/*.yml, additionalProperties: false): a
+    // property another kind declares is rejected, named in the reason.
+
+    private static final VerifierSetting.Range SOME_RANGE = new VerifierSetting.Range(BigDecimal.ZERO, BigDecimal.TEN);
+
+    @Test
+    void rejectsRequiredOnABooleanSetting() {
+        VerifierSetting flagged = new VerifierSetting("s", "boolean", null, "s", null, false,
+            JsonNode.createBooleanNode(true), null, null, null, null);
+
+        String reason = lockedOffReason(describing(flagged));
+
+        Assertions.assertTrue(reason.contains("'s'") && reason.contains("boolean") && reason.contains("required"), reason);
+    }
+
+    @Test
+    void rejectsOptionsOnABooleanSetting() {
+        String reason = lockedOffReason(describing(setting("boolean", null, JsonNode.createBooleanNode(true), ONE_OPTION)));
+
+        Assertions.assertTrue(reason.contains("'s'") && reason.contains("boolean") && reason.contains("options"), reason);
+    }
+
+    @Test
+    void rejectsStepOnATextStringSetting() {
+        VerifierSetting stepped = new VerifierSetting("s", "text", "string", "s", null, null, null, null,
+            new BigDecimal("0.5"), null, null);
+
+        String reason = lockedOffReason(describing(stepped));
+
+        Assertions.assertTrue(reason.contains("'s'") && reason.contains("text/string") && reason.contains("step"), reason);
+    }
+
+    @Test
+    void rejectsRangeOnASelectSetting() {
+        VerifierSetting ranged = new VerifierSetting("s", "select", null, "s", null, null, null, null, null,
+            SOME_RANGE, ONE_OPTION);
+
+        String reason = lockedOffReason(describing(ranged));
+
+        Assertions.assertTrue(reason.contains("'s'") && reason.contains("select") && reason.contains("range"), reason);
+    }
+
+    @Test
+    void rejectsOptionsOnATextNumberSetting() {
+        String reason = lockedOffReason(describing(setting("text", "number", null, ONE_OPTION)));
+
+        Assertions.assertTrue(reason.contains("'s'") && reason.contains("text/number") && reason.contains("options"),
+            reason);
+    }
+
+    @Test
+    void namesEveryForeignPropertyOfASettingAtOnce() {
+        VerifierSetting overloaded = new VerifierSetting("s", "boolean", null, "s", null, true,
+            JsonNode.createBooleanNode(true), null, BigDecimal.ONE, SOME_RANGE, ONE_OPTION);
+
+        String reason = lockedOffReason(describing(overloaded));
+
+        Assertions.assertTrue(reason.contains("required, step, range, options"), reason);
+    }
+
     @Test
     void rejectsARequiredSettingWithoutDefault() {
         String reason = lockedOffReason(describing(text("s", true, null)));
@@ -566,6 +626,82 @@ class VerifierCatalogServiceTest {
     }
 
     @Test
+    void rejectsAMissingEnabled() {
+        String reason = lockedOffReason(new SelfDescription("Some Verifier", null, null, null, null, null, null));
+
+        Assertions.assertTrue(reason.contains("enabled") && reason.contains("missing"), reason);
+    }
+
+    /** A variable {@code v} with the given fields; {@code null} leaves a field out. */
+    private static JsonNode variable(String id, String type, String name, JsonNode description) {
+        Map<String, JsonNode> fields = new HashMap<>();
+        if (id != null) {
+            fields.put("id", JsonNode.createStringNode(id));
+        }
+        if (type != null) {
+            fields.put("type", JsonNode.createStringNode(type));
+        }
+        if (name != null) {
+            fields.put("name", JsonNode.createStringNode(name));
+        }
+        if (description != null) {
+            fields.put("description", description);
+        }
+        return JsonNode.createObjectNode(fields);
+    }
+
+    private static SelfDescription declaring(JsonNode... variables) {
+        return new SelfDescription("Some Verifier", true, null, null, null, List.of(variables), null);
+    }
+
+    @Test
+    void rejectsAVariableThatIsNotAnObject() {
+        String reason = lockedOffReason(declaring(JsonNode.createStringNode("energyBudget")));
+
+        Assertions.assertTrue(reason.contains("variable #1") && reason.contains("not an object"), reason);
+    }
+
+    @Test
+    void rejectsAVariableWithoutId() {
+        String reason = lockedOffReason(declaring(variable(null, "double", "Energy budget", null)));
+
+        Assertions.assertTrue(reason.contains("variable #1") && reason.contains("no id"), reason);
+    }
+
+    @Test
+    void rejectsAVariableWithoutType() {
+        String reason = lockedOffReason(declaring(variable("v", null, "Energy budget", null)));
+
+        Assertions.assertTrue(reason.contains("'v'") && reason.contains("no type"), reason);
+    }
+
+    @Test
+    void rejectsAVariableWithoutName() {
+        String reason = lockedOffReason(declaring(variable("v", "double", null, null)));
+
+        Assertions.assertTrue(reason.contains("'v'") && reason.contains("no name"), reason);
+    }
+
+    @Test
+    void rejectsAVariableWhoseDescriptionIsNotAString() {
+        String reason = lockedOffReason(declaring(variable("v", "double", "Energy budget", JsonNode.createNumberNode(1))));
+
+        Assertions.assertTrue(reason.contains("'v'") && reason.contains("description") && reason.contains("string"), reason);
+    }
+
+    @Test
+    void acceptsVariablesWithEveryFieldOfTheSchema() {
+        JsonNode budget = variable("energyBudget", "double", "Energy budget", JsonNode.createStringNode("Joules per run"));
+        JsonNode cores = variable("cores", "int", "Cores", null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("sec", declaring(budget, cores));
+
+        VerifierCatalog catalog = build(registryOf("sec"), client);
+
+        Assertions.assertNull(catalog.message());
+        Assertions.assertEquals(List.of(budget, cores), entry(catalog, "sec").variables(), "Variables round-trip as declared");
+    }
+
+    @Test
     void reportsEveryViolationOfASelfDescriptionAtOnce() {
         String reason = lockedOffReason(describing(text("a", true, null), text("b", true, null)));
 
@@ -635,6 +771,136 @@ class VerifierCatalogServiceTest {
         Assertions.assertTrue(warningAbout("mock").contains("typo"), warningAbout("mock"));
     }
 
+    // --- Registry policy: setting-default overrides are checked against the setting's kind ----
+
+    private static final VerifierSetting THRESHOLD = new VerifierSetting("threshold", "text", "number", "Threshold",
+        null, true, JsonNode.createStringNode("50"), null, null, null, null);
+    private static final VerifierSetting VERBOSE = new VerifierSetting("verbose", "boolean", null, "Verbose", null,
+        null, JsonNode.createBooleanNode(false), null, null, null, null);
+    private static final VerifierSetting STRATEGY = new VerifierSetting("strategy", "select", null, "Strategy", null,
+        null, JsonNode.createStringNode("a"), null, null, null, ONE_OPTION);
+
+    /** Builds the Catalog for one Verifier {@code mock} declaring {@code settings}, under the given per-setting policy. */
+    private VerifierCatalog policed(Map<String, Map<String, Object>> settingPolicy, VerifierSetting... settings) {
+        SelfDescription description = new SelfDescription("Mock", true, null, null, List.of(settings), List.of(), null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("mock", description);
+        return build(registryOf(policyEntry("mock", null, null, null, settingPolicy)), client);
+    }
+
+    private static JsonNode defaultOf(VerifierCatalog catalog, String settingId) {
+        return entry(catalog, "mock").settings().stream().filter(s -> s.id().equals(settingId)).findFirst()
+            .orElseThrow(() -> new AssertionError("No setting '" + settingId + "'")).defaultValue();
+    }
+
+    @Test
+    void numberOverrideOnATextSettingIsRejectedInFavourOfTheVerifiersDefault() {
+        VerifierCatalog catalog = policed(Map.of("threshold", Map.of("default", 75)), THRESHOLD);
+
+        Assertions.assertEquals(JsonNode.createStringNode("50"), defaultOf(catalog, "threshold"),
+            "A text/number setting's default is a string per the schema; the unquoted override is not");
+        Assertions.assertNull(catalog.message(), "A bad override is a warning, not an unavailability");
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'threshold'") && warning.contains("string") && warning.contains("ignored"),
+            warning);
+    }
+
+    @Test
+    void stringOverrideOnABooleanSettingIsRejectedInFavourOfTheVerifiersDefault() {
+        VerifierCatalog catalog = policed(Map.of("verbose", Map.of("default", "true")), VERBOSE);
+
+        Assertions.assertEquals(JsonNode.createBooleanNode(false), defaultOf(catalog, "verbose"));
+        Assertions.assertNull(catalog.message());
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'verbose'") && warning.contains("boolean") && warning.contains("ignored"),
+            warning);
+    }
+
+    @Test
+    void numberOverrideOnASelectSettingIsRejectedInFavourOfTheVerifiersDefault() {
+        VerifierCatalog catalog = policed(Map.of("strategy", Map.of("default", 1)), STRATEGY);
+
+        Assertions.assertEquals(JsonNode.createStringNode("a"), defaultOf(catalog, "strategy"));
+        Assertions.assertNull(catalog.message());
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'strategy'") && warning.contains("string") && warning.contains("ignored"),
+            warning);
+    }
+
+    @Test
+    void wellTypedOverridesAreAppliedWithoutAWarning() {
+        VerifierCatalog catalog = policed(Map.of(
+            "threshold", Map.of("default", "75"),
+            "verbose", Map.of("default", true),
+            "strategy", Map.of("default", "b")), THRESHOLD, VERBOSE, STRATEGY);
+
+        Assertions.assertEquals(JsonNode.createStringNode("75"), defaultOf(catalog, "threshold"));
+        Assertions.assertEquals(JsonNode.createBooleanNode(true), defaultOf(catalog, "verbose"));
+        Assertions.assertEquals(JsonNode.createStringNode("b"), defaultOf(catalog, "strategy"));
+        Assertions.assertNull(catalog.message());
+        Assertions.assertEquals(List.of(), warnings());
+    }
+
+    @Test
+    void wellTypedOverrideRescuesATextSettingWhoseOwnDefaultIsNotAString() {
+        VerifierSetting threshold = THRESHOLD.withDefault(JsonNode.createNumberNode(50));
+
+        VerifierCatalog catalog = policed(Map.of("threshold", Map.of("default", "75")), threshold);
+
+        Assertions.assertNull(catalog.message(), "Not locked off: the Registry override stands in for the flawed default");
+        Assertions.assertEquals(JsonNode.createStringNode("75"), defaultOf(catalog, "threshold"));
+        Assertions.assertEquals("Mock", entry(catalog, "mock").label());
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'threshold'") && warning.contains("string") && warning.contains("override"),
+            warning);
+    }
+
+    @Test
+    void wellTypedOverrideRescuesARequiredSettingWithoutDefault() {
+        VerifierSetting threshold = THRESHOLD.withDefault(null);
+
+        VerifierCatalog catalog = policed(Map.of("threshold", Map.of("default", "75")), threshold);
+
+        Assertions.assertNull(catalog.message());
+        Assertions.assertEquals(JsonNode.createStringNode("75"), defaultOf(catalog, "threshold"));
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'threshold'") && warning.contains("required") && warning.contains("override"),
+            warning);
+    }
+
+    @Test
+    void wellTypedOverrideRescuesABooleanSettingWhoseOwnDefaultIsNotABoolean() {
+        VerifierSetting verbose = VERBOSE.withDefault(JsonNode.createStringNode("false"));
+
+        VerifierCatalog catalog = policed(Map.of("verbose", Map.of("default", true)), verbose);
+
+        Assertions.assertNull(catalog.message());
+        Assertions.assertEquals(JsonNode.createBooleanNode(true), defaultOf(catalog, "verbose"));
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'verbose'") && warning.contains("boolean") && warning.contains("override"),
+            warning);
+    }
+
+    @Test
+    void illTypedOverrideDoesNotRescueAFlawedDefault() {
+        VerifierSetting verbose = VERBOSE.withDefault(JsonNode.createStringNode("false"));
+
+        VerifierCatalog catalog = policed(Map.of("verbose", Map.of("default", "true")), verbose);
+
+        Assertions.assertEquals("1 verifier unavailable: mock (invalid description)", catalog.message());
+        assertLockedOff(entry(catalog, "mock"));
+        Assertions.assertTrue(warningAbout("mock").contains("'verbose'"), warningAbout("mock"));
+    }
+
+    @Test
+    void overrideRescuesOnlyTheSettingItNames() {
+        VerifierSetting verbose = VERBOSE.withDefault(null);
+
+        VerifierCatalog catalog = policed(Map.of("threshold", Map.of("default", "75")), THRESHOLD, verbose);
+
+        Assertions.assertEquals("1 verifier unavailable: mock (invalid description)", catalog.message());
+        assertLockedOff(entry(catalog, "mock"));
+    }
+
     @Test
     void lockedOffEntryHonoursALabelOverrideButNotEnabledOrToggleable() {
         FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
@@ -657,5 +923,33 @@ class VerifierCatalogServiceTest {
         VerifierCatalog catalog = new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
 
         Assertions.assertEquals("dead (offline)", entry(catalog, "dead").label());
+    }
+
+    @Test
+    void lockedOffEntryReportsItsUncheckedPolicySettings() {
+        FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
+        VerifierRegistryEntry policy = policyEntry("dead", null, null, null,
+            Map.of("threshold", Map.of("default", "1")));
+
+        VerifierCatalog catalog = new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+
+        Assertions.assertEquals("1 verifier unavailable: dead (unreachable)", catalog.message(),
+            "The unchecked policy is a log warning only, not part of the Catalog message");
+        List<String> aboutDead = warnings().stream().filter(message -> message.contains("'dead'")).toList();
+        Assertions.assertEquals(2, aboutDead.size(), "Lock-off warning plus one for the unchecked policy: " + aboutDead);
+        Assertions.assertTrue(aboutDead.get(1).contains("threshold") && aboutDead.get(1).contains("not verified"),
+            "A policy setting id cannot be checked against a locked-off Verifier: " + aboutDead.get(1));
+    }
+
+    @Test
+    void lockedOffEntryWithoutASettingsPolicyWarnsOnlyAboutTheLockOff() {
+        FakeVerifierClient client = new FakeVerifierClient().failing("dead", UNREACHABLE);
+        VerifierRegistryEntry policy = policyEntry("dead", "Custom label", null, null, Map.of());
+
+        new VerifierCatalogService(registryOf(policy), client, retries(0)).catalog();
+
+        List<String> aboutDead = warnings().stream().filter(message -> message.contains("'dead'")).toList();
+        Assertions.assertEquals(1, aboutDead.size(), "Nothing to report beyond the lock-off itself: " + aboutDead);
+        Assertions.assertFalse(aboutDead.get(0).contains("not verified"), aboutDead.get(0));
     }
 }

@@ -2,6 +2,12 @@ package edu.kit.cbc.editor.verifier;
 
 import io.micronaut.context.env.MapPropertySource;
 import io.micronaut.context.env.PropertySourcePropertyResolver;
+import io.micronaut.context.env.yaml.YamlPropertySourceLoader;
+import io.micronaut.core.type.Argument;
+import io.micronaut.json.tree.JsonNode;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -117,6 +123,46 @@ class VerifierRegistryTest {
             () -> new VerifierRegistry(List.of(entry), properties));
 
         Assertions.assertTrue(e.getMessage().contains("settings.threshold.label"), e.getMessage());
+    }
+
+    // --- Setting-default policy values keep their YAML scalar type -----------------------
+
+    /**
+     * The {@code settings} map of entry #0 as the {@code VerifierRegistryEntry.setSettings}
+     * binding receives it: the Registry YAML read by Micronaut's own loader and resolved as the
+     * setter's {@code Map<String, Map<String, Object>>}.
+     */
+    private static Map<String, Map<String, Object>> boundSettings(String yaml) throws IOException {
+        Map<String, Object> flattened = new YamlPropertySourceLoader()
+            .read("verifiers.yml", new ByteArrayInputStream(yaml.getBytes(StandardCharsets.UTF_8)));
+        PropertySourcePropertyResolver resolver = new PropertySourcePropertyResolver();
+        resolver.addPropertySource(MapPropertySource.of("verifiers.yml", flattened));
+        return resolver.getProperty("verifiers[0].settings",
+                Argument.mapOf(Argument.STRING, Argument.mapOf(String.class, Object.class)))
+            .orElseThrow(() -> new AssertionError("No settings bound from " + flattened));
+    }
+
+    @Test
+    void settingDefaultKeepsTheYamlScalarType() throws IOException {
+        VerifierRegistryEntry entry = entry(0, "eebc", "http://eebc");
+        entry.setSettings(boundSettings("""
+            verifiers:
+              - id: eebc
+                url: http://eebc
+                settings:
+                  unquoted:
+                    default: 75
+                  quoted:
+                    default: "75"
+                  toggle:
+                    default: true
+            """));
+
+        Assertions.assertEquals(JsonNode.createNumberNode(75), entry.settingDefault("unquoted").orElseThrow(),
+            "An unquoted YAML number binds as a number, which a text setting's string default rule rejects");
+        Assertions.assertEquals(JsonNode.createStringNode("75"), entry.settingDefault("quoted").orElseThrow());
+        Assertions.assertEquals(JsonNode.createBooleanNode(true), entry.settingDefault("toggle").orElseThrow());
+        Assertions.assertTrue(entry.settingDefault("absent").isEmpty());
     }
 
     @Test

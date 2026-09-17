@@ -16,9 +16,12 @@ import java.util.List;
  * the sole authority on which {@code settings} exist and what they mean.
  *
  * <p>Deserialized by the {@link VerifierClient} from the Verifier's response; a body that does
- * not parse to this shape is an <em>invalid response</em>. Optional fields the Verifier omits
- * are {@code null} here — {@link VerifierCatalogService#merge(String, SelfDescription)} turns
- * absent {@code settings}/{@code variables} into empty lists for the Catalog.
+ * not parse to this shape is an <em>invalid response</em>. Fields the Verifier omits are
+ * {@code null} here — including the schema-required {@code enabled}, which is therefore a
+ * nullable {@link Boolean} rather than a primitive, so that its absence reaches the
+ * {@link SelfDescriptionValidator} instead of silently reading as {@code false}.
+ * {@link VerifierCatalogService#merge(String, SelfDescription)} turns absent
+ * {@code settings}/{@code variables} into empty lists for the Catalog.
  *
  * <p>The Functional Verifier is not fetched but described by the constant
  * {@link VerifierCatalogService#FUNCTIONAL_SELF_DESCRIPTION}, so that it passes through the
@@ -28,7 +31,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SelfDescription(
     String label,
-    boolean enabled,
+    Boolean enabled,
     Boolean toggleable,
     String statusPlaceholder,
     List<VerifierSetting> settings,

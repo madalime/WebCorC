@@ -1,31 +1,67 @@
-description: VerifierSelectSetting
-allOf:
-  - $ref: './stringValued.yml'
-  - type: object
-    properties:
-      type:
-        type: string
-        enum:
-          - select
+type: object
+description: >-
+  VerifierSelectSetting — a setting rendered as a dropdown of predefined options. A closed
+  object: it accepts exactly the properties listed here and nothing else. `id`, `label` and
+  `description` are common to every setting kind; `input`, `required` and `default` are the
+  string value carrier shared with the text settings, holding the chosen option's `id`.
+properties:
+  id:
+    type: string
+    description: Stable key of the setting, used to address it when persisting changes.
 
-      options:
-        type: array
-        description: Predefined options rendered in the dropdown.
-        items:
-          type: object
-          properties:
-            id:
-              type: string
-              description: Stable id of the option, persisted when the option is chosen.
+  label:
+    type: string
+    description: Human-readable label rendered next to the input.
 
-            label:
-              type: string
-              description: Human-readable label rendered for the option.
+  description:
+    type: string
+    description: Optional longer description of what the setting controls.
 
-          required:
-            - id
-            - label
+  type:
+    type: string
+    enum:
+      - select
 
-    required:
-      - type
-      - options
+  options:
+    type: array
+    description: Predefined options rendered in the dropdown.
+    items:
+      type: object
+      description: One option; a closed object.
+      properties:
+        id:
+          type: string
+          description: Stable id of the option, persisted when the option is chosen.
+
+        label:
+          type: string
+          description: Human-readable label rendered for the option.
+
+      required:
+        - id
+        - label
+      additionalProperties: false
+
+  input:
+    type: string
+    description: >-
+      Current, persisted value of the setting — the id of the chosen option. Seeded from
+      `default` on load.
+
+  required:
+    type: boolean
+    description: >-
+      Whether the setting must be filled in. When `true`, `default` must be provided.
+
+  default:
+    type: string
+    description: >-
+      Id of the option used to preinitialize the dropdown. Mandatory when `required` is
+      `true`, optional otherwise.
+
+required:
+  - id
+  - label
+  - type
+  - options
+additionalProperties: false

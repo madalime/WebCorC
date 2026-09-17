@@ -25,9 +25,16 @@
 #                             leaves it freely toggleable.
 #   settings.<id>.default  — overrides one Setting's default value, addressed by the Setting's
 #                             own id (see the Verifier's Self-Description, e.g. `GET
-#                             <url>/description`, for the ids it declares). Quote the value so
-#                             it round-trips as the string the Settings schema expects (the
-#                             backend does not re-validate a policy default's type).
+#                             <url>/description`, for the ids it declares). The value is checked
+#                             against the Setting's type at startup, by the same rule as the
+#                             Verifier's own default: a text (string or number) or select Setting
+#                             takes a string — quote it, `default: "75"`, since an unquoted `75`
+#                             is a number — and a boolean Setting takes `true`/`false`. A
+#                             wrong-typed override is logged as a warning and ignored, the
+#                             Verifier's own default staying in force; a well-typed override
+#                             also stands in, with a warning, for a Verifier's own default that
+#                             is missing or wrong-typed, which would otherwise lock the Verifier
+#                             off as invalid.
 #
 # A field the Registry does not recognise here (a typo in one of the names above) fails the
 # backend at startup rather than being silently ignored.

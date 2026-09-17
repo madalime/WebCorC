@@ -14,6 +14,16 @@ import java.util.List;
  * record, discriminated by {@code type} and, for text settings, {@code valueType}. Fields a
  * kind does not use are {@code null} and omitted from the JSON.
  *
+ * <p>Every kind is a closed object ({@code additionalProperties: false}), and so are its nested
+ * {@link Range} and {@link Option}. A property some <em>other</em> kind declares deserializes —
+ * the record is the union of all kinds — and the {@link SelfDescriptionValidator} rejects it by
+ * name. A property <em>no</em> kind declares (a misspelling, say) is dropped here instead of
+ * being rejected: the application's {@link io.micronaut.json.JsonMapper} is Jackson databind,
+ * which can only ignore unknown properties per type, not fail on them per type
+ * ({@code ignoreUnknown = false} merely defers to the mapper-wide
+ * {@code FAIL_ON_UNKNOWN_PROPERTIES}, which Micronaut disables). Closing that last gap would take
+ * a {@code @JsonAnySetter} creator parameter for the validator to inspect.
+ *
  * <p>Settings are addressable by {@code id}: Verifier Registry policy overrides a setting's
  * {@code default} by id, and the user's {@link VerifierOverride} inputs are keyed by it. The
  * Verifier remains the sole authority on which settings exist and what they mean.

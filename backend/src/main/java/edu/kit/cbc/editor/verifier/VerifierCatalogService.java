@@ -1,9 +1,11 @@
 package edu.kit.cbc.editor.verifier;
 
 import io.micronaut.context.annotation.Context;
+import io.micronaut.json.tree.JsonNode;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -33,10 +35,15 @@ import java.util.stream.Collectors;
  * <p>Once a Self-Description is validated, the Registry entry's policy is applied over it —
  * {@code label}, {@code enabled}, {@code toggleable} and any {@code settings.<id>.default} — by
  * {@link #applyPolicy(Verifier, VerifierRegistryEntry)}. A policy naming a setting id the
- * Verifier does not declare is logged as a warning and otherwise ignored. A locked-off entry
+ * Verifier does not declare, or a default of the wrong type for the setting's kind, is logged as
+ * a warning and otherwise ignored; conversely, a well-typed policy default stands in for a
+ * Verifier's own default that is missing or of the wrong type, with a warning instead of the
+ * lock-off the validator would otherwise cause. A locked-off entry
  * only takes the policy's {@code label} (over the {@code "<id> (offline)"} fallback); its
  * {@code enabled}/{@code toggleable} stay locked regardless of policy, and it has no settings to
- * override.
+ * override — a {@code settings} policy on it cannot be checked against the Verifier's declared
+ * setting ids, which a second warning after the lock-off says, so a typo does not stay silent
+ * until the next restart with the Verifier up.
  */
 @Context
 public class VerifierCatalogService {
@@ -82,7 +89,8 @@ public class VerifierCatalogService {
      * yet.
      *
      * @param id the id the Verifier Registry assigns to the Verifier
-     * @param description what the Verifier declares about itself
+     * @param description what the Verifier declares about itself; a fetched one has passed
+     *     {@link SelfDescriptionValidator#validate}, so its {@code enabled} is present
      * @return the Catalog entry
      */
     static Verifier merge(String id, SelfDescription description) {
@@ -142,7 +150,10 @@ public class VerifierCatalogService {
     /**
      * Replaces the {@code default} of every setting {@code policy} names one for; a policy
      * {@code settings.<id>.default} for a setting id the Verifier does not declare is logged as a
-     * warning and ignored.
+     * warning and ignored, and so is one whose value does not fit the setting's kind (per
+     * {@link SelfDescriptionValidator#defaultViolation}, the same rule the Verifier's own default
+     * had to pass — e.g. an unquoted {@code default: 75} on a text setting, which the Registry
+     * binds as a number) — the Verifier's own default is then kept.
      */
     private static List<VerifierSetting> applySettingDefaults(
         String id, List<VerifierSetting> settings, VerifierRegistryEntry policy
@@ -158,8 +169,20 @@ public class VerifierCatalogService {
             }
         }
         return settings.stream()
-            .map(setting -> policy.settingDefault(setting.id()).map(setting::withDefault).orElse(setting))
+            .map(setting -> policy.settingDefault(setting.id())
+                .filter(override -> fitsSetting(id, setting, override))
+                .map(setting::withDefault)
+                .orElse(setting))
             .toList();
+    }
+
+    /** Whether a policy default fits the setting's kind; logs the warning when it does not. */
+    private static boolean fitsSetting(String id, VerifierSetting setting, JsonNode override) {
+        Optional<String> violation = SelfDescriptionValidator.defaultViolation(setting, override);
+        violation.ifPresent(reason -> LOGGER.warning(String.format(
+            "Verifier Registry policy for '%s' overrides setting '%s' with a default that is %s; ignored, "
+                + "the Verifier's own default is kept", id, setting.id(), reason)));
+        return violation.isEmpty();
     }
 
     /** Why a Verifier is unavailable, in the words of the Catalog {@code message}. */
@@ -189,7 +212,10 @@ public class VerifierCatalogService {
             String id = entry.getId();
             try {
                 SelfDescription description = describeWithRetry(id, client, configuration);
-                SelfDescriptionValidator.validate(id, description);
+                for (String flaw : SelfDescriptionValidator.validate(id, description, entry::settingDefault)) {
+                    LOGGER.warning(String.format("Verifier '%s' declares an unusable default; "
+                        + "the Verifier Registry policy override is applied instead: %s", id, flaw));
+                }
                 verifiers.add(applyPolicy(merge(id, description), entry));
                 LOGGER.info(String.format("Verifier '%s' described itself and joins the Verifier Catalog", id));
             } catch (VerifierUnreachableException e) {
@@ -261,6 +287,11 @@ public class VerifierCatalogService {
         unavailable.add(new Unavailable(id, why));
         LOGGER.warning(String.format("Verifier '%s' is locked off in the Verifier Catalog (%s): %s",
             id, why.wording, cause.getMessage()));
+        if (!entry.getSettings().isEmpty()) {
+            LOGGER.warning(String.format(
+                "Verifier Registry policy for '%s' names settings %s; not verified because the Verifier is locked off",
+                id, entry.policedSettingIds().stream().sorted().toList()));
+        }
     }
 
     /**
