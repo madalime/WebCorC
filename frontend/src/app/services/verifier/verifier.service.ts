@@ -1,7 +1,6 @@
-import { HttpClient, HttpErrorResponse } from "@angular/common/http";
+import { HttpErrorResponse } from "@angular/common/http";
 import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
 import { Observable, Subject } from "rxjs";
-import { environment } from "../../../environments/environment";
 import {
   FUNCTIONAL_VERIFIER_ID,
   Verifier,
@@ -10,6 +9,7 @@ import {
 } from "../../types/Verifier";
 import { ConsoleService } from "../console/console.service";
 import { ProjectService } from "../project/project.service";
+import { VerifierNetworkService } from "./network/verifier-network.service";
 import { applyOverrides } from "./verifier-overrides";
 import { isSettingValid } from "./verifier-validation";
 
@@ -31,10 +31,8 @@ import { isSettingValid } from "./verifier-validation";
 })
 export class VerifierService {
   private projectService = inject(ProjectService);
-  private http = inject(HttpClient);
+  private network = inject(VerifierNetworkService);
   private consoleService = inject(ConsoleService);
-
-  private static readonly catalogPath = "/editor/verifiers";
 
   /**
    * The Functional Verifier built locally: what the panel shows until the Catalog arrives
@@ -104,23 +102,21 @@ export class VerifierService {
    * work; verification itself surfaces backend unavailability separately.
    */
   private fetchCatalog(): void {
-    this.http
-      .get<VerifierCatalog>(environment.apiUrl + VerifierService.catalogPath)
-      .subscribe({
-        next: (catalog) => {
-          this._catalog.set(this.sortVerifiers(catalog.verifiers));
-          if (catalog.message) {
-            this.consoleService.addStringInfo(catalog.message, "pi pi-exclamation-triangle");
-          }
-        },
-        error: (error: HttpErrorResponse) => {
-          this._catalog.set([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
-          this.consoleService.addErrorResponse(
-            error,
-            "Verifier Catalog could not be fetched; showing only the Functional Verifier",
-          );
-        },
-      });
+    this.network.fetchCatalog().subscribe({
+      next: (catalog: VerifierCatalog) => {
+        this._catalog.set(this.sortVerifiers(catalog.verifiers));
+        if (catalog.message) {
+          this.consoleService.addStringInfo(catalog.message, "pi pi-exclamation-triangle");
+        }
+      },
+      error: (error: HttpErrorResponse) => {
+        this._catalog.set([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
+        this.consoleService.addErrorResponse(
+          error,
+          "Verifier Catalog could not be fetched; showing only the Functional Verifier",
+        );
+      },
+    });
   }
 
   /**
