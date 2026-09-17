@@ -1,4 +1,4 @@
-import { Component, inject } from "@angular/core";
+import { Component, Signal, inject } from "@angular/core";
 import {
   Accordion,
   AccordionContent,
@@ -17,7 +17,10 @@ import {
 } from "@angular/material/input";
 import { MatOption, MatSelect } from "@angular/material/select";
 import { Verifier, VerifierSetting } from "../../../types/Verifier";
-import { VerifierService } from "../../../services/verifier/verifier.service";
+import {
+  CatalogFetchState,
+  VerifierService,
+} from "../../../services/verifier/verifier.service";
 import { NumberInputValidatorDirective } from "../../../services/verifier/number-input-validator.directive";
 import { MatTooltip } from "@angular/material/tooltip";
 import { MatIconButton } from "@angular/material/button";
@@ -71,6 +74,14 @@ export class VerifierManagerComponent {
   private verifierService = inject(VerifierService);
 
   private _expandedSections: string[] = [];
+
+  /**
+   * How the Catalog fetch is going, for the status line above the list: shown while the
+   * service is still (re)trying, so a page opened before the backend is up says why the list
+   * is short instead of silently showing only the Functional Verifier.
+   */
+  public readonly catalogFetch: Signal<CatalogFetchState> = this.verifierService.catalogFetch;
+  public readonly maxFetchAttempts = VerifierService.CATALOG_FETCH_ATTEMPTS;
 
   /**
    * Handle the toggle of a verifier. Updates the shared enabled state through the service.

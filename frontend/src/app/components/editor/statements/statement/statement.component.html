@@ -204,10 +204,10 @@
                     <p-accordion-header>
                         <span class="flex items-center gap-2 w-full min-w-0">
                             <span>{{ item.label }}</span>
-                            @if (item.status_placeholder) {
+                            @if (item.statusPlaceholder) {
                                 <span class="verifier-status"
-                                      [matTooltip]="item.status_placeholder"
-                                      [attr.aria-label]="item.status_placeholder">{{ item.status_placeholder }}</span>
+                                      [matTooltip]="item.statusPlaceholder"
+                                      [attr.aria-label]="item.statusPlaceholder">{{ item.statusPlaceholder }}</span>
                             }
                         </span>
                         <!--
@@ -225,10 +225,10 @@
                 <p-accordion-header>
                     <span class="flex items-center gap-2 w-full min-w-0">
                         <span>{{ item.label }}</span>
-                        @if (item.status_placeholder) {
+                        @if (item.statusPlaceholder) {
                             <span class="verifier-status"
-                                  [matTooltip]="item.status_placeholder"
-                                  [attr.aria-label]="item.status_placeholder">{{ item.status_placeholder }}</span>
+                                  [matTooltip]="item.statusPlaceholder"
+                                  [attr.aria-label]="item.statusPlaceholder">{{ item.statusPlaceholder }}</span>
                         }
                     </span>
                 </p-accordion-header>
@@ -269,7 +269,7 @@
                             }
                         </div>
 
-                        @if (middleTemplate && hasPopupMiddle && (hasVerifierMiddle || item.id === primaryVerifierId)) {
+                        @if (middleTemplate && hasPopupMiddle && (hasVerifierMiddle || item.id === functionalVerifierId)) {
                             <div class="popup-column" [class.open]="popupColumns(item.id).mid" [class.closed]="!popupColumns(item.id).mid">
                                 @if (popupColumns(item.id).mid) {
                                     <div class="popup-column-header">

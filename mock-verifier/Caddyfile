@@ -1,0 +1,18 @@
+:80 {
+	# A stand-in Verifier with preset, static responses. /description implements
+	# the one operation openapi/verifier-api.yml currently defines and answers
+	# regardless of input.
+
+	root * /srv
+
+	@description path /description
+	handle @description {
+		header Content-Type application/json
+		rewrite * /description.json
+		file_server
+	}
+
+	handle {
+		respond 404
+	}
+}

@@ -24,6 +24,13 @@ services:
     ports:
       - "27017:27017"
 
+  mock-verifier:
+    build:
+      context: mock-verifier
+    image: webcorc-mock-verifier
+    ports:
+      - "8081:80"
+
   webcorc-backend:
     build:
       context: backend
@@ -32,6 +39,10 @@ services:
       - docker-compose.env
     environment:
       DEVELOPMENT: true
+      MICRONAUT_CONFIG_FILES: ""
+    command: ["-Dmicronaut.config.files=/config/verifiers.dev.yml"]
+    volumes:
+      - ./verifiers.dev.yml:/config/verifiers.dev.yml:ro
     ports:
       - "8080:8080"
     develop:
@@ -47,6 +58,8 @@ services:
       rustfs:
         condition: service_started
       mongo:
+        condition: service_started
+      mock-verifier:
         condition: service_started
 
   webcorc-frontend:

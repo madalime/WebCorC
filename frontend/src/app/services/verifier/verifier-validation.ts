@@ -1,4 +1,4 @@
-import { VerifierSetting } from "../../types/Verifier";
+import { Verifier, VerifierCatalog, VerifierSetting } from "../../types/Verifier";
 
 /** Tolerance for floating-point step-grid comparisons (e.g. 0.1 + 0.2 drift). */
 const STEP_EPSILON = 1e-9;
@@ -58,6 +58,37 @@ export function numberInputError(
     return 'step';
   }
   return null;
+}
+
+/**
+ * Whether a fetched Catalog matches the contract every consumer relies on without checking:
+ * an array of entries, each carrying `settings` and `variables` as arrays (the backend always
+ * sends them — omitted ones become `[]`, per the Verifier Catalog's own invariant — so their
+ * absence here means the body does not match the Verifier Catalog contract, e.g. a
+ * frontend/backend version mismatch). {@link applyOverrides} and the Catalog's own sorting
+ * index into both fields unconditionally, so a body that fails this check must be rejected
+ * before either runs, not passed through and left to fail wherever it is first read.
+ * @param catalog The parsed response body to check before trusting it
+ */
+export function isWellFormedCatalog(catalog: VerifierCatalog): boolean {
+  return (
+    Array.isArray(catalog?.verifiers) &&
+    catalog.verifiers.every(
+      (verifier: Verifier) => Array.isArray(verifier?.settings) && Array.isArray(verifier?.variables),
+    )
+  );
+}
+
+/**
+ * Whether a Verifier carries status text worth surfacing. `statusPlaceholder` is
+ * `undefined` when the verifier declares no status at all, and can also be set to `""`
+ * (e.g. by an override) — neither renders anything, so both count as "no status" here.
+ * Shared by {@link VerifierService.sortVerifiers} and the statement popup's accordion
+ * filter so a Verifier with `statusPlaceholder=""` is treated consistently by both.
+ * @param verifier The Verifier to check
+ */
+export function hasStatus(verifier: { statusPlaceholder?: string }): boolean {
+  return !!verifier.statusPlaceholder;
 }
 
 /**

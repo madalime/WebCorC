@@ -1,37 +1,75 @@
-description: VerifierTextNumberSetting
-allOf:
-  - $ref: './stringValued.yml'
-  - type: object
+type: object
+description: >-
+  VerifierTextNumberSetting — a numeric text setting. A closed object: it accepts exactly the
+  properties listed here and nothing else. `id`, `label` and `description` are common to every
+  setting kind; `input`, `required` and `default` are the string value carrier shared with the
+  text/string and select settings — a numeric setting still stores its value as a canonical
+  `.`-separated decimal string, so invalid input survives to be flagged rather than silently
+  swallowed. `step` and `range` exist on this kind only.
+properties:
+  id:
+    type: string
+    description: Stable key of the setting, used to address it when persisting changes.
+
+  label:
+    type: string
+    description: Human-readable label rendered next to the input.
+
+  description:
+    type: string
+    description: Optional longer description of what the setting controls.
+
+  type:
+    type: string
+    enum:
+      - text
+
+  valueType:
+    type: string
+    enum:
+      - number
+
+  input:
+    type: string
+    description: >-
+      Current, persisted value of the setting. Seeded from `default` on load. Always a
+      string — the value as a canonical `.`-separated decimal string.
+
+  required:
+    type: boolean
+    description: >-
+      Whether the setting must be filled in. When `true`, `default` must be provided.
+
+  default:
+    type: string
+    description: >-
+      Value used to preinitialize the input, as a canonical `.`-separated decimal string.
+      Mandatory when `required` is `true`, optional otherwise.
+
+  step:
+    type: number
+    description: >-
+      Precision grid for the value. An omitted step means `1` (integers only).
+      The grid is measured relative to `range.min` (or `0` when no min is given),
+      matching native input[type=number] semantics.
+
+  range:
+    type: object
+    description: Inclusive bounds for the value; each bound is optional. A closed object.
     properties:
-      type:
-        type: string
-        enum:
-          - text
-
-      valueType:
-        type: string
-        enum:
-          - number
-
-      step:
+      min:
         type: number
-        description: >-
-          Precision grid for the value. An omitted step means `1` (integers only).
-          The grid is measured relative to `range.min` (or `0` when no min is given),
-          matching native input[type=number] semantics.
+        description: Inclusive lower bound.
 
-      range:
-        type: object
-        description: Inclusive bounds for the value; each bound is optional.
-        properties:
-          min:
-            type: number
-            description: Inclusive lower bound.
+      max:
+        type: number
+        description: Inclusive upper bound.
 
-          max:
-            type: number
-            description: Inclusive upper bound.
+    additionalProperties: false
 
-    required:
-      - type
-      - valueType
+required:
+  - id
+  - label
+  - type
+  - valueType
+additionalProperties: false

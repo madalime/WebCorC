@@ -1,0 +1,69 @@
+{
+  "label": "Mock Verifier",
+  "enabled": true,
+  "toggleable": true,
+  "statusPlaceholder": "Waiting for mock verification…",
+  "settings": [
+    {
+      "id": "reportTitle",
+      "type": "text",
+      "valueType": "string",
+      "label": "Report title",
+      "description": "Title used in the mock's verification report.",
+      "input": "Mock verification",
+      "required": false,
+      "default": "Mock verification"
+    },
+    {
+      "id": "threshold",
+      "type": "text",
+      "valueType": "number",
+      "label": "Threshold",
+      "description": "Numeric threshold the mock's preset check compares against.",
+      "step": 0.5,
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "input": "50",
+      "required": true,
+      "default": "50"
+    },
+    {
+      "id": "strategy",
+      "type": "select",
+      "label": "Strategy",
+      "description": "Preset verification strategy the mock pretends to run.",
+      "options": [
+        {
+          "id": "strict",
+          "label": "Strict"
+        },
+        {
+          "id": "lenient",
+          "label": "Lenient"
+        }
+      ],
+      "input": "strict",
+      "required": true,
+      "default": "strict"
+    },
+    {
+      "id": "verbose",
+      "type": "boolean",
+      "label": "Verbose output",
+      "description": "Whether the mock's preset result includes additional detail.",
+      "input": true,
+      "default": true
+    }
+  ],
+  "variables": [
+    {
+      "id": "energyBudget",
+      "type": "double",
+      "name": "Energy budget",
+      "description": "Maximum energy budget in joules the mock's conditions may reference."
+    }
+  ],
+  "allowFunctionalVariables": true
+}

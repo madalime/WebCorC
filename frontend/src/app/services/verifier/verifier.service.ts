@@ -1,17 +1,32 @@
+import { HttpErrorResponse } from "@angular/common/http";
 import { Injectable, Signal, WritableSignal, computed, signal, inject } from "@angular/core";
-import { Observable, Subject } from "rxjs";
-import { PRIMARY_VERIFIER_ID, Verifier, VerifierOverrides } from "../../types/Verifier";
+import { Observable, Subject, retry, throwError, timer } from "rxjs";
+import {
+  FUNCTIONAL_VERIFIER_ID,
+  Verifier,
+  VerifierCatalog,
+  VerifierOverrides,
+} from "../../types/Verifier";
+import { ConsoleService } from "../console/console.service";
 import { ProjectService } from "../project/project.service";
+import { VerifierNetworkService } from "./network/verifier-network.service";
 import { applyOverrides } from "./verifier-overrides";
-import { isSettingValid } from "./verifier-validation";
+import { hasStatus, isSettingValid, isWellFormedCatalog } from "./verifier-validation";
+
+/** How the Verifier Catalog fetch is going; see {@link VerifierService.catalogFetch}. */
+export type CatalogFetchState =
+  | { status: "fetching"; attempt: number }
+  | { status: "loaded" }
+  | { status: "failed" };
 
 /**
  * Service that owns the verifier state and shares it across components.
  *
  * State is split in two:
- * - the read-only **base catalog** ({@link _base}) — currently hardcoded in
- *   {@link DEFAULT_VERIFIERS}, later delivered by the backend once per session via
- *   {@link loadBase};
+ * - the read-only **Verifier Catalog** ({@link _catalog}) — fetched from the backend once per
+ *   page load, at construction (see {@link fetchCatalog}, which keeps trying for a while when
+ *   the backend is not up yet); held in memory only, never in sessionStorage, so a reload
+ *   always shows the deployment's current Catalog;
  * - a sparse **overrides** record ({@link _overrides}) that stores only the fields the
  *   user has modified (enabled toggle and setting inputs).
  *
@@ -23,28 +38,54 @@ import { isSettingValid } from "./verifier-validation";
 })
 export class VerifierService {
   private projectService = inject(ProjectService);
+  private network = inject(VerifierNetworkService);
+  private consoleService = inject(ConsoleService);
 
-  private static readonly DEFAULT_VERIFIERS: Verifier[] = [
-    { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
-    { id: 'eebc', label: 'Energy efficiency', enabled: true,settings: [
-      { id: 'model', label: 'select model', description: 'Energy efficiency prediction model', type: 'select', required: true, default: 'model1', options: [{ id: 'model1', label: 'Model 1' }, { id: 'model2', label: 'Model 2' }] },
-      { id: 'max_threshold', label: 'max threshold', description: 'Maximum allowed energy to be consumed', type: 'text', valueType: 'number', step: 0.5, range: { min: 0, max: 100 } },
-    ], variables: [] },
-    { id: 'sec', label: 'Security', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [
-        { id: 'test_value1', label: 'test_label1', type: 'text', default: 'test_default1' },
-        { id: 'test_value2', label: 'test_label2', description: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', type: 'text' },
-        { id: 'test_flag', label: 'test_flag', description: 'Test boolean setting rendered as a toggle', type: 'boolean', default: false }],
-      variables: [
-        { id: 'test', name: 'test', type: 'int', description: 'test description' },
-        { id: 'test2', name: 'test2', type: 'boolean' },
-    ], allowFunctionalVariables: true },
-    { id: 'maintain', label: 'Maintainability', enabled: true, status_placeholder: 'Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.', settings: [], variables: [] },
-  ];
+  /**
+   * The Functional Verifier built locally: what the panel shows until the Catalog arrives
+   * and all it shows when the Catalog cannot be fetched. Mirrors the backend's own entry so
+   * the invariant "every Catalog contains `func`, locked on" holds at every moment.
+   */
+  private static readonly FUNCTIONAL_VERIFIER_FALLBACK: Verifier = {
+    id: FUNCTIONAL_VERIFIER_ID,
+    label: "Functional correctness",
+    enabled: true,
+    toggleable: false,
+    settings: [],
+    variables: [],
+  };
 
-  private _base: WritableSignal<Verifier[]> = signal(this.sortVerifiers(VerifierService.DEFAULT_VERIFIERS));
+  /**
+   * How many times the Catalog is requested before the fetch counts as failed, and the pause
+   * between two requests. Together they bound how long a page opened before the backend is up
+   * keeps trying — the dev stack takes about a minute to bind its port on a cold start — while
+   * a backend that is down for good stops being asked after this budget instead of forever.
+   */
+  public static readonly CATALOG_FETCH_ATTEMPTS = 40;
+  public static readonly CATALOG_FETCH_DELAY_MS = 3000;
+
+  /**
+   * The HTTP statuses that mean "nobody answered", which a backend still starting shares with
+   * one that is down for good: `0` is the browser's connection failure (refused, DNS, CORS),
+   * the 5xx ones are a proxy in front of a backend it cannot reach. Only these are retried;
+   * any other error is the backend answering wrongly, which no retry would change.
+   */
+  private static readonly UNREACHABLE_STATUSES: ReadonlySet<number> = new Set([0, 502, 503, 504]);
+
+  private _catalog: WritableSignal<Verifier[]> = signal([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
   private _overrides: WritableSignal<VerifierOverrides> = signal({});
+  private _catalogFetch: WritableSignal<CatalogFetchState> = signal({ status: "fetching", attempt: 1 });
+
+  /**
+   * How the Catalog fetch is going, for the Verifiers panel to say so while the backend is not
+   * up yet: `fetching` with the 1-based attempt currently in flight (of
+   * {@link CATALOG_FETCH_ATTEMPTS}), `loaded` once the Catalog is shown, `failed` once the
+   * fetch has been given up on and only the Functional Verifier remains.
+   */
+  public readonly catalogFetch: Signal<CatalogFetchState> = this._catalogFetch.asReadonly();
 
   constructor() {
+    this.fetchCatalog();
     const cached = this.projectService.getVerifierOverrides();
     if (cached) {
       this._overrides.set(cached);
@@ -59,10 +100,10 @@ export class VerifierService {
 
   /**
    * Read-only signal of the available verifiers, shared across all consuming components.
-   * Recomputed automatically when either the base catalog or the overrides change.
+   * Recomputed automatically when either the Catalog or the overrides change.
    */
   public readonly verifiers: Signal<Verifier[]> = computed(() =>
-    applyOverrides(this._base(), this._overrides()),
+    applyOverrides(this._catalog(), this._overrides()),
   );
 
   /**
@@ -80,12 +121,92 @@ export class VerifierService {
   );
 
   /**
-   * Replace the base verifier catalog, e.g. once it has been fetched from the backend.
-   * Does not persist — the catalog is backend-supplied, not user state.
-   * @param verifiers The verifiers to load as the new base
+   * Fetch the Verifier Catalog from the backend. Called once, at
+   * construction — the Catalog is frozen for the backend's lifetime and refreshed here only
+   * by a page reload. Does not persist — the Catalog is backend-supplied, not user state.
+   *
+   * A page opened before the backend listens (the dev stack's backend binds its port a good
+   * minute after the frontend serves) would otherwise be stuck with the Functional Verifier
+   * until a reload, so while nobody answers ({@link UNREACHABLE_STATUSES}) the request is
+   * repeated every {@link CATALOG_FETCH_DELAY_MS}, one at a time, up to
+   * {@link CATALOG_FETCH_ATTEMPTS} times; {@link catalogFetch} counts the attempts for the
+   * panel. The frontend cannot tell a backend that is still starting from one that is down,
+   * so the budget is what keeps this from spinning forever against a dead one.
+   *
+   * If the Catalog carries a `message` — the backend's one console line naming the Verifiers
+   * it locked off and why — it is forwarded verbatim to the console, like a verification log
+   * line. The frontend performs no reasoning about why an entry is locked off: the entry
+   * itself already says everything the panel needs (`enabled: false`, `toggleable: false`).
+   *
+   * On any other failure, or once the attempts are used up, the Catalog becomes exactly the
+   * locally built Functional Verifier and one console line reports it, so the editor stays
+   * usable for pure correctness-by-construction work; verification itself surfaces backend
+   * unavailability separately.
+   *
+   * A 200 response whose body does not match the Catalog contract — a Verifier missing its
+   * `settings`/`variables` arrays, most likely a frontend/backend version mismatch rather than
+   * a startup race — is not retried (nothing about retrying the same request would fix a wrong
+   * shape) but takes the same fallback as a network failure via {@link isWellFormedCatalog}.
+   * Without that check, {@link sortVerifiers} and the overrides merge both index into those
+   * arrays unconditionally and would throw outside the Observable's error channel — invisible
+   * to both `retry` and this method's own `error` handler, leaving the panel stuck rather than
+   * falling back.
    */
-  public loadBase(verifiers: Verifier[]): void {
-    this._base.set(verifiers);
+  private fetchCatalog(): void {
+    this.network
+      .fetchCatalog()
+      .pipe(
+        retry({
+          count: VerifierService.CATALOG_FETCH_ATTEMPTS - 1,
+          delay: (error: HttpErrorResponse, retryCount: number) => {
+            if (!VerifierService.UNREACHABLE_STATUSES.has(error.status)) {
+              return throwError(() => error);
+            }
+            this._catalogFetch.set({ status: "fetching", attempt: retryCount + 1 });
+            return timer(VerifierService.CATALOG_FETCH_DELAY_MS);
+          },
+        }),
+      )
+      .subscribe({
+        next: (catalog: VerifierCatalog) => {
+          if (!isWellFormedCatalog(catalog)) {
+            this.fallBackToFunctionalVerifier(
+              "Verifier Catalog was malformed; showing only the Functional Verifier",
+              "A Verifier entry was missing its settings/variables arrays",
+            );
+            return;
+          }
+          this._catalog.set(this.sortVerifiers(catalog.verifiers));
+          this._catalogFetch.set({ status: "loaded" });
+          if (catalog.message) {
+            this.consoleService.addStringInfo(catalog.message, "pi pi-exclamation-triangle");
+          }
+        },
+        error: (error: HttpErrorResponse) => {
+          this.fallBackToFunctionalVerifier(
+            "Verifier Catalog could not be fetched; showing only the Functional Verifier",
+            error,
+          );
+        },
+      });
+  }
+
+  /**
+   * Reset to exactly the locally built Functional Verifier and log one console error —
+   * the shared landing spot for a Catalog fetch that failed outright and one whose body
+   * arrived but does not match the contract.
+   * @param action What the console line says was being attempted
+   * @param error The underlying failure: the response for a network failure, or a plain
+   *   description for a malformed body
+   */
+  private fallBackToFunctionalVerifier(action: string, error: HttpErrorResponse | string): void {
+    this._catalog.set([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
+    this._catalogFetch.set({ status: "failed" });
+    if (typeof error === "string") {
+      this.consoleService.addStringError(error, action);
+    } else {
+      this.consoleService.addErrorResponse(error, action);
+    }
   }
 
   /**
@@ -181,9 +302,9 @@ export class VerifierService {
    */
   private sortVerifiers(verifiers: Verifier[]): Verifier[] {
     const rank = (verifier: Verifier): number => {
-      if (verifier.id === PRIMARY_VERIFIER_ID) return 0;
+      if (verifier.id === FUNCTIONAL_VERIFIER_ID) return 0;
       const hasVariables = verifier.variables.length > 0;
-      const hasText = verifier.status_placeholder !== undefined;
+      const hasText = hasStatus(verifier);
       const hasSettings = verifier.settings.length > 0;
       if (hasVariables && hasText) return 1;
       if (hasVariables) return 2;
