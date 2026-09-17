@@ -25,7 +25,7 @@ public class VerifierCatalogConfiguration {
     public static final int DEFAULT_RETRIES = 3;
 
     /** Default pause between two attempts. */
-    public static final Duration DEFAULT_RETRY_DELAY = Duration.ofSeconds(2);
+    public static final Duration DEFAULT_RETRY_DELAY = Duration.ofSeconds(10);
 
     private int retries = DEFAULT_RETRIES;
     private Duration retryDelay = DEFAULT_RETRY_DELAY;

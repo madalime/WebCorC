@@ -22,4 +22,4 @@ verifiers: []
 # template_verifiers.yml for the details and how to lengthen the HTTP client timeouts.
 verifier-catalog:
   retries: 3
-  retry-delay: 2s
+  retry-delay: 10s
