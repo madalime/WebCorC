@@ -16,7 +16,7 @@ import java.util.function.Function;
  * ids, the required fields of every variable, and {@code allowFunctionalVariables} only next to
  * declared variables. A Self-Description that fails is <em>invalid</em> — the Verifier
  * answered, but not with something the Catalog can serve — and is reported as one
- * {@link InvalidSelfDescriptionException} listing every violation, so an operator sees all of
+ * {@link InvalidVerifierResponseException} listing every violation, so an operator sees all of
  * them at once rather than one per restart.
  *
  * <p>Rules, each with its own reason in the message:
@@ -67,14 +67,14 @@ public final class SelfDescriptionValidator {
      * @return the default rules the Verifier breaks that an override covers, each worded like a
      *     violation ({@code "setting 'x' declares a default that is not a string"}); empty when
      *     the Verifier's own defaults are all usable
-     * @throws InvalidSelfDescriptionException listing every violated rule
+     * @throws InvalidVerifierResponseException listing every violated rule
      */
     public static List<String> validate(
         String id, SelfDescription description, Function<String, Optional<JsonNode>> overrides
-    ) throws InvalidSelfDescriptionException {
+    ) throws InvalidVerifierResponseException {
         Findings findings = findings(description, overrides);
         if (!findings.violations().isEmpty()) {
-            throw new InvalidSelfDescriptionException(
+            throw new InvalidVerifierResponseException(
                 "Self-Description of Verifier '" + id + "' is invalid: " + String.join("; ", findings.violations()), null);
         }
         return findings.overridden();

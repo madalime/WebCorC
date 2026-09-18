@@ -1,6 +1,7 @@
 package edu.kit.cbc.editor.verifier;
 
 import com.sun.net.httpserver.HttpServer;
+import io.micronaut.http.client.DefaultHttpClientConfiguration;
 import io.micronaut.http.client.HttpClient;
 import io.micronaut.json.JsonMapper;
 import java.io.IOException;
@@ -95,7 +96,8 @@ class HttpVerifierClientTest {
         VerifierRegistryEntry entry = new VerifierRegistryEntry(0);
         entry.setId(id);
         entry.setUrl(url);
-        return new HttpVerifierClient(new VerifierRegistry(List.of(entry)), httpClient, JsonMapper.createDefault());
+        return new HttpVerifierClient(new VerifierRegistry(List.of(entry)), httpClient, JsonMapper.createDefault(),
+            new DefaultHttpClientConfiguration());
     }
 
     @Test
@@ -180,7 +182,7 @@ class HttpVerifierClientTest {
 
     @Test
     void clientErrorIsAnInvalidResponse() {
-        InvalidSelfDescriptionException e = Assertions.assertThrows(InvalidSelfDescriptionException.class,
+        InvalidVerifierResponseException e = Assertions.assertThrows(InvalidVerifierResponseException.class,
             () -> clientFor("mock", standInUrl("/nowhere")).describe("mock"));
 
         Assertions.assertTrue(e.getMessage().contains("mock"), e.getMessage());
@@ -194,7 +196,7 @@ class HttpVerifierClientTest {
         RESPONSES.put("/empty/description", new CannedResponse(200, "application/json", ""));
 
         for (String base : List.of("/html", "/array", "/empty")) {
-            Assertions.assertThrows(InvalidSelfDescriptionException.class,
+            Assertions.assertThrows(InvalidVerifierResponseException.class,
                 () -> clientFor("mock", standInUrl(base)).describe("mock"), base);
         }
     }
@@ -209,7 +211,7 @@ class HttpVerifierClientTest {
 
     @Test
     void malformedRegistryUrlIsAnInvalidResponseNotAProgrammingError() {
-        InvalidSelfDescriptionException e = Assertions.assertThrows(InvalidSelfDescriptionException.class,
+        InvalidVerifierResponseException e = Assertions.assertThrows(InvalidVerifierResponseException.class,
             () -> clientFor("mock", "http://${mock-verifier.host}:${mock-verifier.port}").describe("mock"),
             "An unresolved Registry placeholder is not valid URI syntax; it must be classified and locked off "
                 + "like any other unavailable Verifier, not escape as an unchecked exception");
