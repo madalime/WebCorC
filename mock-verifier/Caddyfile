@@ -1,7 +1,5 @@
 :80 {
-	# A stand-in Verifier with preset, static responses. /description implements
-	# the one operation openapi/verifier-api.yml currently defines and answers
-	# regardless of input.
+	# A stand-in Verifier with preset, static responses.
 
 	root * /srv
 
