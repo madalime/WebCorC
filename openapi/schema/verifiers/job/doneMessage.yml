@@ -1,0 +1,21 @@
+type: object
+description: >-
+  Sent exactly once, when this Verifier's run has finished, pass or fail.
+  Signals that the result is ready to be fetched; carries no per-statement
+  detail.
+properties:
+  type:
+    type: string
+    enum:
+      - done
+
+  proven:
+    type: boolean
+    description: >-
+      One aggregate pass/fail signal for the whole run — false if any part
+      of it failed — sent immediately so the user gets an outcome without
+      waiting for per-statement detail to be assembled.
+
+required:
+  - type
+  - proven

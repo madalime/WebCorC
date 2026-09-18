@@ -1,0 +1,34 @@
+type: object
+description: >-
+  Shared fields of every statement kind in the program a Verifier receives —
+  a narrowed view of WebCorC's own internal statement shape (see ADR
+  0001-verifiers-are-external-services): only what a Verifier needs to
+  perform static analysis. `preCondition`/`postCondition` already carry this
+  Verifier's own Verifier Condition, never a sparse per-Verifier map, and are
+  both absent where the user has not written one for this statement and
+  Verifier.
+properties:
+  id:
+    type: integer
+    format: int64
+    description: >-
+      Stable id of the statement, unique within this program. Echoed back as
+      a key of the flat map returned by the result fetch, so this Verifier
+      can key its own results the same way without minting its own ids.
+
+  name:
+    type: string
+
+  statementType:
+    type: string
+
+  preCondition:
+    $ref: '../../../cbc/condition.yml'
+
+  postCondition:
+    $ref: '../../../cbc/condition.yml'
+
+required:
+  - id
+  - name
+  - statementType

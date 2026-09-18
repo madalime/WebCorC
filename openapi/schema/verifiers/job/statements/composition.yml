@@ -1,0 +1,23 @@
+description: >-
+  A composition statement: `leftStatement` followed by `rightStatement`,
+  joined by an intermediate condition that must hold between them.
+allOf:
+  - $ref: './abstract.yml'
+  - type: object
+    properties:
+      intermediateCondition:
+        description: >-
+          This Verifier's own condition for the join point. Present only
+          where the user has written one for this statement and Verifier.
+        allOf:
+          - $ref: '../../../cbc/condition.yml'
+
+      leftStatement:
+        $ref: '../statement.yml'
+
+      rightStatement:
+        $ref: '../statement.yml'
+
+    required:
+      - leftStatement
+      - rightStatement

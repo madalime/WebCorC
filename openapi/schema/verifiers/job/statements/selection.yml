@@ -1,0 +1,21 @@
+description: >-
+  A selection (branching) statement. `guards` are the branch conditions
+  themselves, structural — the same for every Verifier, never swapped.
+allOf:
+  - $ref: './abstract.yml'
+  - type: object
+    properties:
+      guards:
+        type: array
+        items:
+          $ref: '../../../cbc/condition.yml'
+
+      statements:
+        type: array
+        description: One nested statement per guard, same order.
+        items:
+          $ref: '../statement.yml'
+
+    required:
+      - guards
+      - statements

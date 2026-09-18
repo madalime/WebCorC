@@ -1,0 +1,26 @@
+description: >-
+  A repetition (loop) statement. `invariantCondition`, `guardCondition` and
+  `variant` describe the loop itself rather than a property-specific
+  contract, so they are structural: the same values regardless of which
+  Verifier receives the program, never swapped per Verifier.
+allOf:
+  - $ref: './abstract.yml'
+  - type: object
+    properties:
+      invariantCondition:
+        $ref: '../../../cbc/condition.yml'
+
+      guardCondition:
+        $ref: '../../../cbc/condition.yml'
+
+      variant:
+        type: string
+
+      loopStatement:
+        $ref: '../statement.yml'
+
+    required:
+      - invariantCondition
+      - guardCondition
+      - variant
+      - loopStatement
