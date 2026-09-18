@@ -60,7 +60,7 @@ class VerificationIT {
         String json = loadFixture(fixturePath);
 
         String jobIdStr = client.toBlocking().retrieve(
-            HttpRequest.POST("/editor/verify", json).contentType(MediaType.APPLICATION_JSON)
+            HttpRequest.POST("/editor/verify?functionalOnly=true", json).contentType(MediaType.APPLICATION_JSON)
         );
         UUID jobId = UUID.fromString(jobIdStr.replace("\"", ""));
 
