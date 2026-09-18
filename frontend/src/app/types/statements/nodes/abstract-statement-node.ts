@@ -2,7 +2,7 @@ import { BehaviorSubject } from "rxjs";
 import { Condition, ICondition } from "../../condition/condition";
 import {
   IAbstractStatement,
-  IVerifierConditions,
+  IVerifiers,
   StatementType,
 } from "../abstract-statement";
 import { IPosition } from "../../position";
@@ -130,7 +130,7 @@ export class AbstractStatementNode {
     return this.slotVerifierCondition(
       this.precondition,
       verifierId,
-      this.statement.verifierConditions?.[verifierId]?.preCondition,
+      this.statement.verifiers?.[verifierId]?.preCondition,
     );
   }
 
@@ -145,7 +145,7 @@ export class AbstractStatementNode {
     return this.slotVerifierCondition(
       this.postcondition,
       verifierId,
-      this.statement.verifierConditions?.[verifierId]?.postCondition,
+      this.statement.verifiers?.[verifierId]?.postCondition,
     );
   }
 
@@ -201,7 +201,7 @@ export class AbstractStatementNode {
   public finalize() {
     this.statement.preCondition = this.precondition.getValue();
     this.statement.postCondition = this.postcondition.getValue();
-    this.statement.verifierConditions = this.finalizeVerifierConditions();
+    this.statement.verifiers = this.finalizeVerifierConditions();
     this.children.forEach((c) => c?.finalize());
   }
 
@@ -212,9 +212,9 @@ export class AbstractStatementNode {
    * record sparse. Subclasses owning further verifier conditions extend the entries
    * by overriding this (see {@link CompositionStatementNode.finalizeVerifierConditions}).
    */
-  protected finalizeVerifierConditions(): IVerifierConditions {
-    const conditions: IVerifierConditions = {
-      ...this.statement.verifierConditions,
+  protected finalizeVerifierConditions(): IVerifiers {
+    const conditions: IVerifiers = {
+      ...this.statement.verifiers,
     };
     const preSlot = AbstractStatementNode.slotVerifierConditions.get(
       this.precondition,
@@ -227,7 +227,7 @@ export class AbstractStatementNode {
       ...(postSlot?.keys() ?? []),
     ]);
     for (const verifierId of verifierIds) {
-      const stored = this.statement.verifierConditions?.[verifierId];
+      const stored = this.statement.verifiers?.[verifierId];
       const preCondition =
         preSlot?.get(verifierId)?.getValue() ??
         stored?.preCondition ??

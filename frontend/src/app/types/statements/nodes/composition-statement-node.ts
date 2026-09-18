@@ -6,7 +6,7 @@ import {
   createEmptyStatementNode,
   statementNodeUtils,
 } from "./statement-node-utils";
-import { IVerifierConditions, StatementType } from "../abstract-statement";
+import { IVerifiers, StatementType } from "../abstract-statement";
 
 export class CompositionStatementNode extends AbstractStatementNode {
   public intermediateCondition: BehaviorSubject<ICondition>;
@@ -67,7 +67,7 @@ export class CompositionStatementNode extends AbstractStatementNode {
     return this.slotVerifierCondition(
       this.intermediateCondition,
       verifierId,
-      this.statement.verifierConditions?.[verifierId]?.intermediateCondition,
+      this.statement.verifiers?.[verifierId]?.intermediateCondition,
     );
   }
 
@@ -92,12 +92,12 @@ export class CompositionStatementNode extends AbstractStatementNode {
 
   /**
    * Extends every verifier's entry by its intermediate condition, so a composition
-   * persists all of its verifier conditions in the single `verifierConditions`
-   * record. Verifiers that only carry an intermediate condition get an entry with
-   * empty pre- and postconditions; cleared intermediate conditions are dropped to
-   * keep the entries sparse.
+   * persists all of its verifier conditions in the single `verifiers` record.
+   * Verifiers that only carry an intermediate condition get an entry with empty
+   * pre- and postconditions; cleared intermediate conditions are dropped to keep
+   * the entries sparse.
    */
-  protected override finalizeVerifierConditions(): IVerifierConditions {
+  protected override finalizeVerifierConditions(): IVerifiers {
     const conditions = super.finalizeVerifierConditions();
     const intermediateConditions =
       CompositionStatementNode.finalizeSlotConditions(
@@ -109,7 +109,7 @@ export class CompositionStatementNode extends AbstractStatementNode {
       ...Object.keys(intermediateConditions),
     ]);
 
-    const finalized: IVerifierConditions = {};
+    const finalized: IVerifiers = {};
     for (const verifierId of verifierIds) {
       const conditionSet = conditions[verifierId];
       const intermediateCondition = intermediateConditions[verifierId];
@@ -144,7 +144,7 @@ export class CompositionStatementNode extends AbstractStatementNode {
   private storedIntermediateConditions(): Record<string, ICondition> {
     const stored: Record<string, ICondition> = {};
     for (const [verifierId, conditionSet] of Object.entries(
-      this.statement.verifierConditions ?? {},
+      this.statement.verifiers ?? {},
     )) {
       if (conditionSet.intermediateCondition) {
         stored[verifierId] = conditionSet.intermediateCondition;

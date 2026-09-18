@@ -1,6 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 
 import { CbcFormulaMapperService } from './cbc-formula-mapper.service';
+import { ICBCFormula, LocalCBCFormula } from '../../../types/CBCFormula';
+import { IStatement } from '../../../types/statements/simple-statement';
+import { RootStatement } from '../../../types/statements/root-statement';
 
 describe('CbcFormulaMapperService', () => {
   let service: CbcFormulaMapperService;
@@ -12,5 +15,82 @@ describe('CbcFormulaMapperService', () => {
 
   it('should be created', () => {
     expect(service).toBeTruthy();
+  });
+
+  /**
+   * The per-statement sparse map of Verifier Conditions is named `verifiers` and widened
+   * with an optional result (proven/status). Nothing populates a result yet, but the
+   * mapper must carry one through losslessly wherever it is already present on the wire.
+   */
+  describe('verifiers field (renamed/widened from verifierConditions)', () => {
+    it('importFormula carries a statement\'s verifiers, including proven/status, through under the new field name', () => {
+      const formula: ICBCFormula = {
+        name: 'f',
+        preCondition: { condition: 'true' },
+        postCondition: { condition: 'true' },
+        javaVariables: [],
+        globalConditions: [],
+        renamings: [],
+        isProven: false,
+        statement: {
+          id: '1',
+          name: 's',
+          type: 'STATEMENT',
+          preCondition: { condition: 'true' },
+          postCondition: { condition: 'true' },
+          isProven: false,
+          nodeState: 'unverified',
+          programStatement: 'x = 1;',
+          verifiers: {
+            energy: {
+              preCondition: { condition: 'true' },
+              postCondition: { condition: 'true' },
+              proven: true,
+              status: '0.4 kWh',
+            },
+            security: {
+              preCondition: { condition: 'true' },
+              postCondition: { condition: 'true' },
+            },
+          },
+        } as IStatement,
+      };
+
+      const imported = service.importFormula(formula);
+      const inner = (imported.statement as RootStatement)
+        .statement as IStatement;
+      const verifiers = inner.verifiers ?? {};
+
+      expect(verifiers['energy'].proven).toBe(true);
+      expect(verifiers['energy'].status).toBe('0.4 kWh');
+      expect(verifiers['security'].proven).toBeUndefined();
+      expect(verifiers['security'].status).toBeUndefined();
+    });
+
+    it('exportFormula writes the local statement\'s verifiers, including proven/status, under `verifiers`', () => {
+      const rootStatement = new RootStatement(
+        'root',
+        { condition: 'true' },
+        { condition: 'true' },
+        undefined,
+      );
+      rootStatement.verifiers = {
+        energy: {
+          preCondition: { condition: 'true' },
+          postCondition: { condition: 'true' },
+          proven: false,
+          status: 'timed out',
+        },
+      };
+      const local = new LocalCBCFormula('f', rootStatement);
+
+      const exported = service.exportFormula(local);
+
+      expect((exported as unknown as { verifiers: unknown }).verifiers)
+        .toEqual(rootStatement.verifiers);
+      expect(
+        Object.prototype.hasOwnProperty.call(exported, 'verifierConditions'),
+      ).toBe(false);
+    });
   });
 });

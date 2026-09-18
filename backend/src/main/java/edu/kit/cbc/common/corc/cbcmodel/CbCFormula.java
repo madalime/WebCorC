@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import edu.kit.cbc.common.corc.cbcmodel.statements.AbstractStatement;
 import io.micronaut.serde.annotation.Serdeable;
 import java.util.List;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,6 +21,14 @@ public class CbCFormula {
     private List<JavaVariable> javaVariables;
     private List<Condition> globalConditions;
     private List<Renaming> renamings;
+
+    /**
+     * Per-Verifier conditions and results of the root statement (mirrors
+     * {@code openapi/schema/cbc/formula.yml}'s {@code verifiers}), which is flattened into the
+     * formula's own pre-/postcondition on export — its verifiers are carried the same way. See
+     * {@link AbstractStatement#getVerifiers()}.
+     */
+    private Map<String, VerifierEntry> verifiers;
 
     /*
      * WARNING: Jackson will interpret this value as "proven" because the

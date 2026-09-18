@@ -22,24 +22,27 @@ export type StatementType =
   | "REPETITION";
 
 /**
- * The conditions one verifier attaches to a statement. Mirrors the statement's own
+ * One verifier's condition and result for a statement. Mirrors the statement's own
  * condition properties: every statement has a pre- and a postcondition, and a
  * composition additionally has an intermediate condition — which is only present
- * for compositions, and only when non-empty.
+ * for compositions, and only when non-empty. `proven`/`status` are that verifier's
+ * result for this statement, absent until it has actually reported one.
  */
-export interface IVerifierConditionSet {
+export interface IVerifierEntry {
   preCondition: ICondition;
   postCondition: ICondition;
   intermediateCondition?: ICondition;
+  proven?: boolean;
+  status?: string;
 }
 
 /**
- * Verifier-specific conditions of a statement, keyed by verifier id. Sparse: only
- * verifiers with at least one non-empty condition have an entry. The primary
- * (functional) verifier never appears here — its conditions are the statement's
- * own `preCondition`/`postCondition`/`intermediateCondition`.
+ * Per-verifier conditions and results of a statement, keyed by verifier id. Sparse:
+ * only verifiers with at least one non-empty condition or a reported result have an
+ * entry. The primary (functional) verifier never appears here — its conditions are
+ * the statement's own `preCondition`/`postCondition`/`intermediateCondition`.
  */
-export type IVerifierConditions = Record<string, IVerifierConditionSet>;
+export type IVerifiers = Record<string, IVerifierEntry>;
 
 /**
  * Data only representation of the statements edited in the editor
@@ -57,7 +60,7 @@ export interface IAbstractStatement {
     | "ROOT";
   preCondition: ICondition;
   postCondition: ICondition;
-  verifierConditions?: IVerifierConditions;
+  verifiers?: IVerifiers;
   isProven: boolean;
   nodeState: NodeState;
   position?: IPosition;
@@ -92,7 +95,7 @@ export class AbstractStatement implements IAbstractStatement {
   public readonly id: string;
   public isProven = false;
   public nodeState: NodeState;
-  public verifierConditions: IVerifierConditions = {};
+  public verifiers: IVerifiers = {};
 
   public toJSON(): Record<string, unknown> {
     const properties = { ...this } as Record<string, unknown>;

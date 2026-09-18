@@ -2,7 +2,7 @@ import { Injectable } from "@angular/core";
 import {
   AbstractStatement,
   IAbstractStatement,
-  IVerifierConditions,
+  IVerifiers,
 } from "../../../types/statements/abstract-statement";
 import { IPosition, Position } from "../../../types/position";
 import {
@@ -76,9 +76,9 @@ export class CbcFormulaMapperService {
       if (rootStatement.position === undefined && position) {
         rootStatement.position = position;
       }
-      if (Object.keys(rootStatement.verifierConditions).length === 0) {
-        rootStatement.verifierConditions = this.importVerifierConditions(
-          formula.verifierConditions,
+      if (Object.keys(rootStatement.verifiers).length === 0) {
+        rootStatement.verifiers = this.importVerifiers(
+          formula.verifiers,
         );
       }
     } else {
@@ -89,8 +89,8 @@ export class CbcFormulaMapperService {
         statement,
         position,
       );
-      rootStatement.verifierConditions = this.importVerifierConditions(
-        formula.verifierConditions,
+      rootStatement.verifiers = this.importVerifiers(
+        formula.verifiers,
       );
     }
 
@@ -116,7 +116,7 @@ export class CbcFormulaMapperService {
       formula.renamings,
       formula.isProven,
       formula.statement?.position,
-      formula.statement?.verifierConditions ?? {},
+      formula.statement?.verifiers ?? {},
     );
     return newFormula;
   }
@@ -158,8 +158,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newStatement.isProven = statement.isProven;
-    newStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newStatement;
   }
@@ -173,8 +173,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newStatement.isProven = statement.isProven;
-    newStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newStatement;
   }
@@ -202,8 +202,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newSelectionStatement.isProven = statement.isProven;
-    newSelectionStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newSelectionStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newSelectionStatement;
   }
@@ -225,8 +225,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newRepetitionStatement.isProven = statement.isProven;
-    newRepetitionStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newRepetitionStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newRepetitionStatement;
   }
@@ -244,8 +244,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newCompositionStatement.isProven = statement.isProven;
-    newCompositionStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newCompositionStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newCompositionStatement;
   }
@@ -258,8 +258,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newSkipStatement.isProven = statement.isProven;
-    newSkipStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newSkipStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newSkipStatement;
   }
@@ -287,20 +287,28 @@ export class CbcFormulaMapperService {
     return new Condition(condition.condition);
   }
 
-  private importVerifierConditions(
-    conditions: IVerifierConditions | undefined,
-  ): IVerifierConditions {
-    const imported: IVerifierConditions = {};
-    for (const [verifierId, conditionSet] of Object.entries(conditions ?? {})) {
+  private importVerifiers(
+    verifiers: IVerifiers | undefined,
+  ): IVerifiers {
+    const imported: IVerifiers = {};
+    for (const [verifierId, entry] of Object.entries(verifiers ?? {})) {
       imported[verifierId] = {
-        preCondition: this.importCondition(conditionSet.preCondition),
-        postCondition: this.importCondition(conditionSet.postCondition),
+        preCondition: this.importCondition(entry.preCondition),
+        postCondition: this.importCondition(entry.postCondition),
       };
       // Only compositions carry an intermediate condition, and only when non-empty.
-      if (conditionSet.intermediateCondition) {
+      if (entry.intermediateCondition) {
         imported[verifierId].intermediateCondition = this.importCondition(
-          conditionSet.intermediateCondition,
+          entry.intermediateCondition,
         );
+      }
+      // A result is opaque and untouched by import — carried through as-is
+      // wherever a verifier has already reported one.
+      if (entry.proven !== undefined) {
+        imported[verifierId].proven = entry.proven;
+      }
+      if (entry.status !== undefined) {
+        imported[verifierId].status = entry.status;
       }
     }
     return imported;

@@ -42,12 +42,12 @@ properties:
   postCondition:
     type: string
 
-  verifierConditions:
+  verifiers:
     description: >
-      Verifier conditions of the root statement, which is flattened into the
-      formula's preCondition/postCondition on export.
+      Per-Verifier conditions and results of the root statement, which is flattened
+      into the formula's preCondition/postCondition on export.
     allOf:
-      - $ref: './verifierConditions.yml'
+      - $ref: './verifiers.yml'
 
   statement:
     $ref: './statement.yml'

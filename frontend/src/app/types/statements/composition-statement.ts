@@ -7,7 +7,8 @@ import {AbstractStatement, IAbstractStatement} from "./abstract-statement";
  * Compatible with the api calls.
  *
  * The verifier-specific intermediate conditions live in the inherited
- * `verifierConditions` alongside the verifiers' pre- and postconditions.
+ * `verifiers` map alongside each verifier's pre- and postcondition (and, once
+ * reported, its result).
  */
 export interface ICompositionStatement extends IAbstractStatement {
     intermediateCondition: ICondition
