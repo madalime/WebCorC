@@ -1,27 +1,13 @@
 import { Verifier, VerifierOverrides } from "../../types/Verifier";
 
 /**
- * Merge a sparse {@link VerifierOverrides} record onto a read-only base catalog and
- * produce the {@link Verifier} list consumers render. Pure, side-effect-free.
+ * Merges a sparse {@link VerifierOverrides} record onto the read-only base catalog into the
+ * {@link Verifier} list consumers render. Pure — neither argument is mutated.
  *
- * Rules:
- * - `enabled` uses the override when present, unless the base verifier has
- *   `toggleable === false` — in which case the base's `enabled` wins and the rejected
- *   override value is `console.debug`-logged.
- * - Each setting's `input` uses the override value verbatim when present; otherwise it
- *   is seeded from the default (`default ?? ''` for string-valued settings, the
- *   mandatory `default` for boolean ones). An override whose runtime type does not
- *   match the setting (string vs boolean), or a `select` override that is not one of
- *   the current option ids, falls back to the default (and is logged).
- * - Numeric-text settings pass through as-is (out-of-range / off-step values surface in
- *   the UI via mat-error rather than being sanitized here).
- * - Orphan override entries — for verifier ids not in the base, or setting ids not in
- *   the base verifier's settings — are omitted from the merged view, with a `console.debug`
- *   note. The override record itself is not mutated here: orphan entries survive in the
- *   persisted record (e.g. a Verifier that is temporarily offline) and are only hidden from
- *   this merged view, not trimmed from storage.
- * - `variables` are copied from the base verbatim, as is `allowFunctionalVariables` — both
- *   are catalog-owned and not user-overridable.
+ * Out-of-range/off-step numeric text passes through unsanitized; `mat-error` surfaces that in
+ * the UI instead of this function clamping it. Orphan override entries (unknown verifier or
+ * setting ids) are hidden from the merged view but left in the override record itself, since
+ * they may belong to a Verifier that's only temporarily offline rather than being stale.
  */
 export function applyOverrides(
   base: Verifier[],

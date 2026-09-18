@@ -83,9 +83,9 @@ public class VerificationJob extends Thread {
     }
 
     /**
-     * Load the user's verifier overrides from {@code .internal/verifiers.json}, keyed by
-     * verifier id. Returns an empty map when the file is missing, and logs the error and
-     * returns an empty map when it fails to parse.
+     * Loads the user's verifier overrides from {@code .internal/verifiers.json}. A missing or
+     * unparsable file is not fatal to verification: it is treated as no overrides, with a
+     * warning logged for the parse-failure case.
      */
     private static Map<String, VerifierOverride> loadVerifierOverrides(String projectId, FilesController filesController)
         throws IOException {

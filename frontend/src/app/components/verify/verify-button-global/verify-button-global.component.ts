@@ -45,9 +45,8 @@ export class VerifyButtonGlobalComponent {
   private readonly consoleService = inject(ConsoleService);
 
   /**
-   * The label of the "Verify all" option, annotated with the live verifier counts:
-   * `Verify all ([active]/[total])`, where `active` is the number of enabled verifiers and
-   * `total` the number of available verifiers. Recomputes whenever the verifier list changes.
+   * The label of the "Verify all" option, annotated with the live verifier counts.
+   * Recomputes whenever the verifier list changes.
    */
   private readonly verifyAllLabel: Signal<string> = computed(() => {
     const verifiers = this.verifierService.verifiers();
@@ -166,7 +165,7 @@ export class VerifyButtonGlobalComponent {
   }
 
   /**
-   * Whether the verify Button is disabled because no root formula exists to verify.
+   * Disabled when no root formula exists or verification is in progress.
    */
   protected get isDisabled(): boolean {
     return (
@@ -182,9 +181,7 @@ export class VerifyButtonGlobalComponent {
   }
 
   /**
-   * The verification options for the split button menu. The currently selected option is
-   * marked with a check icon; the others get an empty fixed-width placeholder so all labels
-   * stay aligned.
+   * Verification options for the split button menu, with check icons and alignment placeholders.
    */
   public readonly verifyOptions: Signal<MenuItem[]> = computed(() => {
     const selectedId = this._verifyButtonState().id;

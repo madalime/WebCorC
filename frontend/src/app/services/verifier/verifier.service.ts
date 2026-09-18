@@ -20,18 +20,9 @@ export type CatalogFetchState =
   | { status: "failed" };
 
 /**
- * Service that owns the verifier state and shares it across components.
- *
- * State is split in two:
- * - the read-only **Verifier Catalog** ({@link _catalog}) — fetched from the backend once per
- *   page load, at construction (see {@link fetchCatalog}, which keeps trying for a while when
- *   the backend is not up yet); held in memory only, never in sessionStorage, so a reload
- *   always shows the deployment's current Catalog;
- * - a sparse **overrides** record ({@link _overrides}) that stores only the fields the
- *   user has modified (enabled toggle and setting inputs).
- *
- * Consumers read {@link verifiers}, a `computed` that merges the two via
- * {@link applyOverrides}, so the shape is identical to the previous single-signal design.
+ * State is split into a read-only Catalog ({@link _catalog}, fetched once at construction and
+ * held in memory only — never sessionStorage, so a reload shows the deployment's current
+ * Catalog) and sparse {@link _overrides} for user edits. {@link verifiers} merges the two.
  */
 @Injectable({
   providedIn: "root",
@@ -41,11 +32,7 @@ export class VerifierService {
   private network = inject(VerifierNetworkService);
   private consoleService = inject(ConsoleService);
 
-  /**
-   * The Functional Verifier built locally: what the panel shows until the Catalog arrives
-   * and all it shows when the Catalog cannot be fetched. Mirrors the backend's own entry so
-   * the invariant "every Catalog contains `func`, locked on" holds at every moment.
-   */
+  /** Local mirror of the backend's Functional Verifier entry, so the invariant "every Catalog contains `func`, locked on" holds even before a Catalog has been fetched. */
   private static readonly FUNCTIONAL_VERIFIER_FALLBACK: Verifier = {
     id: FUNCTIONAL_VERIFIER_ID,
     label: "Functional correctness",
@@ -55,21 +42,11 @@ export class VerifierService {
     variables: [],
   };
 
-  /**
-   * How many times the Catalog is requested before the fetch counts as failed, and the pause
-   * between two requests. Together they bound how long a page opened before the backend is up
-   * keeps trying — the dev stack takes about a minute to bind its port on a cold start — while
-   * a backend that is down for good stops being asked after this budget instead of forever.
-   */
+  /** Retry budget for the Catalog fetch — the dev stack's backend can take ~1 minute to bind its port on a cold start. */
   public static readonly CATALOG_FETCH_ATTEMPTS = 40;
   public static readonly CATALOG_FETCH_DELAY_MS = 3000;
 
-  /**
-   * The HTTP statuses that mean "nobody answered", which a backend still starting shares with
-   * one that is down for good: `0` is the browser's connection failure (refused, DNS, CORS),
-   * the 5xx ones are a proxy in front of a backend it cannot reach. Only these are retried;
-   * any other error is the backend answering wrongly, which no retry would change.
-   */
+  /** HTTP statuses meaning "nobody answered" (connection failure, or a proxy that can't reach the backend) — only these are retried. */
   private static readonly UNREACHABLE_STATUSES: ReadonlySet<number> = new Set([0, 502, 503, 504]);
 
   private _catalog: WritableSignal<Verifier[]> = signal([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
@@ -106,14 +83,7 @@ export class VerifierService {
     applyOverrides(this._catalog(), this._overrides()),
   );
 
-  /**
-   * Whether every enabled verifier has all of its settings valid: required settings filled
-   * in, and numeric settings within their range and on their step grid. Disabled verifiers
-   * do not count — they will not run, so their invalid settings are irrelevant. Mirrors the
-   * per-field `mat-error` validation (via the shared {@link isSettingValid}), so an invalid
-   * value is stored but unusable: this gate goes false and blocks a future "run
-   * verification" action.
-   */
+  /** Whether every enabled verifier's settings are valid ({@link isSettingValid}); gates a future "run verification" action. */
   public readonly verifiersValid: Signal<boolean> = computed(() =>
     this.verifiers()
       .filter((verifier) => verifier.enabled)
@@ -121,36 +91,10 @@ export class VerifierService {
   );
 
   /**
-   * Fetch the Verifier Catalog from the backend. Called once, at
-   * construction — the Catalog is frozen for the backend's lifetime and refreshed here only
-   * by a page reload. Does not persist — the Catalog is backend-supplied, not user state.
-   *
-   * A page opened before the backend listens (the dev stack's backend binds its port a good
-   * minute after the frontend serves) would otherwise be stuck with the Functional Verifier
-   * until a reload, so while nobody answers ({@link UNREACHABLE_STATUSES}) the request is
-   * repeated every {@link CATALOG_FETCH_DELAY_MS}, one at a time, up to
-   * {@link CATALOG_FETCH_ATTEMPTS} times; {@link catalogFetch} counts the attempts for the
-   * panel. The frontend cannot tell a backend that is still starting from one that is down,
-   * so the budget is what keeps this from spinning forever against a dead one.
-   *
-   * If the Catalog carries a `message` — the backend's one console line naming the Verifiers
-   * it locked off and why — it is forwarded verbatim to the console, like a verification log
-   * line. The frontend performs no reasoning about why an entry is locked off: the entry
-   * itself already says everything the panel needs (`enabled: false`, `toggleable: false`).
-   *
-   * On any other failure, or once the attempts are used up, the Catalog becomes exactly the
-   * locally built Functional Verifier and one console line reports it, so the editor stays
-   * usable for pure correctness-by-construction work; verification itself surfaces backend
-   * unavailability separately.
-   *
-   * A 200 response whose body does not match the Catalog contract — a Verifier missing its
-   * `settings`/`variables` arrays, most likely a frontend/backend version mismatch rather than
-   * a startup race — is not retried (nothing about retrying the same request would fix a wrong
-   * shape) but takes the same fallback as a network failure via {@link isWellFormedCatalog}.
-   * Without that check, {@link sortVerifiers} and the overrides merge both index into those
-   * arrays unconditionally and would throw outside the Observable's error channel — invisible
-   * to both `retry` and this method's own `error` handler, leaving the panel stuck rather than
-   * falling back.
+   * Fetches the Catalog once, at construction — frozen for the backend's lifetime, refreshed
+   * only by a page reload. A malformed body ({@link isWellFormedCatalog}) or non-retryable
+   * error falls back to the Functional Verifier without retrying a request that wouldn't
+   * produce a different shape.
    */
   private fetchCatalog(): void {
     this.network
@@ -191,14 +135,7 @@ export class VerifierService {
       });
   }
 
-  /**
-   * Reset to exactly the locally built Functional Verifier and log one console error —
-   * the shared landing spot for a Catalog fetch that failed outright and one whose body
-   * arrived but does not match the contract.
-   * @param action What the console line says was being attempted
-   * @param error The underlying failure: the response for a network failure, or a plain
-   *   description for a malformed body
-   */
+  /** Resets to the Functional Verifier and logs the failure — shared by an outright fetch failure and a malformed body. */
   private fallBackToFunctionalVerifier(action: string, error: HttpErrorResponse | string): void {
     this._catalog.set([VerifierService.FUNCTIONAL_VERIFIER_FALLBACK]);
     this._catalogFetch.set({ status: "failed" });
@@ -227,12 +164,6 @@ export class VerifierService {
     this._functionalOnly.set(functionalOnly);
   }
 
-  /**
-   * Update whether the verifier with the given id is enabled. Mutating shared state
-   * goes through the service so every consumer observes the same enabled state.
-   * @param id The id of the verifier to toggle
-   * @param enabled The new enabled state
-   */
   public setEnabled(id: string, enabled: boolean): void {
     this._overrides.update((overrides) => {
       const existing = overrides[id] ?? { settings: {} };
@@ -243,13 +174,9 @@ export class VerifierService {
   }
 
   /**
-   * Persist a settings input value into the overrides signal. Routing changes through the
-   * service keeps it the single source of truth, so every consumer (side menu, bottom
-   * menu) observes the same value.
-   * @param verifierId The id of the verifier owning the setting
-   * @param settingId The id (key) of the setting to update
-   * @param input The new input value — a string for text/select settings, a boolean for
-   *   boolean settings
+   * Routes setting-input updates through the service so every consumer (side menu, bottom
+   * menu) observes the same value. `input` is a string for text/select settings, a boolean
+   * for boolean settings.
    */
   public updateSetting(
     verifierId: string,
@@ -270,36 +197,17 @@ export class VerifierService {
     this._overridesChanged.next();
   }
 
-  /**
-   * Fires after each user-driven change to the overrides (setEnabled / updateSetting).
-   * Does not fire on initial hydration from persisted overrides, so consumers can
-   * distinguish "the user changed a verifier setting" from "we just loaded the project".
-   */
+  /** Fires after a user-driven override change (setEnabled/updateSetting) — not on initial hydration, so consumers can tell the two apart. */
   private readonly _overridesChanged = new Subject<void>();
   public readonly overridesChanged: Observable<void> =
     this._overridesChanged.asObservable();
 
-  /**
-   * Push the current overrides into the project's persistence layer (sessionStorage
-   * cache + `.internal/verifiers.json` project file). Called after every mutation so the
-   * UI state is always in sync with the persisted state.
-   */
+  /** Persists overrides via {@link ProjectService} (sessionStorage cache + `.internal/verifiers.json`). */
   private persist(): void {
     this.projectService.saveVerifierOverrides(this._overrides());
   }
 
-  /**
-   * Sort Verifiers by:
-   * 1. functional Verifier (top)
-   * 2. variable + text
-   * 3. variable
-   * 4. text + settings
-   * 5. settings
-   * 6. text
-   * 7. nothing (bottom)
-   * @param verifiers
-   * @private
-   */
+  /** Ranks Verifiers with more surfaced info (variables, status text, settings) higher, functional first. */
   private sortVerifiers(verifiers: Verifier[]): Verifier[] {
     const rank = (verifier: Verifier): number => {
       if (verifier.id === FUNCTIONAL_VERIFIER_ID) return 0;
@@ -323,11 +231,7 @@ export class VerifierService {
     return this.verifiers().filter((verifier) => verifier.enabled);
   }
 
-  /**
-   * The enabled verifiers that have at least one invalid setting, each with its `settings`
-   * narrowed to only the invalid ones. Disabled verifiers are excluded — they will not run —
-   * mirroring the {@link verifiersValid} gate. Returns an empty array when everything is valid.
-   */
+  /** Enabled verifiers with invalid settings, each narrowed to just the invalid ones — mirrors the {@link verifiersValid} gate. */
   public get invalidVerifierSettings(): Verifier[] {
     return this.verifiers()
       .filter((verifier) => verifier.enabled)

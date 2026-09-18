@@ -13,12 +13,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * The backend answers HTTP before the Verifier Catalog is built. A dev stack whose Registry
- * names a Verifier nobody listens at spends retries × retry-delay on it at startup; that must
- * not keep the port closed, or a frontend opened meanwhile sees connection refused instead of
- * a Catalog. Here the one registered Verifier is unreachable and costs about six seconds of
- * retries, so at test start the server is running while the Catalog is still being built, and
- * {@code GET /editor/verifiers} is held until it is — then answers with the entry locked off.
+ * Backend remains reachable during Catalog build, even with unreachable Verifiers taking
+ * retries × retry-delay. {@code GET /editor/verifiers} blocks until the Catalog is ready.
  */
 @MicronautTest
 @Property(name = "verifiers[0].id", value = "dead")

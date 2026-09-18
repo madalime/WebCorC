@@ -19,13 +19,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/**
- * The HTTP implementation of the Verifier Client against a stand-in Verifier served by the
- * JDK's own HTTP server: callers pass an id, the client resolves the URL through the Verifier
- * Registry, calls {@code GET <url>/description} and either returns the typed Self-Description
- * or throws <em>unreachable</em> (connect error, 5xx) or <em>invalid response</em> (anything
- * that does not parse to the Self-Description schema).
- */
+/** HttpVerifierClient tests: Self-Description fetching, error handling for unreachable/invalid responses. */
 class HttpVerifierClientTest {
 
     private static final String MOCK_DESCRIPTION = """

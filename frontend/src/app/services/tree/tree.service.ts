@@ -55,10 +55,9 @@ export class TreeService {
   }
 
   /**
-   * Transition every `verified-all` statement in the tree to `settings-changed`,
-   * signalling that a user-driven verifier override change has invalidated the
-   * previously computed all-verifiers proof. `verified-functional` results are
-   * left alone — the functional verifier is not settings-driven.
+   * A user-driven verifier override change invalidates the previously computed
+   * all-verifiers proof; `verified-functional` results are left alone since the
+   * functional verifier is not settings-driven.
    */
   private markVerifiedAllAsSettingsChanged(): void {
     if (!this.rootStatementNode) {

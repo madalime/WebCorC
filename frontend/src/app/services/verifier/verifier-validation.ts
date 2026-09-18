@@ -3,21 +3,14 @@ import { Verifier, VerifierCatalog, VerifierSetting } from "../../types/Verifier
 /** Tolerance for floating-point step-grid comparisons (e.g. 0.1 + 0.2 drift). */
 const STEP_EPSILON = 1e-9;
 
-/**
- * The effective step of a number setting. An omitted step means `1` (integers only).
- * @param setting The number setting to read the step from
- */
 export function effectiveStep(setting: { step?: number }): number {
   return setting.step ?? 1;
 }
 
 /**
- * Whether `value` sits on the step grid `base + n * step` for some integer `n`, within a
- * small floating-point tolerance. Mirrors native `<input type="number">` step semantics,
- * where the grid is anchored at `range.min` (or `0` when there is no min).
- * @param value The numeric value to test
- * @param step The step size (must be > 0)
- * @param base The grid anchor, i.e. `range.min ?? 0`
+ * Whether `value` sits on the step grid anchored at `base`, within a small floating-point
+ * tolerance. Mirrors native `<input type="number">` step semantics, where the grid is
+ * anchored at `range.min` (or `0` when there is no min).
  */
 export function matchesStep(value: number, step: number, base: number): boolean {
   if (step <= 0) {
@@ -28,15 +21,13 @@ export function matchesStep(value: number, step: number, base: number): boolean 
 }
 
 /**
- * Validate a single non-empty numeric input string against a number setting's constraints
- * (finite number, inclusive range, step grid). Returns `null` when valid, otherwise a
- * machine-readable error key. Shared by the service gate and the step validator directive
- * so both agree on what "valid" means.
+ * Validates a non-empty numeric input string against a number setting's constraints (finite,
+ * inclusive range, step grid); returns the machine-readable error key, or `null` when valid.
+ * Shared by the service gate and the step validator directive, so both agree on what "valid"
+ * means.
  *
- * Emptiness and `required` are intentionally NOT handled here — empty optional inputs are
- * valid and are filtered out by the caller; `required` is enforced separately.
- * @param setting The number setting providing the constraints
- * @param input The raw input string (assumed non-empty)
+ * Emptiness and `required` are intentionally not handled here: empty optional inputs are
+ * valid and are filtered out by the caller, with `required` enforced separately.
  */
 export function numberInputError(
   setting: Extract<VerifierSetting, { valueType: 'number' }>,
@@ -61,14 +52,11 @@ export function numberInputError(
 }
 
 /**
- * Whether a fetched Catalog matches the contract every consumer relies on without checking:
- * an array of entries, each carrying `settings` and `variables` as arrays (the backend always
- * sends them — omitted ones become `[]`, per the Verifier Catalog's own invariant — so their
- * absence here means the body does not match the Verifier Catalog contract, e.g. a
- * frontend/backend version mismatch). {@link applyOverrides} and the Catalog's own sorting
- * index into both fields unconditionally, so a body that fails this check must be rejected
- * before either runs, not passed through and left to fail wherever it is first read.
- * @param catalog The parsed response body to check before trusting it
+ * Whether a fetched Catalog matches the contract every consumer relies on unchecked: each
+ * entry's `settings`/`variables` as arrays (the backend always sends them, per the Catalog's
+ * own invariant — their absence here means a frontend/backend version mismatch).
+ * {@link applyOverrides} and the Catalog's sorting index into both fields unconditionally, so
+ * a body that fails this check must be rejected before either runs.
  */
 export function isWellFormedCatalog(catalog: VerifierCatalog): boolean {
   return (
@@ -80,24 +68,16 @@ export function isWellFormedCatalog(catalog: VerifierCatalog): boolean {
 }
 
 /**
- * Whether a Verifier carries status text worth surfacing. `statusPlaceholder` is
- * `undefined` when the verifier declares no status at all, and can also be set to `""`
- * (e.g. by an override) — neither renders anything, so both count as "no status" here.
- * Shared by {@link VerifierService.sortVerifiers} and the statement popup's accordion
- * filter so a Verifier with `statusPlaceholder=""` is treated consistently by both.
- * @param verifier The Verifier to check
+ * Whether a Verifier has status text worth surfacing; `statusPlaceholder` may be `undefined`
+ * (no status declared) or `""` (e.g. cleared by an override) — both count as "no status".
+ * Shared by {@link VerifierService.sortVerifiers} and the statement popup's accordion filter,
+ * so both treat `statusPlaceholder=""` the same way.
  */
 export function hasStatus(verifier: { statusPlaceholder?: string }): boolean {
   return !!verifier.statusPlaceholder;
 }
 
-/**
- * Whether a single setting is currently valid for the purpose of gating a run. Boolean
- * settings are always valid — a toggle can only produce `true`/`false` and its default
- * is mandatory. Required string-valued settings must be non-empty; non-empty numeric
- * settings must satisfy their constraints. Empty optional settings are valid.
- * @param setting The setting to validate
- */
+/** Whether a setting is valid for the purpose of gating a run; see {@link VerifierService.verifiersValid}. */
 export function isSettingValid(setting: VerifierSetting): boolean {
   if (setting.type === 'boolean') {
     return true;

@@ -17,21 +17,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * Seam 1 of the Verifier Catalog spec: {@code GET /editor/verifiers} over HTTP with the mock
- * Verifier registered. The mock Verifier image ({@code mock-verifier/}, the same one the dev
- * compose stack runs) is started by Micronaut Test Resources as a generic container — see
- * {@code test-resources.containers.mock-verifier} in {@code application-test.yml} — and its
- * address is injected as the first Registry entry through the {@code mock-verifier.host} and
- * {@code mock-verifier.port} properties the container resolves. A second entry points at a
- * URL nobody listens on.
- *
- * <p>Expected: the Functional Verifier first and locked on; the mock's entry carrying the
- * label, all four kinds of settings, the variables, {@code allowFunctionalVariables} and the
- * status placeholder of its Self-Description, in Registry order after {@code func} — with the
- * Registry policy below applied: the label renamed and the {@code threshold} setting's default
- * overridden. The dead entry is present in its Registry place but locked off —
- * {@code enabled: false}, {@code toggleable: false}, empty settings and variables, the fallback
- * label {@code "dead (offline)"} — and the envelope's {@code message} names it as unreachable.
+ * {@code GET /editor/verifiers} Catalog response with a reachable mock Verifier (via Micronaut Test
+ * Resources) and an unreachable entry. Verifies Registry policies (label rename, toggleable lock,
+ * setting defaults) apply to the mock's Self-Description, and unreachable entries lock off.
  */
 @MicronautTest
 @Property(name = "verifiers[0].id", value = "mock")
@@ -104,11 +92,6 @@ class VerifierCatalogIT {
         Assertions.assertFalse(func.has("allowFunctionalVariables"));
     }
 
-    /**
-     * The mock's Self-Description as preset in {@code mock-verifier/description.json}, with the
-     * Registry policy from this test's {@code @Property}s applied: the label renamed, toggling
-     * locked off, and the {@code threshold} setting's default overridden to {@code 75}.
-     */
     private static void assertMockVerifier(JsonNode mock) {
         Assertions.assertEquals("Mock Verifier (renamed by policy)", mock.get("label").asText(),
             "The Registry's label policy wins over the Self-Description's own label");

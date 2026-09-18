@@ -126,10 +126,6 @@ public class FilesController {
             .map(FilesController::buildStreamedFile);
     }
 
-    /**
-     * Read the raw bytes of a single project file at {@code urn} (e.g. {@code .internal/verifiers.json}).
-     * Returns empty when the object does not exist.
-     */
     public Optional<byte[]> retrieveFileBytes(String projectId, String urn) throws IOException {
         String path = String.format(PATH_FORMAT, projectId, urn);
         Optional<AwsS3ObjectStorageEntry> entry = objectStorage.retrieve(path);

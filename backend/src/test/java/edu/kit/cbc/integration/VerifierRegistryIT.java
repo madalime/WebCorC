@@ -14,10 +14,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * The backend boots with a Verifier Registry that lists entries and binds them in
- * configuration order. Nobody listens at their URLs, so fetching their Self-Descriptions fails
- * at startup; both are locked off in the Catalog, in Registry order after the Functional
- * Verifier, and the {@code message} names them.
+ * Registry entries are bound in configuration order. Unreachable entries are locked off in
+ * the Catalog and named in the message.
  */
 @MicronautTest
 @Property(name = "verifiers[0].id", value = "eebc")
