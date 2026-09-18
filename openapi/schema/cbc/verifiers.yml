@@ -4,6 +4,9 @@ description: >
   with at least one non-empty condition or a reported result have an entry; the
   Functional Verifier's conditions are the owning statement's own
   preCondition/postCondition/intermediateCondition, and it never appears here.
+  An entry the user authored carries the conditions; one a Verifier's result created
+  (a Verifier checks every statement, whether or not a condition was written for it)
+  carries only proven/status, with no conditions at all.
 additionalProperties:
   type: object
   properties:
@@ -30,7 +33,3 @@ additionalProperties:
         Opaque status text this Verifier set for this statement (see the Verifier
         Status domain concept). Absent until this Verifier has reported one.
       type: string
-
-  required:
-    - preCondition
-    - postCondition
