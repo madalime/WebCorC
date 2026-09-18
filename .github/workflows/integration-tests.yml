@@ -30,9 +30,7 @@ jobs:
           cache: maven
 
       - name: Run integration tests
-        # Test Resources is disabled here, so the mock Verifier image the pre-integration-test
-        # step would build could never be started; skip the build.
-        run: ./mvnw verify -Dskip.unit.tests=true -Dmicronaut.test.resources.enabled=true -Dskip.mock.verifier.image=true
+        run: ./mvnw verify -Dskip.unit.tests=true -Dmicronaut.test.resources.enabled=true
         working-directory: ./backend
         env:
           DEVELOPMENT: "true"
