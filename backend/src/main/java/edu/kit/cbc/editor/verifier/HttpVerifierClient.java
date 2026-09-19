@@ -1,5 +1,6 @@
 package edu.kit.cbc.editor.verifier;
 
+import edu.kit.cbc.common.Problem;
 import edu.kit.cbc.editor.verifier.job.StartJobRequest;
 import edu.kit.cbc.editor.verifier.job.StatementResult;
 import edu.kit.cbc.editor.verifier.job.StatusMessage;
@@ -317,10 +318,36 @@ public class HttpVerifierClient implements VerifierClient {
             if (code >= HttpStatus.INTERNAL_SERVER_ERROR.getCode()) {
                 throw new VerifierUnreachableException(answered, e);
             }
-            throw new InvalidVerifierResponseException(answered + " instead of " + expected, e);
+            throw new InvalidVerifierResponseException(answered + " instead of " + expected + reason(e), e);
         } catch (HttpClientException e) {
             throw new VerifierUnreachableException(
                 "Verifier '" + id + "' could not be reached for " + operation + ": " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * The Verifier's own explanation for an error response, as {@code ": <explanation>"}: the
+     * {@code problem+json} body's {@code detail}, falling back to its {@code title}, or the raw
+     * body (trimmed to 200 characters) if it does not parse as a Problem. Empty when the
+     * response carries no body.
+     */
+    private String reason(HttpClientResponseException e) {
+        String body = e.getResponse().getBody(String.class).orElse("");
+        if (body.isBlank()) {
+            return "";
+        }
+        try {
+            Problem problem = jsonMapper.readValue(body, Problem.class);
+            if (problem.detail() != null && !problem.detail().isBlank()) {
+                return ": " + problem.detail();
+            }
+            if (problem.title() != null && !problem.title().isBlank()) {
+                return ": " + problem.title();
+            }
+        } catch (IOException ignored) {
+            // Not a parseable problem+json body; fall through to the raw body below.
+        }
+        String trimmed = body.trim();
+        return ": " + (trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed);
     }
 }

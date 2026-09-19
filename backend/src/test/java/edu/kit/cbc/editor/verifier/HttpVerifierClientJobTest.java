@@ -170,6 +170,19 @@ class HttpVerifierClientJobTest {
     }
 
     @Test
+    void startClientErrorIncludesTheProblemDetailInTheMessage() {
+        verifier.serve("POST", JOB_PATH, new StandInVerifier.Response(400, PROBLEM,
+            "{\"type\": \"about:blank\", \"title\": \"Malformed Request Body\", \"status\": 400, "
+                + "\"detail\": \"Request body is missing required field 'files'\"}"));
+
+        InvalidVerifierResponseException e = Assertions.assertThrows(InvalidVerifierResponseException.class,
+            () -> mock().startJob("mock", JOB, startRequest()));
+
+        Assertions.assertTrue(
+            e.getMessage().contains("Request body is missing required field 'files'"), e.getMessage());
+    }
+
+    @Test
     void startConnectionRefusedIsUnreachable() throws IOException {
         HttpVerifierClient client = clientFor("mock", "http://127.0.0.1:" + closedPort());
 
