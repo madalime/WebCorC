@@ -69,6 +69,11 @@ export class VerificationService {
           return;
       }
     }
+    if (msg.verifier === undefined) {
+      // A line about the job's own orchestration, not any Verifier's output: no [name] prefix.
+      group.lines.push(new ConsoleInfoLine(msg.message));
+      return;
+    }
     group.lines.push(
       new ConsoleInfoLine(`[${this.verifierLabel(msg.verifier)}] ${msg.message}`),
     );

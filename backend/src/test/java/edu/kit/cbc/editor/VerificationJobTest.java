@@ -39,6 +39,9 @@ class VerificationJobTest {
         new Verifier(FUNC, "Functional correctness", true, false, null, List.of(), List.of(), null),
         new Verifier("mock", "Mock", true, true, null, List.of(), List.of(), null),
         new Verifier("off", "Off", false, true, null, List.of(), List.of(), null)), null);
+    private static final VerifierCatalog CATALOG_NO_OTHER_VERIFIERS = new VerifierCatalog(List.of(
+        new Verifier(FUNC, "Functional correctness", true, false, null, List.of(), List.of(), null),
+        new Verifier("off", "Off", false, true, null, List.of(), List.of(), null)), null);
 
     /** Stands in for a KeY-proven statement: a fixed verdict, one log line. */
     private static final class StubStatement extends AbstractStatement {
@@ -83,9 +86,14 @@ class VerificationJobTest {
     }
 
     private VerificationJob start(boolean functionalOnly, boolean functionalVerdict, FakeVerifierClient client) throws Exception {
+        return start(functionalOnly, functionalVerdict, client, CATALOG);
+    }
+
+    private VerificationJob start(boolean functionalOnly, boolean functionalVerdict, FakeVerifierClient client, VerifierCatalog catalog)
+        throws Exception {
         CbCFormula formula = new CbCFormula("Demo", new StubStatement(functionalVerdict), List.of(), List.of(), List.of(), null, false);
         job = new VerificationJob(JOB, Optional.empty(), functionalOnly, formula, null,
-            new VerifierFanOut(client, Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
+            new VerifierFanOut(client, Runnable::run), CompletableFuture.completedFuture(catalog), () -> { });
         job.subscribe(message -> {
             messages.add(message);
             if (VerificationMessage.COMPLETE.equals(message.type())) {
@@ -157,6 +165,8 @@ class VerificationJobTest {
         }
 
         Assertions.assertEquals(List.of(VerificationMessage.log("mock", "checking")), of("mock"));
+        Assertions.assertTrue(messages.contains(VerificationMessage.log(null, "calling mock")),
+            "The orchestration line naming which Verifiers are called carries no verifier tag");
         Assertions.assertTrue(messages.contains(VerificationMessage.done(FUNC, true)), "Functional's own done came first");
         Assertions.assertFalse(job.isHasResult(), "No result while a Verifier is still running");
         Assertions.assertFalse(types().contains(VerificationMessage.COMPLETE));
@@ -174,6 +184,21 @@ class VerificationJobTest {
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get("mock").proven());
         Assertions.assertEquals("ok", job.getFormula().getStatement().getVerifiers().get("mock").status());
         Assertions.assertTrue(job.getFormula().isProven(), "The Functional Verifier's verdict is untouched");
+    }
+
+    @Test
+    void orchestrationLinesCarryNoVerifierTagWhileFunctionalStatusLinesKeepFunc() throws Exception {
+        FakeVerifierClient client = new FakeVerifierClient();
+
+        start(false, true, client, CATALOG_NO_OTHER_VERIFIERS);
+        awaitComplete();
+
+        Assertions.assertTrue(messages.contains(VerificationMessage.log(null, "no other Verifier is enabled")),
+            "An orchestration line (no other Verifier enabled) carries no verifier tag");
+        Assertions.assertTrue(messages.contains(VerificationMessage.log(FUNC, "verification initialized")),
+            "A functional-status line still carries the func tag");
+        Assertions.assertTrue(messages.contains(VerificationMessage.log(FUNC, "functional verification complete")),
+            "A functional-status line still carries the func tag");
     }
 
     @Test

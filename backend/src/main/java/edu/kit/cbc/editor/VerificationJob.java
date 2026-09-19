@@ -194,7 +194,7 @@ public class VerificationJob extends Thread {
             } catch (RuntimeException e) {
                 // Whatever went wrong, the job must still complete or the frontend waits forever.
                 LOGGER.log(Level.SEVERE, "Fan-out of job " + jobId + " failed unexpectedly", e);
-                log("calling the Verifiers failed unexpectedly: " + e.getMessage());
+                orchestrationLog("calling the Verifiers failed unexpectedly: " + e.getMessage());
             }
         }
 
@@ -215,10 +215,10 @@ public class VerificationJob extends Thread {
     private void callVerifiers() {
         List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(catalog.toCompletableFuture().join(), verifierOverrides);
         if (verifiers.isEmpty()) {
-            log("no other Verifier is enabled");
+            orchestrationLog("no other Verifier is enabled");
             return;
         }
-        log("calling " + verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.joining(", ")));
+        orchestrationLog("calling " + verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.joining(", ")));
         fanOut.run(jobId, NarrowedProgram.of(formula), sourceFiles(), verifiers, this::emit);
     }
 
@@ -237,7 +237,7 @@ public class VerificationJob extends Thread {
             filesController.readFiles(projectId.get(), ".key", "include").forEach((path, content) -> files.add(new SourceFile(path, content)));
         } catch (IOException | RuntimeException e) {
             LOGGER.warning(String.format("Project %s: files could not be read for the Verifiers: %s", projectId.get(), e.getMessage()));
-            log("the project's files could not be read and are not sent to the Verifiers: " + e.getMessage());
+            orchestrationLog("the project's files could not be read and are not sent to the Verifiers: " + e.getMessage());
         }
         return files;
     }
@@ -259,6 +259,15 @@ public class VerificationJob extends Thread {
 
     private void log(String message) {
         emit(VerificationMessage.log(FUNC, message));
+    }
+
+    /**
+     * Emits a line about the job's own orchestration (not attributable to any Verifier,
+     * including the Functional Verifier): sent with no {@code verifier} tag, so the frontend
+     * prints it without a {@code [name]} prefix.
+     */
+    private void orchestrationLog(String message) {
+        emit(VerificationMessage.log(null, message));
     }
 
     private void emit(VerificationMessage message) {

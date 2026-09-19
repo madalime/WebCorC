@@ -44,6 +44,17 @@ describe('VerificationService', () => {
       expect(line.message).toContain('Checking statement 1');
     });
 
+    it('prints an orchestration log line without a [name] prefix when verifier is absent', () => {
+      const group = new ConsoleLogGroup();
+      service.verifyInfo(group, {
+        type: 'log',
+        message: 'calling mock',
+      });
+      const line = group.lines[0] as ConsoleInfoLine;
+      expect(line.message).toBe('calling mock');
+      expect(line.message).not.toContain('[');
+    });
+
     it('surfaces a per-Verifier done signal, pass or fail, before the final complete', () => {
       const group = new ConsoleLogGroup();
       service.verifyInfo(group, { type: 'done', verifier: 'mock', proven: false });
