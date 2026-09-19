@@ -7,13 +7,17 @@ import edu.kit.cbc.common.corc.cbcmodel.VerifierEntry;
 import edu.kit.cbc.common.corc.cbcmodel.statements.AbstractStatement;
 import edu.kit.cbc.common.corc.proof.ProofContext;
 import edu.kit.cbc.editor.verifier.FakeVerifierClient;
+import edu.kit.cbc.editor.verifier.ResolvedVerifier;
 import edu.kit.cbc.editor.verifier.Verifier;
 import edu.kit.cbc.editor.verifier.VerifierCatalog;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
+import edu.kit.cbc.editor.verifier.VerifierUnreachableException;
 import edu.kit.cbc.editor.verifier.job.NarrowedProgram;
+import edu.kit.cbc.editor.verifier.job.SourceFile;
 import edu.kit.cbc.editor.verifier.job.StatementResult;
 import edu.kit.cbc.editor.verifier.job.StatusMessage;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -93,7 +98,7 @@ class VerificationJobTest {
 
     private VerificationJob start(boolean functionalOnly, boolean functionalVerdict, FakeVerifierClient client, VerifierCatalog catalog)
         throws Exception {
-        CbCFormula formula = new CbCFormula("Demo", new StubStatement(functionalVerdict), List.of(), List.of(), List.of(), null, false);
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(functionalVerdict), List.of(), List.of(), List.of(), null, false, null);
         job = new VerificationJob(JOB, Optional.empty(), functionalOnly, formula, null,
             new VerifierFanOut(client, Runnable::run), CompletableFuture.completedFuture(catalog), () -> { });
         job.subscribe(message -> {
@@ -136,6 +141,12 @@ class VerificationJobTest {
         Assertions.assertTrue(client.startedJobs().isEmpty());
         Assertions.assertTrue(job.isHasResult());
         Assertions.assertTrue(job.getFormula().isProven());
+        VerifierEntry funcEntry = job.getFormula().getStatement().getVerifiers().get(FUNC);
+        Assertions.assertEquals(Boolean.TRUE, funcEntry.proven(), "func gets a result-only entry even functional-only");
+        Assertions.assertNull(funcEntry.status(), "func never carries a status");
+        Assertions.assertEquals(Boolean.TRUE, job.getFormula().getVerifiers().get(FUNC).proven(),
+            "The formula's own root-level verifiers map also gets a func entry");
+        Assertions.assertEquals(CbCFormula.VERIFICATION_SCOPE_FUNCTIONAL, job.getFormula().getVerificationScope());
     }
 
     @Test
@@ -150,6 +161,11 @@ class VerificationJobTest {
         Assertions.assertTrue(client.startedJobs().isEmpty(), "No Verifier runs against a program that failed functionally");
         Assertions.assertTrue(of("mock").isEmpty());
         Assertions.assertFalse(job.getFormula().isProven());
+        VerifierEntry funcEntry = job.getFormula().getStatement().getVerifiers().get(FUNC);
+        Assertions.assertEquals(Boolean.FALSE, funcEntry.proven(), "A functional failure writes proven:false, not a stale true");
+        Assertions.assertEquals(Boolean.FALSE, job.getFormula().getVerifiers().get(FUNC).proven());
+        Assertions.assertEquals(CbCFormula.VERIFICATION_SCOPE_ALL, job.getFormula().getVerificationScope(),
+            "Scope reflects the requested mode regardless of the outcome");
     }
 
     @Test
@@ -185,7 +201,10 @@ class VerificationJobTest {
         Assertions.assertTrue(job.isHasResult());
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get("mock").proven());
         Assertions.assertEquals("ok", job.getFormula().getStatement().getVerifiers().get("mock").status());
-        Assertions.assertTrue(job.getFormula().isProven(), "The Functional Verifier's verdict is untouched");
+        Assertions.assertTrue(job.getFormula().isProven(),
+            "Aggregate: func.proven && mock.proven, 'off' is disabled and ignored");
+        Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get(FUNC).proven());
+        Assertions.assertEquals(CbCFormula.VERIFICATION_SCOPE_ALL, job.getFormula().getVerificationScope());
     }
 
     @Test
@@ -206,6 +225,8 @@ class VerificationJobTest {
         Assertions.assertEquals(Boolean.FALSE, offEntry.proven(),
             "Every catalog Verifier's entry is reset even when fan-out itself is skipped");
         Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, offEntry.status());
+        Assertions.assertTrue(job.getFormula().isProven(),
+            "No other Verifier is enabled: the aggregate reduces to func.proven");
     }
 
     @Test
@@ -221,6 +242,86 @@ class VerificationJobTest {
         Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, offEntry.status());
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get("mock").proven(),
             "The enabled Verifier's own result is unaffected by the disabled one's reset entry");
+    }
+
+    @Test
+    void funcEntrySurvivesResetAndAFailingVerifiersMarkFailedUnchanged() throws Exception {
+        FakeVerifierClient client = new FakeVerifierClient()
+            .failingToStart("mock", new VerifierUnreachableException("Connection refused", null));
+
+        start(false, true, client);
+        awaitComplete();
+
+        VerifierEntry funcEntry = job.getFormula().getStatement().getVerifiers().get(FUNC);
+        Assertions.assertEquals(Boolean.TRUE, funcEntry.proven(),
+            "func is written before fan-out and untouched by resetForRun/markFailed");
+        Assertions.assertNull(funcEntry.status(), "func never gets a status, even after a fan-out with a failing Verifier");
+
+        VerifierEntry mockEntry = job.getFormula().getStatement().getVerifiers().get("mock");
+        Assertions.assertEquals(Boolean.FALSE, mockEntry.proven());
+        Assertions.assertTrue(mockEntry.status().contains("could not be started"));
+        Assertions.assertFalse(job.getFormula().isProven(), "func.proven && mock.proven(false) => false");
+    }
+
+    @Test
+    void aStaleFuncEntryFromAnEarlierRunIsOverwrittenNotLeftStaleOnFunctionalFailure() throws Exception {
+        StubStatement stub = new StubStatement(false);
+        stub.setVerifiers(new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null))));
+        CbCFormula formula = new CbCFormula("Demo", stub, List.of(), List.of(), List.of(),
+            new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null))), false, null);
+        job = new VerificationJob(JOB, Optional.empty(), false, formula, null,
+            new VerifierFanOut(new FakeVerifierClient(), Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
+        job.subscribe(message -> {
+            messages.add(message);
+            if (VerificationMessage.COMPLETE.equals(message.type())) {
+                completed.countDown();
+            }
+            return false;
+        });
+
+        job.start();
+        awaitComplete();
+
+        Assertions.assertEquals(Boolean.FALSE, job.getFormula().getStatement().getVerifiers().get(FUNC).proven(),
+            "A stale true from an earlier run must not survive a fresh functional failure");
+        Assertions.assertEquals(Boolean.FALSE, job.getFormula().getVerifiers().get(FUNC).proven());
+    }
+
+    @Test
+    void aFanOutCrashOutsideAnyVerifiersOwnRunLeavesACorrectlyRecomputedIsProvenNotAStalePreFanOutValue() throws Exception {
+        FakeVerifierClient client = new FakeVerifierClient();
+        VerifierFanOut brokenFanOut = new VerifierFanOut(client, Runnable::run) {
+            @Override
+            public void run(UUID jobId, NarrowedProgram program, List<SourceFile> files, List<ResolvedVerifier> verifiers,
+                            Consumer<VerificationMessage> sink) {
+                throw new RuntimeException("boom");
+            }
+        };
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false, null);
+        job = new VerificationJob(JOB, Optional.empty(), false, formula, null, brokenFanOut,
+            CompletableFuture.completedFuture(CATALOG), () -> { });
+        job.subscribe(message -> {
+            messages.add(message);
+            if (VerificationMessage.COMPLETE.equals(message.type())) {
+                completed.countDown();
+            }
+            return false;
+        });
+
+        job.start();
+        awaitComplete();
+
+        Assertions.assertTrue(messages.contains(VerificationMessage.log(null, "calling the Verifiers failed unexpectedly: boom")));
+        Assertions.assertEquals(Boolean.FALSE, job.getFormula().getStatement().getVerifiers().get("mock").proven(),
+            "Reset default: the crash happened before mock ever reported anything");
+        Assertions.assertFalse(job.getFormula().isProven(),
+            "The aggregate is recomputed from the enabled Verifier's (reset) entry, not left at the stale pre-fan-out functional value");
+    }
+
+    @Test
+    void verificationScopeIsAbsentOnAFormulaNeverVerified() {
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false, null);
+        Assertions.assertNull(formula.getVerificationScope());
     }
 
     @Test
@@ -241,7 +342,7 @@ class VerificationJobTest {
     void aListenerReportingItsConnectionClosedIsDropped() throws Exception {
         List<VerificationMessage> seen = new ArrayList<>();
         FakeVerifierClient client = new FakeVerifierClient();
-        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false);
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false, null);
         job = new VerificationJob(JOB, Optional.empty(), true, formula, null,
             new VerifierFanOut(client, Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
         job.subscribe(message -> {

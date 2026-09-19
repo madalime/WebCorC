@@ -128,5 +128,39 @@ describe('VerificationService', () => {
         mock: { proven: true, status: 'ok' },
       });
     });
+
+    it('sets failed-non-functional when a non-functional Verifier, not func, is what failed', async () => {
+      const currentStatement = {
+        id: '1',
+        isProven: false,
+        nodeState: 'unverified',
+        verifiers: {},
+      } as unknown as IAbstractStatement;
+      const resultStatement = {
+        id: '1',
+        isProven: false,
+        verifiers: { [FUNCTIONAL_VERIFIER_ID]: { proven: true }, mock: { proven: false } },
+      } as unknown as IAbstractStatement;
+
+      const currentFormula = {
+        statement: { type: 'STATEMENT' },
+      } as unknown as LocalCBCFormula;
+      projectServiceSpy.getFileContent.and.resolveTo(currentFormula);
+      treeServiceSpy.getStatementsFromFormula.and.returnValues(
+        [currentStatement],
+        [resultStatement],
+      );
+
+      const group = new ConsoleLogGroup();
+      const formula = {
+        statement: { type: 'STATEMENT' },
+        isProven: false,
+        name: 'f',
+      } as unknown as LocalCBCFormula;
+
+      await service.next(group, formula, 'urn', false);
+
+      expect(currentStatement.nodeState).toBe('failed-non-functional');
+    });
   });
 });

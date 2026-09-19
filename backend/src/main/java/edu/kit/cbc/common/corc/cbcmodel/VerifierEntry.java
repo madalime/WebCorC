@@ -19,6 +19,12 @@ import io.micronaut.serde.annotation.Serdeable;
  * of every such run, set {@code true} only by a Verifier that itself proved this statement in that
  * run; {@code status} is cleared, a fixed disabled-run text, or that Verifier's own opaque
  * Verifier Status text (see CONTEXT.md), never interpreted here.
+ *
+ * <p>The Functional Verifier's own entry, keyed by
+ * {@link edu.kit.cbc.editor.verifier.VerifierCatalogService#FUNCTIONAL_VERIFIER_ID}, is the one
+ * exception: written once functional verification completes, {@code proven} only, never
+ * {@code status} or conditions -- its actual conditions stay the owning statement's plain
+ * pre-/postcondition, never a {@code VerifierEntry} of its own.
  */
 @Serdeable
 @JsonInclude(JsonInclude.Include.NON_NULL)

@@ -16,6 +16,12 @@ import lombok.Setter;
 @Setter
 @Serdeable
 public class CbCFormula {
+
+    /** {@link #verificationScope} value after a functional-only run. */
+    public static final String VERIFICATION_SCOPE_FUNCTIONAL = "functional";
+    /** {@link #verificationScope} value after a run that fanned out to every enabled Verifier. */
+    public static final String VERIFICATION_SCOPE_ALL = "all";
+
     private String name;
     private AbstractStatement statement;
     private List<JavaVariable> javaVariables;
@@ -41,4 +47,11 @@ public class CbCFormula {
 
     @JsonProperty(value = "isProven", required = true)
     private boolean isProven;
+
+    /**
+     * Which mode this formula was last verified under -- {@link #VERIFICATION_SCOPE_FUNCTIONAL} or
+     * {@link #VERIFICATION_SCOPE_ALL} -- set at the end of every run regardless of its outcome;
+     * absent on a formula never verified on this branch.
+     */
+    private String verificationScope;
 }

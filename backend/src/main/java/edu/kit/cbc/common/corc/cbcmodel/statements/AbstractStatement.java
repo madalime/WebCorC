@@ -39,9 +39,10 @@ public abstract class AbstractStatement implements Generatable {
     private Condition postCondition;
 
     /**
-     * Per-Verifier conditions and results for this statement, keyed by Verifier id. Sparse and
-     * excludes the Functional Verifier (see {@link VerifierEntry}); {@code null} when absent from
-     * the wire rather than an empty map.
+     * Per-Verifier conditions and results for this statement, keyed by Verifier id -- including a
+     * result-only entry for the Functional Verifier once verification has run (see
+     * {@link VerifierEntry}). Sparse; {@code null} when absent from the wire rather than an empty
+     * map.
      */
     private Map<String, VerifierEntry> verifiers;
 

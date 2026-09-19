@@ -5,6 +5,7 @@ import { ICompositionStatement } from "./composition-statement";
 import { IRepetitionStatement } from "./repetition-statement";
 import { ISkipStatement } from "./strong-weak-statement";
 import { ISelectionStatement } from "./selection-statement";
+import { FUNCTIONAL_VERIFIER_ID } from "../Verifier";
 
 export type IAbstractStatementImpl =
   | IStatement
@@ -50,8 +51,10 @@ export function hasVerifierResult(entry: IVerifierEntry | undefined): boolean {
 /**
  * Per-verifier conditions and results of a statement, keyed by verifier id. Sparse:
  * only verifiers with at least one non-empty condition or a reported result have an
- * entry. The primary (functional) verifier never appears here — its conditions are
- * the statement's own `preCondition`/`postCondition`/`intermediateCondition`.
+ * entry. The primary (functional) verifier's own conditions are still the statement's
+ * own `preCondition`/`postCondition`/`intermediateCondition`, but it does appear here
+ * too, keyed by `FUNCTIONAL_VERIFIER_ID`, as a result-only entry (`proven` only, never
+ * `status` or conditions).
  */
 export type IVerifiers = Record<string, IVerifierEntry>;
 
@@ -84,6 +87,23 @@ export type NodeState =
   | 'unverified'
   | 'failed'
   | 'failed-non-functional';
+
+/**
+ * `failed-non-functional` means a *different*, non-functional Verifier is what failed —
+ * `func` itself still proved this statement, unlike a plain `failed`.
+ */
+export function nodeStateFor(
+  isProven: boolean,
+  verifiers: IVerifiers | undefined,
+  verifiedState: NodeState,
+): NodeState {
+  if (isProven) {
+    return verifiedState;
+  }
+  return verifiers?.[FUNCTIONAL_VERIFIER_ID]?.proven === true
+    ? "failed-non-functional"
+    : "failed";
+}
 
 /**
  * Data only representation of the statements edited in the editor.

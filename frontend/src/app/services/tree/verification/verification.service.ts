@@ -4,7 +4,7 @@ import { ProjectService } from "../../project/project.service";
 import { TreeService } from "../tree.service";
 import { IRootStatement } from "../../../types/statements/root-statement";
 import { ConsoleService } from "../../console/console.service";
-import { IAbstractStatement, NodeState } from "../../../types/statements/abstract-statement";
+import { IAbstractStatement, NodeState, nodeStateFor } from "../../../types/statements/abstract-statement";
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { GlobalSettingsService } from "../../global-settings.service";
 import { ConsoleInfoLine, ConsoleLogGroup } from "../../console/log";
@@ -114,7 +114,7 @@ export class VerificationService {
       // The statements should be in the same order, since the structure should be unchanged.
       currentStatements.forEach((stmt, index) => {
         stmt.isProven = newStatements[index]?.isProven;
-        stmt.nodeState = newStatements[index]?.isProven ? verifiedState : "failed";
+        stmt.nodeState = nodeStateFor(stmt.isProven, newStatements[index]?.verifiers, verifiedState);
         // Carry each Verifier's per-statement result onto the live tree the same way
         // isProven/nodeState already are — the mechanism the statement editor uses to
         // surface it (see StatementComponent.verifierStatusText).
@@ -214,7 +214,7 @@ export class VerificationService {
       const node = subtreeNodes.find((n) => n.statement.id === subtreeStmt.id);
       if (node) {
         node.statement.isProven = resultStmt.isProven || false;
-        node.statement.nodeState = resultStmt.isProven ? verifiedState : "failed";
+        node.statement.nodeState = nodeStateFor(node.statement.isProven, resultStmt.verifiers, verifiedState);
         node.statement.verifiers = resultStmt.verifiers ?? node.statement.verifiers;
       }
     }

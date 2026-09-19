@@ -298,4 +298,88 @@ class NarrowedProgramTest {
 
         Assertions.assertNull(formula.getStatement().getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID));
     }
+
+    @Test
+    void writeFunctionalResultWritesFuncFromEachStatementsOwnIsProvenNoStatusNoConditions() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        CompositionStatement root = (CompositionStatement) formula.getStatement();
+        root.setProven(true);
+        // Assign, Loop, Branch, Step and Rest all stay unproven (false), as in the fixture.
+
+        program.writeFunctionalResult();
+
+        VerifierEntry rootFunc = root.getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID);
+        Assertions.assertEquals(Boolean.TRUE, rootFunc.proven());
+        Assertions.assertNull(rootFunc.status(), "func never carries a status");
+        Assertions.assertNull(rootFunc.preCondition(), "func never carries a condition");
+        Assertions.assertEquals("energy == 0", root.getVerifiers().get("energy").preCondition().getCondition(),
+            "An existing entry for another Verifier survives alongside the new func entry");
+
+        VerifierEntry assignFunc = root.getFirstStatement().getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID);
+        Assertions.assertEquals(Boolean.FALSE, assignFunc.proven(), "Each statement's own isProven, not the root's");
+    }
+
+    @Test
+    void writeFormulaFunctionalResultWritesFuncOntoTheFormulasOwnRootVerifiersMapPreservingOthers() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        formula.setProven(true);
+
+        program.writeFormulaFunctionalResult();
+
+        VerifierEntry funcEntry = formula.getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID);
+        Assertions.assertEquals(Boolean.TRUE, funcEntry.proven());
+        Assertions.assertNull(funcEntry.status());
+        Assertions.assertEquals("energy == 0", formula.getVerifiers().get("energy").preCondition().getCondition(),
+            "The formula's own pre-existing root-level entry for another Verifier survives");
+    }
+
+    @Test
+    void recomputeIsProvenWithNoEnabledVerifiersReducesToFunc() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        formula.getStatement().setProven(true);
+        program.writeFunctionalResult();
+
+        program.recomputeIsProven(List.of());
+
+        Assertions.assertTrue(formula.getStatement().isProven());
+        Assertions.assertTrue(formula.isProven(), "The formula mirrors the top-level statement's recomputed result");
+    }
+
+    @Test
+    void recomputeIsProvenUsesACompositesOwnEntriesWithNoRollUpFromItsChildren() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        CompositionStatement root = (CompositionStatement) formula.getStatement();
+        root.setProven(true);
+        root.getFirstStatement().setProven(true); // "Assign", functionally proven too
+
+        program.writeFunctionalResult();
+        program.resetForRun(List.of("energy"), List.of());
+        // The Verifier never reports a result for the composite itself (id 1), only for its child (id 2).
+        program.merge("energy", Map.of("2", new StatementResult(true, null)));
+
+        program.recomputeIsProven(List.of("energy"));
+
+        Assertions.assertFalse(root.isProven(),
+            "The composite's own energy entry is still the reset default (false); its proven child does not roll up");
+        Assertions.assertTrue(root.getFirstStatement().isProven(), "Assign has both its own func and energy entries proven");
+    }
+
+    @Test
+    void recomputeIsProvenIsFalseWhenAnEnabledVerifierFailed() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        formula.getStatement().setProven(true);
+        program.writeFunctionalResult();
+        program.resetForRun(List.of("energy"), List.of());
+        program.markFailed("energy", "could not be started: Connection refused");
+
+        program.recomputeIsProven(List.of("energy"));
+
+        Assertions.assertFalse(formula.getStatement().isProven(),
+            "func.proven is true but the enabled Verifier's own entry is proven:false");
+    }
 }

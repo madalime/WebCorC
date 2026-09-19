@@ -26,6 +26,9 @@ import java.util.logging.Logger;
  * {@link #resetForRun} defaults every catalog Verifier's entry before a run,
  * {@link #merge} writes a Verifier's actual result once it reports one, and
  * {@link #markFailed} records a Verifier whose run failed outright instead.
+ * {@link #writeFunctionalResult} and {@link #writeFormulaFunctionalResult} record the
+ * Functional Verifier's own result-only entry, and {@link #recomputeIsProven} aggregates
+ * {@code isProven} over it and every enabled non-functional Verifier's own entry.
  *
  * <p>The backend's statement model has no id of its own, hence the numbering here; the program
  * level (root conditions, global conditions) is attributed to id 0. A skip or return statement
@@ -40,6 +43,8 @@ public final class NarrowedProgram {
 
     /** {@code status} text for a catalog Verifier's entry when it was not enabled for a run. */
     public static final String DISABLED_STATUS = "Not verified: Verifier was disabled during the last verification";
+
+    private static final String FUNC = VerifierCatalogService.FUNCTIONAL_VERIFIER_ID;
 
     private static final Logger LOGGER = Logger.getGlobal();
 
@@ -186,12 +191,73 @@ public final class NarrowedProgram {
     }
 
     private void markEveryStatement(String verifierId, boolean proven, String status) {
-        if (VerifierCatalogService.FUNCTIONAL_VERIFIER_ID.equals(verifierId)) {
+        if (FUNC.equals(verifierId)) {
             return;
         }
         for (AbstractStatement statement : statementsById.values()) {
             setEntry(statement, verifierId, proven, status);
         }
+    }
+
+    /**
+     * Writes the Functional Verifier's own result-only entry ({@code proven}, never
+     * {@code status} or conditions) onto every statement, from each statement's own
+     * {@code isProven} right after functional verification has completed. Unlike every other
+     * Verifier's entry, this one is never reset, marked disabled, or failed by the fan-out — this
+     * is its only writer. Overwrites whatever {@code func} entry a statement already carried, so a
+     * stale {@code proven: true} from an earlier run can never survive a fresh functional failure.
+     */
+    public synchronized void writeFunctionalResult() {
+        for (AbstractStatement statement : statementsById.values()) {
+            setEntry(statement, FUNC, statement.isProven(), null);
+        }
+    }
+
+    /**
+     * Writes the Functional Verifier's own result-only entry onto the formula's own root-level
+     * {@code verifiers} map (id {@code 0}) from the formula's own {@code isProven}. This is a
+     * different map from the actual top-level statement's own entry {@link #writeFunctionalResult}
+     * already writes: one feeds the frontend's synthetic root-statement wrapper, the other the
+     * real top statement. Whatever else already sits in the formula's {@code verifiers} map is
+     * preserved.
+     */
+    public synchronized void writeFormulaFunctionalResult() {
+        Map<String, VerifierEntry> verifiers = formula.getVerifiers();
+        if (verifiers == null) {
+            verifiers = new LinkedHashMap<>();
+            formula.setVerifiers(verifiers);
+        }
+        verifiers.put(FUNC, withProvenAndStatus(verifiers.get(FUNC), formula.isProven(), null));
+    }
+
+    /**
+     * Recomputes {@code isProven} for every statement, and mirrors the top-level statement's
+     * result onto the formula, now that fan-out has finished, been skipped, or failed outright:
+     * {@code func.proven && every id in enabledVerifierIds has an own entry with proven == true}.
+     * A leaf and a composite are treated alike -- a statement's aggregate never rolls up over its
+     * children, it only ever reads its own entries.
+     */
+    public synchronized void recomputeIsProven(Collection<String> enabledVerifierIds) {
+        for (AbstractStatement statement : statementsById.values()) {
+            statement.setProven(aggregate(statement.getVerifiers(), enabledVerifierIds));
+        }
+        formula.setProven(formula.getStatement().isProven());
+    }
+
+    private static boolean aggregate(Map<String, VerifierEntry> verifiers, Collection<String> enabledVerifierIds) {
+        if (!isProven(entry(verifiers, FUNC))) {
+            return false;
+        }
+        for (String id : enabledVerifierIds) {
+            if (!isProven(entry(verifiers, id))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isProven(VerifierEntry entry) {
+        return entry != null && Boolean.TRUE.equals(entry.proven());
     }
 
     private static void setEntry(AbstractStatement statement, String verifierId, Boolean proven, String status) {
@@ -200,13 +266,16 @@ public final class NarrowedProgram {
             verifiers = new LinkedHashMap<>();
             statement.setVerifiers(verifiers);
         }
-        VerifierEntry existing = verifiers.get(verifierId);
-        verifiers.put(verifierId, new VerifierEntry(
+        verifiers.put(verifierId, withProvenAndStatus(verifiers.get(verifierId), proven, status));
+    }
+
+    private static VerifierEntry withProvenAndStatus(VerifierEntry existing, Boolean proven, String status) {
+        return new VerifierEntry(
             existing == null ? null : existing.preCondition(),
             existing == null ? null : existing.postCondition(),
             existing == null ? null : existing.intermediateCondition(),
             proven,
-            status));
+            status);
     }
 
     private AbstractStatement statementOf(String id) {

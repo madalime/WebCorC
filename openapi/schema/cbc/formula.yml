@@ -49,6 +49,16 @@ properties:
     allOf:
       - $ref: './verifiers.yml'
 
+  verificationScope:
+    description: >
+      Which mode this formula was last verified under -- functional-only, or including
+      every enabled Verifier -- set at the end of every run regardless of its outcome.
+      Absent on a formula that has never been through a run on this branch.
+    type: string
+    enum:
+      - functional
+      - all
+
   statement:
     $ref: './statement.yml'
 

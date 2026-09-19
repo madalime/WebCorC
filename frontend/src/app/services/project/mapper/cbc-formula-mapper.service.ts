@@ -102,6 +102,8 @@ export class CbcFormulaMapperService {
       this.importRenaming(formula.renamings),
       formula.isProven,
       /*TODO maybe implement a some position logic here or get it from the backend*/
+      undefined,
+      formula.verificationScope,
     );
   }
 
@@ -117,6 +119,7 @@ export class CbcFormulaMapperService {
       formula.isProven,
       formula.statement?.position,
       formula.statement?.verifiers ?? {},
+      formula.verificationScope,
     );
     return newFormula;
   }

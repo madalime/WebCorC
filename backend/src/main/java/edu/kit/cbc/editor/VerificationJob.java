@@ -190,9 +190,16 @@ public class VerificationJob extends Thread {
         }
         emit(VerificationMessage.done(FUNC, proven));
 
+        // The func entry always reflects *this* run's functional result, in both modes and even
+        // on failure -- written now, before the gate below, so a stale proven:true from an
+        // earlier run can never be mistaken for a fresh isProven:false.
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.writeFunctionalResult();
+        program.writeFormulaFunctionalResult();
+
         if (proven && !functionalOnly) {
             try {
-                callVerifiers();
+                callVerifiers(program);
             } catch (RuntimeException e) {
                 // Whatever went wrong, the job must still complete or the frontend waits forever.
                 LOGGER.log(Level.SEVERE, "Fan-out of job " + jobId + " failed unexpectedly", e);
@@ -200,6 +207,7 @@ public class VerificationJob extends Thread {
             }
         }
 
+        formula.setVerificationScope(functionalOnly ? CbCFormula.VERIFICATION_SCOPE_FUNCTIONAL : CbCFormula.VERIFICATION_SCOPE_ALL);
         hasResult = true;
         emit(VerificationMessage.complete());
 
@@ -215,27 +223,34 @@ public class VerificationJob extends Thread {
 
     /**
      * Always resets every catalog Verifier's entry first ({@link NarrowedProgram#resetForRun}),
-     * even on the no-other-Verifier-enabled path, so a stale result from an earlier run never
-     * survives unnoticed.
+     * even on the no-other-Verifier-enabled path. {@code isProven} is recomputed
+     * ({@link NarrowedProgram#recomputeIsProven}) in a {@code finally}, so no path out of this
+     * method -- happy, early-return, or an unexpected exception -- skips it, using
+     * {@code enabledIds} as far as it got computed before any failure.
      */
-    private void callVerifiers() {
-        VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
-        NarrowedProgram program = NarrowedProgram.of(formula);
-        List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides);
-        Set<String> enabledIds = verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
-        List<String> catalogIds = resolvedCatalog.verifiers().stream()
-            .map(Verifier::id)
-            .filter(id -> !FUNC.equals(id))
-            .toList();
-        List<String> disabledIds = catalogIds.stream().filter(id -> !enabledIds.contains(id)).toList();
-        program.resetForRun(enabledIds, disabledIds);
+    private void callVerifiers(NarrowedProgram program) {
+        Set<String> enabledIds = Set.of();
+        try {
+            VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
+            List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides);
+            Set<String> resolvedEnabledIds = verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
+            enabledIds = resolvedEnabledIds;
+            List<String> catalogIds = resolvedCatalog.verifiers().stream()
+                .map(Verifier::id)
+                .filter(id -> !FUNC.equals(id))
+                .toList();
+            List<String> disabledIds = catalogIds.stream().filter(id -> !resolvedEnabledIds.contains(id)).toList();
+            program.resetForRun(resolvedEnabledIds, disabledIds);
 
-        if (verifiers.isEmpty()) {
-            orchestrationLog("no other Verifier is enabled");
-            return;
+            if (verifiers.isEmpty()) {
+                orchestrationLog("no other Verifier is enabled");
+                return;
+            }
+            orchestrationLog("calling " + verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.joining(", ")));
+            fanOut.run(jobId, program, sourceFiles(), verifiers, this::emit);
+        } finally {
+            program.recomputeIsProven(enabledIds);
         }
-        orchestrationLog("calling " + verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.joining(", ")));
-        fanOut.run(jobId, program, sourceFiles(), verifiers, this::emit);
     }
 
     /**

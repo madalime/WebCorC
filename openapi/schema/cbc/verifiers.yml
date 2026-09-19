@@ -2,8 +2,10 @@ type: object
 description: >
   Per-Verifier conditions and results, keyed by Verifier id. Sparse — only Verifiers
   with at least one non-empty condition or a reported result have an entry; the
-  Functional Verifier's conditions are the owning statement's own
-  preCondition/postCondition/intermediateCondition, and it never appears here.
+  Functional Verifier's own conditions are still the owning statement's own
+  preCondition/postCondition/intermediateCondition, but it does appear here too, as a
+  result-only entry (proven only, never status or conditions) written once functional
+  verification has completed.
   An entry the user authored carries the conditions; one a Verifier's result created
   (a Verifier checks every statement, whether or not a condition was written for it)
   carries only proven/status, with no conditions at all.
