@@ -67,6 +67,49 @@ describe('CbcFormulaMapperService', () => {
       expect(verifiers['security'].status).toBeUndefined();
     });
 
+    /**
+     * A Verifier that was never given a condition for a statement can still report a
+     * result for it: `preCondition`/`postCondition` are optional on the wire, so the
+     * entry carries only `proven`/`status`.
+     */
+    it('importFormula tolerates a result-only entry with no authored conditions', () => {
+      const formula: ICBCFormula = {
+        name: 'f',
+        preCondition: { condition: 'true' },
+        postCondition: { condition: 'true' },
+        javaVariables: [],
+        globalConditions: [],
+        renamings: [],
+        isProven: false,
+        statement: {
+          id: '1',
+          name: 's',
+          type: 'STATEMENT',
+          preCondition: { condition: 'true' },
+          postCondition: { condition: 'true' },
+          isProven: false,
+          nodeState: 'unverified',
+          programStatement: 'x = 1;',
+          verifiers: {
+            mock: {
+              proven: true,
+              status: 'Mock verification passed',
+            },
+          },
+        } as unknown as IStatement,
+      };
+
+      const imported = service.importFormula(formula);
+      const inner = (imported.statement as RootStatement)
+        .statement as IStatement;
+      const verifiers = inner.verifiers ?? {};
+
+      expect(verifiers['mock'].proven).toBe(true);
+      expect(verifiers['mock'].status).toBe('Mock verification passed');
+      expect(verifiers['mock'].preCondition?.condition).toBe('');
+      expect(verifiers['mock'].postCondition?.condition).toBe('');
+    });
+
     it('exportFormula writes the local statement\'s verifiers, including proven/status, under `verifiers`', () => {
       const rootStatement = new RootStatement(
         'root',

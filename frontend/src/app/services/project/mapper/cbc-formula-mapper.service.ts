@@ -280,7 +280,7 @@ export class CbcFormulaMapperService {
     return newConditions;
   }
 
-  private importCondition(condition: ICondition): Condition {
+  private importCondition(condition: ICondition | undefined): Condition {
     if (!condition) {
       return new Condition("");
     }

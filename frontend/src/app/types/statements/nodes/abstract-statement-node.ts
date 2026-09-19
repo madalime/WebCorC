@@ -1,6 +1,7 @@
 import { BehaviorSubject } from "rxjs";
 import { Condition, ICondition } from "../../condition/condition";
 import {
+  hasVerifierResult,
   IAbstractStatement,
   IVerifiers,
   StatementType,
@@ -209,8 +210,10 @@ export class AbstractStatementNode {
    * Persisted form of the verifier conditions: stored entries of verifiers whose
    * subjects were never instantiated are kept as-is, instantiated ones are written
    * back, and entries whose conditions are both empty are dropped to keep the
-   * record sparse. Subclasses owning further verifier conditions extend the entries
-   * by overriding this (see {@link CompositionStatementNode.finalizeVerifierConditions}).
+   * record sparse — unless the entry carries a result (`proven`/`status`), which is
+   * never dropped just because its conditions are empty. Subclasses owning further
+   * verifier conditions extend the entries by overriding this (see
+   * {@link CompositionStatementNode.finalizeVerifierConditions}).
    */
   protected finalizeVerifierConditions(): IVerifiers {
     const conditions: IVerifiers = {
@@ -236,10 +239,15 @@ export class AbstractStatementNode {
         postSlot?.get(verifierId)?.getValue() ??
         stored?.postCondition ??
         new Condition("");
-      if (preCondition.condition === "" && postCondition.condition === "") {
+      const hasResult = hasVerifierResult(stored);
+      if (
+        !hasResult &&
+        preCondition.condition === "" &&
+        postCondition.condition === ""
+      ) {
         delete conditions[verifierId];
       } else {
-        conditions[verifierId] = { preCondition, postCondition };
+        conditions[verifierId] = { ...stored, preCondition, postCondition };
       }
     }
     return conditions;

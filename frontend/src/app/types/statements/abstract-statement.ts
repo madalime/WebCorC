@@ -25,15 +25,26 @@ export type StatementType =
  * One verifier's condition and result for a statement. Mirrors the statement's own
  * condition properties: every statement has a pre- and a postcondition, and a
  * composition additionally has an intermediate condition — which is only present
- * for compositions, and only when non-empty. `proven`/`status` are that verifier's
- * result for this statement, absent until it has actually reported one.
+ * for compositions, and only when non-empty. `preCondition`/`postCondition` are
+ * themselves optional: a Verifier that was never given a condition for this
+ * statement still reports a result, producing a result-only entry with neither.
+ * `proven`/`status` are that verifier's result for this statement, absent until it
+ * has actually reported one.
  */
 export interface IVerifierEntry {
-  preCondition: ICondition;
-  postCondition: ICondition;
+  preCondition?: ICondition;
+  postCondition?: ICondition;
   intermediateCondition?: ICondition;
   proven?: boolean;
   status?: string;
+}
+
+/**
+ * Whether a verifier entry carries a reported result — used to keep a result-only entry
+ * (no authored conditions) from being pruned as "empty" when conditions are finalized.
+ */
+export function hasVerifierResult(entry: IVerifierEntry | undefined): boolean {
+  return entry?.proven !== undefined || entry?.status !== undefined;
 }
 
 /**

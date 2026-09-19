@@ -8,6 +8,12 @@ import { IAbstractStatement, NodeState } from "../../../types/statements/abstrac
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { GlobalSettingsService } from "../../global-settings.service";
 import { ConsoleInfoLine, ConsoleLogGroup } from "../../console/log";
+import {
+  DoneMessage,
+  LogMessage,
+  VerificationMessage,
+} from "../../../types/VerificationMessage";
+import { FUNCTIONAL_VERIFIER_ID } from "../../../types/Verifier";
 
 /**
  * Service to distribute the verification result from the http response to the tree service.
@@ -33,20 +39,55 @@ export class VerificationService {
     return group;
   }
 
-  public verifyInfo(group: ConsoleLogGroup, msg: string) {
-    switch (msg) {
-      case "verification started":
-        group.lines.push(new ConsoleInfoLine("Verification started."));
-        this.consoleService.beginLoading("verifying");
+  /**
+   * Handle one message off the job's WS: a log line (attributed to whichever Verifier or
+   * functional verification produced it), a per-Verifier done signal, or the final complete
+   * signal — which carries nothing to show and is handled by the caller (fetching the result).
+   */
+  public verifyInfo(group: ConsoleLogGroup, msg: VerificationMessage) {
+    switch (msg.type) {
+      case "log":
+        this.logMessage(group, msg);
         break;
-      case "verification initialized":
-        group.lines.push(new ConsoleInfoLine("Verification initialized."));
+      case "done":
+        this.doneMessage(group, msg);
         break;
-      case "verification complete":
-      default:
-        group.lines.push(new ConsoleInfoLine(msg));
+      case "complete":
         break;
     }
+  }
+
+  private logMessage(group: ConsoleLogGroup, msg: LogMessage) {
+    if (msg.verifier === FUNCTIONAL_VERIFIER_ID) {
+      switch (msg.message) {
+        case "verification started":
+          group.lines.push(new ConsoleInfoLine("Verification started."));
+          this.consoleService.beginLoading("verifying");
+          return;
+        case "verification initialized":
+          group.lines.push(new ConsoleInfoLine("Verification initialized."));
+          return;
+      }
+    }
+    group.lines.push(
+      new ConsoleInfoLine(`[${this.verifierLabel(msg.verifier)}] ${msg.message}`),
+    );
+  }
+
+  private doneMessage(group: ConsoleLogGroup, msg: DoneMessage) {
+    const label = this.verifierLabel(msg.verifier);
+    group.lines.push(
+      new ConsoleInfoLine(
+        `${label} finished: ${msg.proven ? "passed" : "failed"}.`,
+        msg.proven ? "pi pi-check-circle" : "pi pi-times-circle",
+      ),
+    );
+  }
+
+  private verifierLabel(verifierId: string): string {
+    return verifierId === FUNCTIONAL_VERIFIER_ID
+      ? "Functional verification"
+      : verifierId;
   }
 
   public async next(
@@ -69,6 +110,10 @@ export class VerificationService {
       currentStatements.forEach((stmt, index) => {
         stmt.isProven = newStatements[index]?.isProven;
         stmt.nodeState = newStatements[index]?.isProven ? verifiedState : "failed";
+        // Carry each Verifier's per-statement result onto the live tree the same way
+        // isProven/nodeState already are — the mechanism the statement editor uses to
+        // surface it (see StatementComponent.verifierStatusText).
+        stmt.verifiers = newStatements[index]?.verifiers ?? stmt.verifiers;
       });
       if (
         (currentFormula as LocalCBCFormula).statement &&
@@ -165,6 +210,7 @@ export class VerificationService {
       if (node) {
         node.statement.isProven = resultStmt.isProven || false;
         node.statement.nodeState = resultStmt.isProven ? verifiedState : "failed";
+        node.statement.verifiers = resultStmt.verifiers ?? node.statement.verifiers;
       }
     }
 

@@ -6,7 +6,7 @@ import {
   createEmptyStatementNode,
   statementNodeUtils,
 } from "./statement-node-utils";
-import { IVerifiers, StatementType } from "../abstract-statement";
+import { hasVerifierResult, IVerifiers, StatementType } from "../abstract-statement";
 
 export class CompositionStatementNode extends AbstractStatementNode {
   public intermediateCondition: BehaviorSubject<ICondition>;
@@ -95,7 +95,9 @@ export class CompositionStatementNode extends AbstractStatementNode {
    * persists all of its verifier conditions in the single `verifiers` record.
    * Verifiers that only carry an intermediate condition get an entry with empty
    * pre- and postconditions; cleared intermediate conditions are dropped to keep
-   * the entries sparse.
+   * the entries sparse — unless the entry carries a result (`proven`/`status`),
+   * which survives regardless of how empty its conditions are (a Verifier can
+   * report a result for a statement it was never given any condition for).
    */
   protected override finalizeVerifierConditions(): IVerifiers {
     const conditions = super.finalizeVerifierConditions();
@@ -113,22 +115,21 @@ export class CompositionStatementNode extends AbstractStatementNode {
     for (const verifierId of verifierIds) {
       const conditionSet = conditions[verifierId];
       const intermediateCondition = intermediateConditions[verifierId];
+      const hasResult = hasVerifierResult(conditionSet);
       if (!intermediateCondition) {
+        const preCondition = conditionSet?.preCondition ?? new Condition("");
+        const postCondition = conditionSet?.postCondition ?? new Condition("");
         if (
           conditionSet &&
-          !(
-            conditionSet.preCondition.condition === "" &&
-            conditionSet.postCondition.condition === ""
-          )
+          (hasResult ||
+            !(preCondition.condition === "" && postCondition.condition === ""))
         ) {
-          finalized[verifierId] = {
-            preCondition: conditionSet.preCondition,
-            postCondition: conditionSet.postCondition,
-          };
+          finalized[verifierId] = { ...conditionSet, preCondition, postCondition };
         }
         continue;
       }
       finalized[verifierId] = {
+        ...conditionSet,
         preCondition: conditionSet?.preCondition ?? new Condition(""),
         postCondition: conditionSet?.postCondition ?? new Condition(""),
         intermediateCondition,

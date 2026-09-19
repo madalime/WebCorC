@@ -204,10 +204,10 @@
                     <p-accordion-header>
                         <span class="flex items-center gap-2 w-full min-w-0">
                             <span>{{ item.label }}</span>
-                            @if (item.statusPlaceholder) {
+                            @if (verifierStatusText(item)) {
                                 <span class="verifier-status"
-                                      [matTooltip]="item.statusPlaceholder"
-                                      [attr.aria-label]="item.statusPlaceholder">{{ item.statusPlaceholder }}</span>
+                                      [matTooltip]="verifierStatusText(item)"
+                                      [attr.aria-label]="verifierStatusText(item)">{{ verifierStatusText(item) }}</span>
                             }
                         </span>
                         <!--
@@ -225,10 +225,10 @@
                 <p-accordion-header>
                     <span class="flex items-center gap-2 w-full min-w-0">
                         <span>{{ item.label }}</span>
-                        @if (item.statusPlaceholder) {
+                        @if (verifierStatusText(item)) {
                             <span class="verifier-status"
-                                  [matTooltip]="item.statusPlaceholder"
-                                  [attr.aria-label]="item.statusPlaceholder">{{ item.statusPlaceholder }}</span>
+                                  [matTooltip]="verifierStatusText(item)"
+                                  [attr.aria-label]="verifierStatusText(item)">{{ verifierStatusText(item) }}</span>
                         }
                     </span>
                 </p-accordion-header>
