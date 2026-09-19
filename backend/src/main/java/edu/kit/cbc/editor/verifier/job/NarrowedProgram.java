@@ -9,7 +9,9 @@ import edu.kit.cbc.common.corc.cbcmodel.statements.CompositionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SelectionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SmallRepetitionStatement;
 import edu.kit.cbc.common.corc.codegeneration.CodeGenerator;
+import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,8 +22,10 @@ import java.util.logging.Logger;
  * The job's formula as the Verifiers see it: every statement numbered once, in pre-order from
  * 1, so that each Verifier receives the same ids and its flat result maps back onto the same
  * statements. {@link #forVerifier} narrows the tree for one Verifier — its own Verifier
- * Conditions in the primary condition fields, structural fields as they are — and
- * {@link #merge} writes a Verifier's result into the statements' {@code verifiers} entries.
+ * Conditions in the primary condition fields, structural fields as they are.
+ * {@link #resetForRun} defaults every catalog Verifier's entry before a run,
+ * {@link #merge} writes a Verifier's actual result once it reports one, and
+ * {@link #markFailed} records a Verifier whose run failed outright instead.
  *
  * <p>The backend's statement model has no id of its own, hence the numbering here; the program
  * level (root conditions, global conditions) is attributed to id 0. A skip or return statement
@@ -29,10 +33,13 @@ import java.util.logging.Logger;
  * statement, which neither has. Class and method name are the ones the {@link CodeGenerator}
  * gives every program, since a formula names neither.
  *
- * <p>Both operations synchronize on this instance: several Verifiers' results merge into one
- * tree, and a narrowing must not read a {@code verifiers} map another thread is writing.
+ * <p>Every write operation synchronizes on this instance: several Verifiers' results merge into
+ * one tree, and a narrowing must not read a {@code verifiers} map another thread is writing.
  */
 public final class NarrowedProgram {
+
+    /** {@code status} text for a catalog Verifier's entry when it was not enabled for a run. */
+    public static final String DISABLED_STATUS = "Not verified: Verifier was disabled during the last verification";
 
     private static final Logger LOGGER = Logger.getGlobal();
 
@@ -148,19 +155,58 @@ public final class NarrowedProgram {
                     verifierId, reported.getKey()));
                 continue;
             }
-            Map<String, VerifierEntry> verifiers = statement.getVerifiers();
-            if (verifiers == null) {
-                verifiers = new LinkedHashMap<>();
-                statement.setVerifiers(verifiers);
-            }
-            VerifierEntry existing = verifiers.get(verifierId);
-            verifiers.put(verifierId, new VerifierEntry(
-                existing == null ? null : existing.preCondition(),
-                existing == null ? null : existing.postCondition(),
-                existing == null ? null : existing.intermediateCondition(),
-                reported.getValue().proven(),
-                reported.getValue().status()));
+            setEntry(statement, verifierId, reported.getValue().proven(), reported.getValue().status());
         }
+    }
+
+    /**
+     * Resets every statement's entry for each id in {@code enabledVerifierIds} ({@code proven:
+     * false}, {@code status} cleared — a Verifier that is about to run) and each id in
+     * {@code disabledVerifierIds} ({@code proven: false}, {@code status} set to
+     * {@link #DISABLED_STATUS} — a catalog Verifier not enabled this run), keeping any authored
+     * conditions and creating entries where none existed. The Functional Verifier is never
+     * touched even if its id is passed in.
+     */
+    public synchronized void resetForRun(Collection<String> enabledVerifierIds, Collection<String> disabledVerifierIds) {
+        for (String id : enabledVerifierIds) {
+            markEveryStatement(id, false, null);
+        }
+        for (String id : disabledVerifierIds) {
+            markEveryStatement(id, false, DISABLED_STATUS);
+        }
+    }
+
+    /**
+     * Marks {@code verifierId}'s entry on every statement {@code proven: false} with
+     * {@code reason} as its {@code status}, keeping any authored conditions — how a Verifier
+     * whose run failed outright is recorded, since it never reported a per-statement result.
+     */
+    public synchronized void markFailed(String verifierId, String reason) {
+        markEveryStatement(verifierId, false, reason);
+    }
+
+    private void markEveryStatement(String verifierId, boolean proven, String status) {
+        if (VerifierCatalogService.FUNCTIONAL_VERIFIER_ID.equals(verifierId)) {
+            return;
+        }
+        for (AbstractStatement statement : statementsById.values()) {
+            setEntry(statement, verifierId, proven, status);
+        }
+    }
+
+    private static void setEntry(AbstractStatement statement, String verifierId, Boolean proven, String status) {
+        Map<String, VerifierEntry> verifiers = statement.getVerifiers();
+        if (verifiers == null) {
+            verifiers = new LinkedHashMap<>();
+            statement.setVerifiers(verifiers);
+        }
+        VerifierEntry existing = verifiers.get(verifierId);
+        verifiers.put(verifierId, new VerifierEntry(
+            existing == null ? null : existing.preCondition(),
+            existing == null ? null : existing.postCondition(),
+            existing == null ? null : existing.intermediateCondition(),
+            proven,
+            status));
     }
 
     private AbstractStatement statementOf(String id) {

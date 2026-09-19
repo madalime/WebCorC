@@ -24,12 +24,18 @@ additionalProperties:
 
     proven:
       description: >
-        Whether this Verifier's check of this statement passed. Absent until this
-        Verifier has reported a result for this statement.
+        Whether this Verifier's check of this statement passed. Absent until a run
+        has reached the Verifier phase for the first time; from then on always
+        present, reset to false for every catalog Verifier at the start of every
+        such run, and set true only once this Verifier has itself proven this
+        statement in that run.
       type: boolean
 
     status:
       description: >
-        Opaque status text this Verifier set for this statement (see the Verifier
-        Status domain concept). Absent until this Verifier has reported one.
+        Either this Verifier's own opaque status text for this statement (see the
+        Verifier Status domain concept), a fixed text saying this Verifier did not
+        run because it was disabled for the run, or absent — cleared at the start
+        of a run for a Verifier that is enabled and about to run, and until then
+        absent entirely, the same as proven.
       type: string

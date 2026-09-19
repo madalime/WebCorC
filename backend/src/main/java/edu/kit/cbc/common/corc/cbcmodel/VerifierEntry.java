@@ -13,8 +13,12 @@ import io.micronaut.serde.annotation.Serdeable;
  * <p>{@code preCondition}/{@code postCondition} are the Verifier Condition the user authored for
  * this Verifier; {@code intermediateCondition} is only meaningful on a composition statement, and
  * only present when non-empty. {@code proven}/{@code status} are that Verifier's result for this
- * statement — both {@code null} until the Verifier has actually reported one; {@code status} is
- * opaque Verifier Status text (see CONTEXT.md), never interpreted here.
+ * statement, both {@code null} until a run has reached the Verifier phase for the first time.
+ *
+ * <p>From then on, {@code proven} is reset {@code false} for every catalog Verifier at the start
+ * of every such run, set {@code true} only by a Verifier that itself proved this statement in that
+ * run; {@code status} is cleared, a fixed disabled-run text, or that Verifier's own opaque
+ * Verifier Status text (see CONTEXT.md), never interpreted here.
  */
 @Serdeable
 @JsonInclude(JsonInclude.Include.NON_NULL)

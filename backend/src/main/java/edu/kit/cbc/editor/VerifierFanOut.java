@@ -21,9 +21,10 @@ import java.util.logging.Logger;
 /**
  * Calls every enabled Verifier of one job at the same time, one run per Verifier on the
  * blocking executor. A failure at any step is that Verifier's alone: a log line saying why,
- * then its {@code done(proven: false)}. A Verifier's done goes out only once its result is
- * merged into the formula, so a Verifier that said proven but whose result is lost counts as
- * failed. No timeout on a stream that never sends done.
+ * every statement's entry for it marked {@code proven: false} with that reason as {@code
+ * status}, then its {@code done(proven: false)}. A Verifier's done goes out only once its
+ * result is merged into the formula, so a Verifier that said proven but whose result is lost
+ * counts as failed. No timeout on a stream that never sends done.
  */
 @Singleton
 public class VerifierFanOut {
@@ -62,19 +63,20 @@ public class VerifierFanOut {
             failure = "finished, but its result could not be fetched";
             program.merge(id, client.fetchResult(id, jobId));
         } catch (VerifierClientException e) {
-            fail(sink, id, failure + ": " + e.getMessage());
+            fail(program, sink, id, failure + ": " + e.getMessage());
             return;
         } catch (RuntimeException e) {
             // A bug, not the Verifier's fault: reported like a failure so the job still completes.
             LOGGER.log(Level.SEVERE, "Verification run of Verifier '" + id + "' failed unexpectedly", e);
-            fail(sink, id, "failed unexpectedly: " + e.getMessage());
+            fail(program, sink, id, "failed unexpectedly: " + e.getMessage());
             return;
         }
         sink.accept(VerificationMessage.done(id, done.proven()));
     }
 
-    private static void fail(Consumer<VerificationMessage> sink, String id, String reason) {
+    private static void fail(NarrowedProgram program, Consumer<VerificationMessage> sink, String id, String reason) {
         sink.accept(VerificationMessage.log(id, "Verifier '" + id + "' " + reason));
+        program.markFailed(id, reason);
         sink.accept(VerificationMessage.done(id, false));
     }
 }

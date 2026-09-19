@@ -6,6 +6,7 @@ import edu.kit.cbc.common.corc.FileUtil;
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
 import edu.kit.cbc.common.corc.proof.ProofContext;
 import edu.kit.cbc.editor.verifier.ResolvedVerifier;
+import edu.kit.cbc.editor.verifier.Verifier;
 import edu.kit.cbc.editor.verifier.VerifierCatalog;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import edu.kit.cbc.editor.verifier.VerifierOverride;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
@@ -211,15 +213,29 @@ public class VerificationJob extends Thread {
         onFinished.run();
     }
 
-    /** Returns once every enabled Verifier has reported done; their results are then in the formula. */
+    /**
+     * Always resets every catalog Verifier's entry first ({@link NarrowedProgram#resetForRun}),
+     * even on the no-other-Verifier-enabled path, so a stale result from an earlier run never
+     * survives unnoticed.
+     */
     private void callVerifiers() {
-        List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(catalog.toCompletableFuture().join(), verifierOverrides);
+        VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides);
+        Set<String> enabledIds = verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
+        List<String> catalogIds = resolvedCatalog.verifiers().stream()
+            .map(Verifier::id)
+            .filter(id -> !FUNC.equals(id))
+            .toList();
+        List<String> disabledIds = catalogIds.stream().filter(id -> !enabledIds.contains(id)).toList();
+        program.resetForRun(enabledIds, disabledIds);
+
         if (verifiers.isEmpty()) {
             orchestrationLog("no other Verifier is enabled");
             return;
         }
         orchestrationLog("calling " + verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.joining(", ")));
-        fanOut.run(jobId, NarrowedProgram.of(formula), sourceFiles(), verifiers, this::emit);
+        fanOut.run(jobId, program, sourceFiles(), verifiers, this::emit);
     }
 
     /**

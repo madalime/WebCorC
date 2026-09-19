@@ -3,12 +3,14 @@ package edu.kit.cbc.editor;
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
 import edu.kit.cbc.common.corc.cbcmodel.Condition;
 import edu.kit.cbc.common.corc.cbcmodel.StatementType;
+import edu.kit.cbc.common.corc.cbcmodel.VerifierEntry;
 import edu.kit.cbc.common.corc.cbcmodel.statements.AbstractStatement;
 import edu.kit.cbc.common.corc.proof.ProofContext;
 import edu.kit.cbc.editor.verifier.FakeVerifierClient;
 import edu.kit.cbc.editor.verifier.Verifier;
 import edu.kit.cbc.editor.verifier.VerifierCatalog;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
+import edu.kit.cbc.editor.verifier.job.NarrowedProgram;
 import edu.kit.cbc.editor.verifier.job.StatementResult;
 import edu.kit.cbc.editor.verifier.job.StatusMessage;
 import java.util.ArrayList;
@@ -199,6 +201,26 @@ class VerificationJobTest {
             "A functional-status line still carries the func tag");
         Assertions.assertTrue(messages.contains(VerificationMessage.log(FUNC, "functional verification complete")),
             "A functional-status line still carries the func tag");
+
+        VerifierEntry offEntry = job.getFormula().getStatement().getVerifiers().get("off");
+        Assertions.assertEquals(Boolean.FALSE, offEntry.proven(),
+            "Every catalog Verifier's entry is reset even when fan-out itself is skipped");
+        Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, offEntry.status());
+    }
+
+    @Test
+    void aDisabledVerifierGetsTheFixedStatusTextOnTheSameRunThatFansOutToAnEnabledOne() throws Exception {
+        FakeVerifierClient client = new FakeVerifierClient()
+            .running("mock", Map.of("1", new StatementResult(true, "ok")), new StatusMessage.Done(true));
+
+        start(false, true, client);
+        awaitComplete();
+
+        VerifierEntry offEntry = job.getFormula().getStatement().getVerifiers().get("off");
+        Assertions.assertEquals(Boolean.FALSE, offEntry.proven());
+        Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, offEntry.status());
+        Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get("mock").proven(),
+            "The enabled Verifier's own result is unaffected by the disabled one's reset entry");
     }
 
     @Test

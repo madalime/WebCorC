@@ -2,6 +2,7 @@ package edu.kit.cbc.editor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
+import edu.kit.cbc.common.corc.cbcmodel.VerifierEntry;
 import edu.kit.cbc.common.corc.cbcmodel.statements.CompositionStatement;
 import edu.kit.cbc.editor.verifier.FakeVerifierClient;
 import edu.kit.cbc.editor.verifier.InvalidVerifierResponseException;
@@ -190,7 +191,19 @@ class VerifierFanOutTest {
         Assertions.assertEquals(VerificationMessage.done("sec", false), of("sec").get(1));
         Assertions.assertEquals(List.of("eebc"), client.startedJobs().stream().map(FakeVerifierClient.StartedJob::id).toList());
         Assertions.assertEquals(VerificationMessage.done("eebc", true), of("eebc").get(1));
-        Assertions.assertEquals(Boolean.TRUE, formula.getStatement().getVerifiers().get("eebc").proven());
+        Assertions.assertEquals(Boolean.TRUE, formula.getStatement().getVerifiers().get("eebc").proven(),
+            "An unrelated Verifier's own result is untouched by sec's failure");
+
+        CompositionStatement root = (CompositionStatement) formula.getStatement();
+        VerifierEntry secRoot = root.getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secRoot.proven());
+        Assertions.assertTrue(secRoot.status().contains("Connection refused"), secRoot.status());
+        VerifierEntry secFirst = root.getFirstStatement().getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secFirst.proven(),
+            "Every statement gets the failing Verifier's entry, not just ones with an authored condition");
+        VerifierEntry secSecond = root.getSecondStatement().getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secSecond.proven());
+        Assertions.assertEquals("safe(x)", secSecond.preCondition().getCondition(), "The authored condition survives the failure marking");
     }
 
     @Test
@@ -203,7 +216,10 @@ class VerifierFanOutTest {
         Assertions.assertEquals(VerificationMessage.LOG, of("eebc").get(0).type());
         Assertions.assertTrue(of("eebc").get(0).message().contains("answered 400"), of("eebc").get(0).message());
         Assertions.assertEquals(VerificationMessage.done("eebc", false), of("eebc").get(1));
-        Assertions.assertNull(formula.getStatement().getVerifiers().get("eebc").proven(), "No result was fetched or merged");
+        VerifierEntry eebcRoot = formula.getStatement().getVerifiers().get("eebc");
+        Assertions.assertEquals(Boolean.FALSE, eebcRoot.proven(), "No result was fetched, but the failure is still marked");
+        Assertions.assertTrue(eebcRoot.status().contains("answered 400"), eebcRoot.status());
+        Assertions.assertEquals("e == 0", eebcRoot.preCondition().getCondition(), "The authored condition survives the failure marking");
     }
 
     @Test
@@ -219,7 +235,9 @@ class VerifierFanOutTest {
         Assertions.assertTrue(of("eebc").get(1).message().contains("Connection refused"), of("eebc").get(1).message());
         Assertions.assertEquals(VerificationMessage.done("eebc", false), of("eebc").get(2),
             "The Verifier said proven, but its result is lost: the run failed");
-        Assertions.assertNull(formula.getStatement().getVerifiers().get("eebc").proven());
+        VerifierEntry eebcRoot = formula.getStatement().getVerifiers().get("eebc");
+        Assertions.assertEquals(Boolean.FALSE, eebcRoot.proven());
+        Assertions.assertTrue(eebcRoot.status().contains("Connection refused"), eebcRoot.status());
     }
 
     @Test
@@ -250,13 +268,20 @@ class VerifierFanOutTest {
                 super.startJob(id, jobId, request);
             }
         }.running("eebc", ALL_PROVEN, done(true));
+        CbCFormula formula = formula();
 
         Assertions.assertTimeoutPreemptively(Duration.ofSeconds(5),
-            () -> run(client, NarrowedProgram.of(formula()), SEC, EEBC));
+            () -> run(client, NarrowedProgram.of(formula), SEC, EEBC));
 
         Assertions.assertEquals(VerificationMessage.done("sec", false), of("sec").get(of("sec").size() - 1));
         Assertions.assertTrue(of("sec").get(0).message().contains("not registered"), of("sec").get(0).message());
         Assertions.assertEquals(VerificationMessage.done("eebc", true), of("eebc").get(0));
+
+        VerifierEntry secSecond = ((CompositionStatement) formula.getStatement()).getSecondStatement().getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secSecond.proven());
+        Assertions.assertTrue(secSecond.status().contains("not registered"), secSecond.status());
+        Assertions.assertEquals(Boolean.TRUE, formula.getStatement().getVerifiers().get("eebc").proven(),
+            "An unrelated Verifier's own result is untouched by sec's unexpected failure");
     }
 
     @Test
