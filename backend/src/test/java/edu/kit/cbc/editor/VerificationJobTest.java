@@ -98,7 +98,7 @@ class VerificationJobTest {
 
     private VerificationJob start(boolean functionalOnly, boolean functionalVerdict, FakeVerifierClient client, VerifierCatalog catalog)
         throws Exception {
-        CbCFormula formula = new CbCFormula("Demo", new StubStatement(functionalVerdict), List.of(), List.of(), List.of(), null, false, null);
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(functionalVerdict), List.of(), List.of(), List.of(), null, false);
         job = new VerificationJob(JOB, Optional.empty(), functionalOnly, formula, null,
             new VerifierFanOut(client, Runnable::run), CompletableFuture.completedFuture(catalog), () -> { });
         job.subscribe(message -> {
@@ -145,13 +145,60 @@ class VerificationJobTest {
         Assertions.assertEquals(Boolean.TRUE, funcEntry.proven(), "func gets a result-only entry even functional-only");
         Assertions.assertNull(funcEntry.status(), "func never carries a status");
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getVerifiers().get(FUNC).proven(),
-            "The formula's own root-level verifiers map also gets a func entry");
-        Assertions.assertEquals(CbCFormula.VERIFICATION_SCOPE_FUNCTIONAL, job.getFormula().getVerificationScope());
+            "The Root's own verifiers map also gets a func entry");
+    }
+
+    @Test
+    void aFunctionalOnlyRunMarksEveryNonFunctionalCatalogVerifierDisabledOnStatementsAndRoot() throws Exception {
+        start(true, true, new FakeVerifierClient());
+        awaitComplete();
+
+        for (String id : List.of("mock", "off")) {
+            VerifierEntry statementEntry = job.getFormula().getStatement().getVerifiers().get(id);
+            Assertions.assertEquals(Boolean.FALSE, statementEntry.proven(), id);
+            Assertions.assertEquals(Boolean.TRUE, statementEntry.disabled(),
+                id + " did not run: functional-only disables every non-functional Verifier, enabled or not");
+            Assertions.assertNull(statementEntry.status(), id);
+
+            VerifierEntry rootEntry = job.getFormula().getVerifiers().get(id);
+            Assertions.assertEquals(Boolean.FALSE, rootEntry.proven(), id + " on the Root");
+            Assertions.assertEquals(Boolean.TRUE, rootEntry.disabled(), id + " on the Root");
+            Assertions.assertNull(rootEntry.status(), id + " on the Root");
+        }
+    }
+
+    @Test
+    void aFunctionalOnlyRunClearsWhatAnEarlierAllRunLeftOnEveryNonFunctionalEntry() throws Exception {
+        StubStatement stub = new StubStatement(true);
+        stub.setVerifiers(new HashMap<>(Map.of("mock", new VerifierEntry(null, null, null, true, "2.5 J", null))));
+        CbCFormula formula = new CbCFormula("Demo", stub, List.of(), List.of(), List.of(),
+            new HashMap<>(Map.of("mock", new VerifierEntry(null, null, null, true, "2.5 J", null))), false);
+        job = new VerificationJob(JOB, Optional.empty(), true, formula, null,
+            new VerifierFanOut(new FakeVerifierClient(), Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
+        job.subscribe(message -> {
+            messages.add(message);
+            if (VerificationMessage.COMPLETE.equals(message.type())) {
+                completed.countDown();
+            }
+            return false;
+        });
+
+        job.start();
+        awaitComplete();
+
+        VerifierEntry statementEntry = job.getFormula().getStatement().getVerifiers().get("mock");
+        Assertions.assertEquals(Boolean.FALSE, statementEntry.proven(), "An earlier run's pass must not survive this one");
+        Assertions.assertEquals(Boolean.TRUE, statementEntry.disabled());
+        Assertions.assertNull(statementEntry.status(), "Nor its status text");
+        VerifierEntry rootEntry = job.getFormula().getVerifiers().get("mock");
+        Assertions.assertEquals(Boolean.FALSE, rootEntry.proven());
+        Assertions.assertEquals(Boolean.TRUE, rootEntry.disabled());
+        Assertions.assertNull(rootEntry.status());
     }
 
     @Test
     void functionalFailureEndsTheJobWithoutCallingAnyVerifier() throws Exception {
-        FakeVerifierClient client = new FakeVerifierClient().running("mock", Map.of(), new StatusMessage.Done(true));
+        FakeVerifierClient client = new FakeVerifierClient().running("mock", Map.of(), new StatusMessage.Done(true, null));
 
         start(false, false, client);
         awaitComplete();
@@ -164,17 +211,24 @@ class VerificationJobTest {
         VerifierEntry funcEntry = job.getFormula().getStatement().getVerifiers().get(FUNC);
         Assertions.assertEquals(Boolean.FALSE, funcEntry.proven(), "A functional failure writes proven:false, not a stale true");
         Assertions.assertEquals(Boolean.FALSE, job.getFormula().getVerifiers().get(FUNC).proven());
-        Assertions.assertEquals(CbCFormula.VERIFICATION_SCOPE_ALL, job.getFormula().getVerificationScope(),
-            "Scope reflects the requested mode regardless of the outcome");
+
+        VerifierEntry mockEntry = job.getFormula().getStatement().getVerifiers().get("mock");
+        Assertions.assertEquals(Boolean.FALSE, mockEntry.proven(),
+            "The reset happened before the functional gate, so the enabled Verifier's entry is this run's although it never ran");
+        Assertions.assertNull(mockEntry.disabled(), "mock was enabled for this run; it just never got the chance");
+        Assertions.assertNull(mockEntry.status());
+        Assertions.assertEquals(Boolean.FALSE, job.getFormula().getVerifiers().get("mock").proven(), "The Root too");
+        Assertions.assertEquals(Boolean.TRUE, job.getFormula().getVerifiers().get("off").disabled(),
+            "And the Verifier that was not enabled is marked as not run");
     }
 
     @Test
     void functionalSuccessFansOutToTheEnabledVerifiersAndCompletesOnceAfterAllOfThem() throws Exception {
         CountDownLatch release = new CountDownLatch(1);
         FakeVerifierClient client = new FakeVerifierClient()
-            .running("mock", Map.of("1", new StatementResult(true, "ok")), new StatusMessage.Log("checking"), new StatusMessage.Done(true))
+            .running("mock", Map.of("1", new StatementResult(true, "ok")), new StatusMessage.Log("checking"), new StatusMessage.Done(true, null))
             .holdingDone("mock", release)
-            .running("off", Map.of(), new StatusMessage.Done(true));
+            .running("off", Map.of(), new StatusMessage.Done(true, null));
 
         start(false, true, client);
         long deadline = System.currentTimeMillis() + 5000;
@@ -201,10 +255,13 @@ class VerificationJobTest {
         Assertions.assertTrue(job.isHasResult());
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get("mock").proven());
         Assertions.assertEquals("ok", job.getFormula().getStatement().getVerifiers().get("mock").status());
+        VerifierEntry mockRoot = job.getFormula().getVerifiers().get("mock");
+        Assertions.assertEquals(Boolean.TRUE, mockRoot.proven(), "The Root carries what the Verifier's own done said");
+        Assertions.assertNull(mockRoot.status(), "This Verifier sent no whole-run status");
+        Assertions.assertNull(mockRoot.disabled());
         Assertions.assertTrue(job.getFormula().isProven(),
             "Aggregate: func.proven && mock.proven, 'off' is disabled and ignored");
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get(FUNC).proven());
-        Assertions.assertEquals(CbCFormula.VERIFICATION_SCOPE_ALL, job.getFormula().getVerificationScope());
     }
 
     @Test
@@ -224,22 +281,28 @@ class VerificationJobTest {
         VerifierEntry offEntry = job.getFormula().getStatement().getVerifiers().get("off");
         Assertions.assertEquals(Boolean.FALSE, offEntry.proven(),
             "Every catalog Verifier's entry is reset even when fan-out itself is skipped");
-        Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, offEntry.status());
+        Assertions.assertEquals(Boolean.TRUE, offEntry.disabled());
+        Assertions.assertNull(offEntry.status());
         Assertions.assertTrue(job.getFormula().isProven(),
             "No other Verifier is enabled: the aggregate reduces to func.proven");
     }
 
     @Test
-    void aDisabledVerifierGetsTheFixedStatusTextOnTheSameRunThatFansOutToAnEnabledOne() throws Exception {
+    void aDisabledVerifierIsMarkedDisabledOnStatementsAndRootOnTheSameRunThatFansOutToAnEnabledOne() throws Exception {
         FakeVerifierClient client = new FakeVerifierClient()
-            .running("mock", Map.of("1", new StatementResult(true, "ok")), new StatusMessage.Done(true));
+            .running("mock", Map.of("1", new StatementResult(true, "ok")), new StatusMessage.Done(true, null));
 
         start(false, true, client);
         awaitComplete();
 
         VerifierEntry offEntry = job.getFormula().getStatement().getVerifiers().get("off");
         Assertions.assertEquals(Boolean.FALSE, offEntry.proven());
-        Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, offEntry.status());
+        Assertions.assertEquals(Boolean.TRUE, offEntry.disabled());
+        Assertions.assertNull(offEntry.status());
+        VerifierEntry offRoot = job.getFormula().getVerifiers().get("off");
+        Assertions.assertEquals(Boolean.FALSE, offRoot.proven(), "The Root is marked like every statement");
+        Assertions.assertEquals(Boolean.TRUE, offRoot.disabled());
+        Assertions.assertNull(offRoot.status());
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getStatement().getVerifiers().get("mock").proven(),
             "The enabled Verifier's own result is unaffected by the disabled one's reset entry");
     }
@@ -260,15 +323,19 @@ class VerificationJobTest {
         VerifierEntry mockEntry = job.getFormula().getStatement().getVerifiers().get("mock");
         Assertions.assertEquals(Boolean.FALSE, mockEntry.proven());
         Assertions.assertTrue(mockEntry.status().contains("could not be started"));
+        VerifierEntry mockRoot = job.getFormula().getVerifiers().get("mock");
+        Assertions.assertEquals(Boolean.FALSE, mockRoot.proven(), "A Verifier that could not be started failed for the Root too");
+        Assertions.assertTrue(mockRoot.status().contains("could not be started"), mockRoot.status());
+        Assertions.assertNull(mockRoot.disabled(), "Failed outright is a failure, not a Verifier that did not run");
         Assertions.assertFalse(job.getFormula().isProven(), "func.proven && mock.proven(false) => false");
     }
 
     @Test
     void aStaleFuncEntryFromAnEarlierRunIsOverwrittenNotLeftStaleOnFunctionalFailure() throws Exception {
         StubStatement stub = new StubStatement(false);
-        stub.setVerifiers(new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null))));
+        stub.setVerifiers(new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null, null))));
         CbCFormula formula = new CbCFormula("Demo", stub, List.of(), List.of(), List.of(),
-            new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null))), false, null);
+            new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null, null))), false);
         job = new VerificationJob(JOB, Optional.empty(), false, formula, null,
             new VerifierFanOut(new FakeVerifierClient(), Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
         job.subscribe(message -> {
@@ -297,7 +364,7 @@ class VerificationJobTest {
                 throw new RuntimeException("boom");
             }
         };
-        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false, null);
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false);
         job = new VerificationJob(JOB, Optional.empty(), false, formula, null, brokenFanOut,
             CompletableFuture.completedFuture(CATALOG), () -> { });
         job.subscribe(message -> {
@@ -319,12 +386,6 @@ class VerificationJobTest {
     }
 
     @Test
-    void verificationScopeIsAbsentOnAFormulaNeverVerified() {
-        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false, null);
-        Assertions.assertNull(formula.getVerificationScope());
-    }
-
-    @Test
     void aLateSubscriberGetsTheWholeHistoryOnceInOrder() throws Exception {
         start(true, true, new FakeVerifierClient());
         awaitComplete();
@@ -342,7 +403,7 @@ class VerificationJobTest {
     void aListenerReportingItsConnectionClosedIsDropped() throws Exception {
         List<VerificationMessage> seen = new ArrayList<>();
         FakeVerifierClient client = new FakeVerifierClient();
-        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false, null);
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false);
         job = new VerificationJob(JOB, Optional.empty(), true, formula, null,
             new VerifierFanOut(client, Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
         job.subscribe(message -> {

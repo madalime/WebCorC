@@ -17,11 +17,6 @@ import lombok.Setter;
 @Serdeable
 public class CbCFormula {
 
-    /** {@link #verificationScope} value after a functional-only run. */
-    public static final String VERIFICATION_SCOPE_FUNCTIONAL = "functional";
-    /** {@link #verificationScope} value after a run that fanned out to every enabled Verifier. */
-    public static final String VERIFICATION_SCOPE_ALL = "all";
-
     private String name;
     private AbstractStatement statement;
     private List<JavaVariable> javaVariables;
@@ -29,10 +24,12 @@ public class CbCFormula {
     private List<Renaming> renamings;
 
     /**
-     * Per-Verifier conditions and results of the root statement (mirrors
-     * {@code openapi/schema/cbc/formula.yml}'s {@code verifiers}), which is flattened into the
-     * formula's own pre-/postcondition on export — its verifiers are carried the same way. See
-     * {@link AbstractStatement#getVerifiers()}.
+     * The Root's per-Verifier conditions and results (mirrors
+     * {@code openapi/schema/cbc/formula.yml}'s {@code verifiers}): the same shape and the same
+     * rules as a statement's map (see {@link AbstractStatement#getVerifiers()}), carrying
+     * {@code func} and every catalog Verifier once a run has happened. The conditions are the
+     * ones flattened into the formula's own pre-/postcondition on export; a non-functional
+     * Verifier's {@code proven}/{@code status} here are its whole-run verdict, not a statement's.
      */
     private Map<String, VerifierEntry> verifiers;
 
@@ -47,11 +44,4 @@ public class CbCFormula {
 
     @JsonProperty(value = "isProven", required = true)
     private boolean isProven;
-
-    /**
-     * Which mode this formula was last verified under -- {@link #VERIFICATION_SCOPE_FUNCTIONAL} or
-     * {@link #VERIFICATION_SCOPE_ALL} -- set at the end of every run regardless of its outcome;
-     * absent on a formula never verified on this branch.
-     */
-    private String verificationScope;
 }

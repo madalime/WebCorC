@@ -217,23 +217,44 @@ class NarrowedProgramTest {
     }
 
     @Test
-    void resetForRunClearsEnabledAndFixesDisabledStatusPreservingConditionsAndCreatingMissingEntries() throws Exception {
+    void resetForRunClearsEnabledAndMarksDisabledPreservingConditionsAndCreatingMissingEntries() throws Exception {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
 
         program.resetForRun(List.of("energy"), List.of("sec"));
 
-        CompositionStatement root = (CompositionStatement) formula.getStatement();
-        VerifierEntry energy = root.getVerifiers().get("energy");
+        CompositionStatement top = (CompositionStatement) formula.getStatement();
+        VerifierEntry energy = top.getVerifiers().get("energy");
         Assertions.assertEquals(Boolean.FALSE, energy.proven());
         Assertions.assertNull(energy.status(), "An enabled Verifier's status is cleared, ready for its own report");
+        Assertions.assertNull(energy.disabled(), "An enabled Verifier is about to run: no disabled marker");
         Assertions.assertEquals("energy == 0", energy.preCondition().getCondition(), "The authored condition survives the reset");
         Assertions.assertEquals("energy <= 1", energy.intermediateCondition().getCondition());
 
-        VerifierEntry sec = root.getVerifiers().get("sec");
+        VerifierEntry sec = top.getVerifiers().get("sec");
         Assertions.assertEquals(Boolean.FALSE, sec.proven());
-        Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, sec.status());
+        Assertions.assertEquals(Boolean.TRUE, sec.disabled(), "sec did not run: that is a field, not a text");
+        Assertions.assertNull(sec.status(), "A disabled entry carries no status of WebCorC's invention");
         Assertions.assertEquals("safe(x)", sec.preCondition().getCondition(), "The authored condition survives the reset");
+    }
+
+    @Test
+    void resetForRunWritesTheRootsOwnEntriesTheSameWayAsAStatementsBoth() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        program.resetForRun(List.of("energy"), List.of("sec"));
+
+        VerifierEntry rootEnergy = formula.getVerifiers().get("energy");
+        Assertions.assertEquals(Boolean.FALSE, rootEnergy.proven());
+        Assertions.assertNull(rootEnergy.disabled());
+        Assertions.assertEquals("energy == 0", rootEnergy.preCondition().getCondition(),
+            "The Root's authored condition survives the reset");
+
+        VerifierEntry rootSec = formula.getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, rootSec.proven(), "The Root gets an entry even where none was authored");
+        Assertions.assertEquals(Boolean.TRUE, rootSec.disabled());
+        Assertions.assertNull(rootSec.status());
     }
 
     @Test
@@ -249,11 +270,29 @@ class NarrowedProgramTest {
         VerifierEntry stepSec = step.getVerifiers().get("sec");
         Assertions.assertEquals(Boolean.FALSE, stepSec.proven());
         Assertions.assertNull(stepSec.status(), "sec is enabled: status cleared");
+        Assertions.assertNull(stepSec.disabled());
         Assertions.assertNull(stepSec.preCondition(), "No condition was ever authored for sec on Step");
 
         VerifierEntry stepEnergy = step.getVerifiers().get("energy");
         Assertions.assertEquals(Boolean.FALSE, stepEnergy.proven());
-        Assertions.assertEquals(NarrowedProgram.DISABLED_STATUS, stepEnergy.status());
+        Assertions.assertEquals(Boolean.TRUE, stepEnergy.disabled());
+        Assertions.assertNull(stepEnergy.status());
+    }
+
+    @Test
+    void resetForRunClearsAStaleStatusAndAStaleDisabledMarker() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.resetForRun(List.of(), List.of("energy"));
+        program.markFailed("sec", "did not finish: gave up");
+
+        program.resetForRun(List.of("energy", "sec"), List.of());
+
+        VerifierEntry energy = formula.getStatement().getVerifiers().get("energy");
+        Assertions.assertNull(energy.disabled(), "energy is enabled this run: last run's disabled marker is gone");
+        VerifierEntry sec = formula.getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, sec.proven());
+        Assertions.assertNull(sec.status(), "The Root's stale failure reason from the last run is cleared too");
     }
 
     @Test
@@ -265,28 +304,39 @@ class NarrowedProgramTest {
 
         Assertions.assertNull(formula.getStatement().getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID),
             "func is never written by the reset, enabled or disabled");
+        Assertions.assertNull(formula.getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID),
+            "nor on the Root, whose func entry has its own writer");
     }
 
     @Test
-    void markFailedSetsEveryStatementsEntryProvenFalseWithTheReasonAsStatus() throws Exception {
+    void markFailedSetsEveryStatementsAndTheRootsEntryProvenFalseWithTheReasonAsStatus() throws Exception {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
 
         program.markFailed("energy", "could not be started: Connection refused");
 
-        CompositionStatement root = (CompositionStatement) formula.getStatement();
-        VerifierEntry rootEntry = root.getVerifiers().get("energy");
-        Assertions.assertEquals(Boolean.FALSE, rootEntry.proven());
-        Assertions.assertEquals("could not be started: Connection refused", rootEntry.status());
-        Assertions.assertEquals("energy == 0", rootEntry.preCondition().getCondition(), "The authored condition survives");
+        CompositionStatement top = (CompositionStatement) formula.getStatement();
+        VerifierEntry topEntry = top.getVerifiers().get("energy");
+        Assertions.assertEquals(Boolean.FALSE, topEntry.proven());
+        Assertions.assertEquals("could not be started: Connection refused", topEntry.status());
+        Assertions.assertNull(topEntry.disabled(), "Failed outright is a failure, not a Verifier that did not run");
+        Assertions.assertEquals("energy == 0", topEntry.preCondition().getCondition(), "The authored condition survives");
 
-        AbstractStatement step = ((SelectionStatement) ((SmallRepetitionStatement) root.getSecondStatement()).getLoopStatement())
+        AbstractStatement step = ((SelectionStatement) ((SmallRepetitionStatement) top.getSecondStatement()).getLoopStatement())
             .getCommands().get(0);
         VerifierEntry stepEntry = step.getVerifiers().get("energy");
         Assertions.assertEquals(Boolean.FALSE, stepEntry.proven(), "Every statement gets the entry, not just the ones with a condition");
         Assertions.assertEquals("could not be started: Connection refused", stepEntry.status());
 
-        Assertions.assertNull(root.getVerifiers().get("sec").proven(), "An unrelated Verifier's entry is untouched");
+        VerifierEntry rootEntry = formula.getVerifiers().get("energy");
+        Assertions.assertEquals(Boolean.FALSE, rootEntry.proven(), "A Verifier that could not run failed for the Root too");
+        Assertions.assertEquals("could not be started: Connection refused", rootEntry.status());
+        Assertions.assertNull(rootEntry.disabled());
+        Assertions.assertEquals("energy == 0", rootEntry.preCondition().getCondition(),
+            "The Root's authored condition survives the failure marking");
+
+        Assertions.assertNull(top.getVerifiers().get("sec").proven(), "An unrelated Verifier's entry is untouched");
+        Assertions.assertNull(formula.getVerifiers().get("sec"), "Nor is one invented for it on the Root");
     }
 
     @Test
@@ -297,6 +347,63 @@ class NarrowedProgramTest {
         program.markFailed(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID, "could not be started: unreachable");
 
         Assertions.assertNull(formula.getStatement().getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID));
+        Assertions.assertNull(formula.getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID));
+    }
+
+    @Test
+    void writeRootResultWritesThatVerifiersWholeRunVerdictOntoTheRootAlone() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.resetForRun(List.of("energy", "sec"), List.of());
+
+        program.writeRootResult("energy", true, "3.2 J for the whole run");
+
+        VerifierEntry rootEnergy = formula.getVerifiers().get("energy");
+        Assertions.assertEquals(Boolean.TRUE, rootEnergy.proven());
+        Assertions.assertEquals("3.2 J for the whole run", rootEnergy.status());
+        Assertions.assertNull(rootEnergy.disabled());
+        Assertions.assertEquals("energy == 0", rootEnergy.preCondition().getCondition(), "The authored condition survives");
+        Assertions.assertEquals(Boolean.FALSE, formula.getVerifiers().get("sec").proven(),
+            "Another Verifier's Root entry is untouched");
+        Assertions.assertEquals(Boolean.FALSE, formula.getStatement().getVerifiers().get("energy").proven(),
+            "The statements keep what the Verifier's own per-statement result says, here still the reset default");
+    }
+
+    @Test
+    void writeRootResultWithoutAStatusLeavesTheRootEntryWithout() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.markFailed("energy", "did not finish: gave up");
+
+        program.writeRootResult("energy", false, null);
+
+        Assertions.assertNull(formula.getVerifiers().get("energy").status(),
+            "A Verifier with nothing to say about the run leaves the Root's status absent");
+    }
+
+    @Test
+    void writeRootResultNeverTouchesFunc() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        program.writeRootResult(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID, true, "whatever");
+
+        Assertions.assertNull(formula.getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID),
+            "func's Root entry has its own writer and never a status");
+    }
+
+    @Test
+    void theDisabledMarkerIsSerialisedOnlyWhereItIsSet() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.resetForRun(List.of("energy"), List.of("sec"));
+        ObjectMapper mapper = new ObjectMapper();
+
+        String enabled = mapper.writeValueAsString(formula.getVerifiers().get("energy"));
+        String disabled = mapper.writeValueAsString(formula.getVerifiers().get("sec"));
+
+        Assertions.assertFalse(enabled.contains("\"disabled\""), "Absent, not false, on a Verifier that ran: " + enabled);
+        Assertions.assertTrue(disabled.contains("\"disabled\":true"), disabled);
     }
 
     @Test

@@ -44,20 +44,13 @@ properties:
 
   verifiers:
     description: >
-      Per-Verifier conditions and results of the root statement, which is flattened
-      into the formula's preCondition/postCondition on export.
+      The program root's per-Verifier conditions and results: the conditions are the
+      ones flattened into the formula's preCondition/postCondition on export, and the
+      results are the last run's, carrying func and every catalog Verifier exactly like
+      a statement's own map. A non-functional Verifier's proven/status here are what its
+      done message said about the whole run.
     allOf:
       - $ref: './verifiers.yml'
-
-  verificationScope:
-    description: >
-      Which mode this formula was last verified under -- functional-only, or including
-      every enabled Verifier -- set at the end of every run regardless of its outcome.
-      Absent on a formula that has never been through a run on this branch.
-    type: string
-    enum:
-      - functional
-      - all
 
   statement:
     $ref: './statement.yml'

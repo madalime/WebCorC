@@ -16,6 +16,14 @@ properties:
       of it failed — sent immediately so the user gets an outcome without
       waiting for per-statement detail to be assembled.
 
+  status:
+    type: string
+    description: >-
+      Opaque Verifier Status this Verifier has to report for the whole run
+      (see the Verifier Status domain concept), shown on the program's root;
+      entirely this Verifier's own business, WebCorC forwards it without
+      interpreting it. Optional; omit when there is nothing to say.
+
 required:
   - type
   - proven

@@ -12,8 +12,12 @@ public sealed interface StatusMessage permits StatusMessage.Log, StatusMessage.D
     /** A free-text log line, sent at any point during the run. */
     record Log(String message) implements StatusMessage {}
 
-    /** Sent exactly once, when the run has finished: one aggregate verdict, no per-statement detail. */
-    record Done(boolean proven) implements StatusMessage {}
+    /**
+     * Sent exactly once, when the run has finished: one aggregate verdict, no per-statement
+     * detail, and optionally this Verifier's own Verifier Status for the whole run ({@code null}
+     * when it sent none), which becomes the Root's status for this Verifier.
+     */
+    record Done(boolean proven, String status) implements StatusMessage {}
 
     /**
      * Turns a parsed WebSocket message into the envelope it claims to be.
@@ -44,7 +48,11 @@ public sealed interface StatusMessage permits StatusMessage.Log, StatusMessage.D
                 if (proven == null || !proven.isBoolean()) {
                     throw new IllegalArgumentException("done message without a boolean 'proven'");
                 }
-                return new Done(proven.getBooleanValue());
+                JsonNode status = node.get("status");
+                if (status != null && !status.isString()) {
+                    throw new IllegalArgumentException("done message with a non-string 'status'");
+                }
+                return new Done(proven.getBooleanValue(), status == null ? null : status.getStringValue());
             }
             default -> throw new IllegalArgumentException("unknown type '" + type.getStringValue() + "'");
         }

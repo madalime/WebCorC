@@ -21,10 +21,11 @@ import java.util.logging.Logger;
 /**
  * Calls every enabled Verifier of one job at the same time, one run per Verifier on the
  * blocking executor. A failure at any step is that Verifier's alone: a log line saying why,
- * every statement's entry for it marked {@code proven: false} with that reason as {@code
- * status}, then its {@code done(proven: false)}. A Verifier's done goes out only once its
- * result is merged into the formula, so a Verifier that said proven but whose result is lost
- * counts as failed. No timeout on a stream that never sends done.
+ * its entry on every statement and on the Root marked {@code proven: false} with that reason as
+ * {@code status}, then its {@code done(proven: false)}. A Verifier's done goes out only once its
+ * per-statement result is merged into the formula and its {@code done}'s own verdict written onto
+ * the Root, so a Verifier that said proven but whose result is lost counts as failed. No timeout
+ * on a stream that never sends done.
  */
 @Singleton
 public class VerifierFanOut {
@@ -71,6 +72,7 @@ public class VerifierFanOut {
             fail(program, sink, id, "failed unexpectedly: " + e.getMessage());
             return;
         }
+        program.writeRootResult(id, done.proven(), done.status());
         sink.accept(VerificationMessage.done(id, done.proven()));
     }
 

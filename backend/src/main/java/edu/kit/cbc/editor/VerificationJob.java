@@ -33,9 +33,10 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 
 /**
- * One verification job: functional verification, then — only on its success, and unless
- * {@code functionalOnly} — the fan-out to the enabled Verifiers. The final {@code complete} is
- * sent exactly once, last, and is the moment the result becomes available.
+ * One verification job: every catalog Verifier's entry reset first, then functional verification,
+ * then — only on its success, and unless {@code functionalOnly} — the fan-out to the enabled
+ * Verifiers. The final {@code complete} is sent exactly once, last, and is the moment the result
+ * becomes available.
  *
  * <p>Messages are emitted from this thread and the fan-out's threads alike, hence the lock; a
  * listener is invoked under it and must return promptly.
@@ -138,6 +139,13 @@ public class VerificationJob extends Thread {
 
     public void run() {
         log("verification started");
+
+        // One instance per run, created before the functional proof: the reset of every catalog
+        // Verifier's entry happens up front, in both modes, so that no verdict of an earlier run
+        // can survive any outcome of this one.
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        resetVerifierEntries(program);
+
         boolean proven = formula.getStatement().prove(context.build());
         formula.setProven(proven);
 
@@ -193,7 +201,6 @@ public class VerificationJob extends Thread {
         // The func entry always reflects *this* run's functional result, in both modes and even
         // on failure -- written now, before the gate below, so a stale proven:true from an
         // earlier run can never be mistaken for a fresh isProven:false.
-        NarrowedProgram program = NarrowedProgram.of(formula);
         program.writeFunctionalResult();
         program.writeFormulaFunctionalResult();
 
@@ -207,7 +214,6 @@ public class VerificationJob extends Thread {
             }
         }
 
-        formula.setVerificationScope(functionalOnly ? CbCFormula.VERIFICATION_SCOPE_FUNCTIONAL : CbCFormula.VERIFICATION_SCOPE_ALL);
         hasResult = true;
         emit(VerificationMessage.complete());
 
@@ -222,25 +228,52 @@ public class VerificationJob extends Thread {
     }
 
     /**
-     * Always resets every catalog Verifier's entry first ({@link NarrowedProgram#resetForRun}),
-     * even on the no-other-Verifier-enabled path. {@code isProven} is recomputed
+     * Resets every catalog Verifier's entry, before functional verification and in both modes, so
+     * that nothing of an earlier run can survive this one's outcome. Needs the Catalog even
+     * functional-only (for the ids to mark disabled); a Catalog that cannot be resolved is
+     * reported and the run continues functionally, as it does when the fan-out needs it.
+     */
+    private void resetVerifierEntries(NarrowedProgram program) {
+        try {
+            VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
+            Set<String> enabledIds = enabledVerifierIds(resolvedCatalog);
+            List<String> disabledIds = resolvedCatalog.verifiers().stream()
+                .map(Verifier::id)
+                .filter(id -> !FUNC.equals(id))
+                .filter(id -> !enabledIds.contains(id))
+                .toList();
+            program.resetForRun(enabledIds, disabledIds);
+        } catch (RuntimeException e) {
+            // Without the Catalog there are no ids to reset; the functional run still happens.
+            LOGGER.log(Level.SEVERE, "Resetting the Verifier entries of job " + jobId + " failed", e);
+            orchestrationLog("the Verifier Catalog could not be read; every Verifier entry keeps what the last run left it: "
+                + e.getMessage());
+        }
+    }
+
+    /** The ids that run in this job — none at all functional-only, where no Override is consulted. */
+    private Set<String> enabledVerifierIds(VerifierCatalog resolvedCatalog) {
+        if (functionalOnly) {
+            return Set.of();
+        }
+        return ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides).stream()
+            .map(ResolvedVerifier::id)
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Calls every Verifier the Overrides mark enabled, if any. {@code isProven} is recomputed
      * ({@link NarrowedProgram#recomputeIsProven}) in a {@code finally}, so no path out of this
      * method -- happy, early-return, or an unexpected exception -- skips it, using
-     * {@code enabledIds} as far as it got computed before any failure.
+     * {@code enabledIds} as far as it got computed before any failure. The entries themselves
+     * were reset before functional verification ({@link #resetVerifierEntries}), not here.
      */
     private void callVerifiers(NarrowedProgram program) {
         Set<String> enabledIds = Set.of();
         try {
             VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
             List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides);
-            Set<String> resolvedEnabledIds = verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
-            enabledIds = resolvedEnabledIds;
-            List<String> catalogIds = resolvedCatalog.verifiers().stream()
-                .map(Verifier::id)
-                .filter(id -> !FUNC.equals(id))
-                .toList();
-            List<String> disabledIds = catalogIds.stream().filter(id -> !resolvedEnabledIds.contains(id)).toList();
-            program.resetForRun(resolvedEnabledIds, disabledIds);
+            enabledIds = verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
 
             if (verifiers.isEmpty()) {
                 orchestrationLog("no other Verifier is enabled");

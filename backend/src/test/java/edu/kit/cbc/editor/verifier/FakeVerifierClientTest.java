@@ -34,7 +34,7 @@ class FakeVerifierClientTest {
     @Test
     void playsAScriptedRunInTheContractsOrder() throws Exception {
         FakeVerifierClient client = new FakeVerifierClient()
-            .running("eebc", RESULT, new StatusMessage.Log("a"), new StatusMessage.Log("b"), new StatusMessage.Done(true));
+            .running("eebc", RESULT, new StatusMessage.Log("a"), new StatusMessage.Log("b"), new StatusMessage.Done(true, null));
         List<String> logs = new ArrayList<>();
 
         client.startJob("eebc", JOB, REQUEST);
@@ -43,7 +43,7 @@ class FakeVerifierClientTest {
 
         Assertions.assertEquals(List.of(new FakeVerifierClient.StartedJob("eebc", JOB, REQUEST)), client.startedJobs());
         Assertions.assertEquals(List.of("a", "b"), logs);
-        Assertions.assertEquals(new StatusMessage.Done(true), done);
+        Assertions.assertEquals(new StatusMessage.Done(true, null), done);
         Assertions.assertEquals(RESULT, result);
     }
 
@@ -75,19 +75,19 @@ class FakeVerifierClientTest {
     @Test
     void failsTheResultAsScriptedOnceDoneArrived() throws Exception {
         FakeVerifierClient client = new FakeVerifierClient()
-            .failingResult("eebc", INVALID, new StatusMessage.Done(false));
+            .failingResult("eebc", INVALID, new StatusMessage.Done(false, null));
 
         client.startJob("eebc", JOB, REQUEST);
         StatusMessage.Done done = client.streamStatus("eebc", JOB, log -> { });
 
-        Assertions.assertEquals(new StatusMessage.Done(false), done);
+        Assertions.assertEquals(new StatusMessage.Done(false, null), done);
         Assertions.assertSame(INVALID, Assertions.assertThrows(InvalidVerifierResponseException.class,
             () -> client.fetchResult("eebc", JOB)));
     }
 
     @Test
     void resultBeforeDoneIsACallerBug() throws Exception {
-        FakeVerifierClient client = new FakeVerifierClient().running("eebc", RESULT, new StatusMessage.Done(true));
+        FakeVerifierClient client = new FakeVerifierClient().running("eebc", RESULT, new StatusMessage.Done(true, null));
 
         client.startJob("eebc", JOB, REQUEST);
 
@@ -109,8 +109,8 @@ class FakeVerifierClientTest {
     @Test
     void jobsAreKeptApartByVerifierAndJobId() throws Exception {
         FakeVerifierClient client = new FakeVerifierClient()
-            .running("eebc", RESULT, new StatusMessage.Done(true))
-            .running("sec", Map.of(), new StatusMessage.Done(false));
+            .running("eebc", RESULT, new StatusMessage.Done(true, null))
+            .running("sec", Map.of(), new StatusMessage.Done(false, null));
         UUID other = UUID.randomUUID();
 
         client.startJob("eebc", JOB, REQUEST);
@@ -128,7 +128,7 @@ class FakeVerifierClientTest {
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch logged = new CountDownLatch(1);
         FakeVerifierClient client = new FakeVerifierClient()
-            .running("eebc", RESULT, new StatusMessage.Log("working"), new StatusMessage.Done(true))
+            .running("eebc", RESULT, new StatusMessage.Log("working"), new StatusMessage.Done(true, null))
             .holdingDone("eebc", release);
         client.startJob("eebc", JOB, REQUEST);
 
@@ -143,7 +143,7 @@ class FakeVerifierClientTest {
         Assertions.assertTrue(logged.await(5, TimeUnit.SECONDS), "Logs are delivered before the hold");
         Assertions.assertFalse(done.isDone(), "Done is held back until the test releases it");
         release.countDown();
-        Assertions.assertEquals(new StatusMessage.Done(true), done.get(5, TimeUnit.SECONDS));
+        Assertions.assertEquals(new StatusMessage.Done(true, null), done.get(5, TimeUnit.SECONDS));
         Assertions.assertEquals(RESULT, client.fetchResult("eebc", JOB));
     }
 }

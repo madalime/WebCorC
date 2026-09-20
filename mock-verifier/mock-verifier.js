@@ -12,13 +12,16 @@ import { WebSocketServer } from "ws";
 
 const description = readFileSync(new URL("./description.json", import.meta.url));
 
-/** The status stream's fixed script: these log lines, then one done message. */
+/**
+ * The status stream's fixed script: these log lines, then one done message — the run's verdict
+ * plus the Verifier Status the backend shows on the program's root.
+ */
 const LOG_LINES = [
   "Mock Verifier: analysing program",
   "Mock Verifier: checking every statement against the resolved Settings",
   "Mock Verifier: all statements checked",
 ];
-const DONE_MESSAGE = { type: "done", proven: true };
+const DONE_MESSAGE = { type: "done", proven: true, status: "Mock Verifier: whole run checked" };
 
 const JOB_PATH = /^\/jobs\/([^/]+)$/;
 const RESULT_PATH = /^\/jobs\/([^/]+)\/result$/;

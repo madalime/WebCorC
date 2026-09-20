@@ -241,6 +241,7 @@ class HttpVerifierClientJobTest {
     private static final String LOG_B = "{\"type\": \"log\", \"message\": \"all statements checked\"}";
     private static final String DONE_PROVEN = "{\"type\": \"done\", \"proven\": true}";
     private static final String DONE_FAILED = "{\"type\": \"done\", \"proven\": false}";
+    private static final String DONE_WITH_STATUS = "{\"type\": \"done\", \"proven\": true, \"status\": \"3.2 J for the whole run\"}";
 
     private static StandInVerifier.StatusScript script(Integer closeCode, String... messages) {
         return new StandInVerifier.StatusScript(List.of(messages), closeCode);
@@ -253,7 +254,7 @@ class HttpVerifierClientJobTest {
 
         StatusMessage.Done done = mock().streamStatus("mock", JOB, log -> logs.add(log.message()));
 
-        Assertions.assertEquals(new StatusMessage.Done(true), done);
+        Assertions.assertEquals(new StatusMessage.Done(true, null), done, "A Verifier with nothing to say sends no status");
         Assertions.assertEquals(List.of("analysing program", "all statements checked"), logs);
         Assertions.assertEquals(1, verifier.requests().size());
         StandInVerifier.Request request = verifier.requests().get(0);
@@ -269,7 +270,7 @@ class HttpVerifierClientJobTest {
 
         StatusMessage.Done done = mock().streamStatus("mock", JOB, log -> deliveredOn.add(Thread.currentThread()));
 
-        Assertions.assertEquals(new StatusMessage.Done(false), done, "The verdict is returned as sent");
+        Assertions.assertEquals(new StatusMessage.Done(false, null), done, "The verdict is returned as sent");
         Assertions.assertEquals(List.of(Thread.currentThread()), deliveredOn,
             "The caller needs no synchronization: messages arrive on its own thread, in order");
     }
@@ -283,6 +284,15 @@ class HttpVerifierClientJobTest {
             "A Verifier that leaves the stream open after done must not keep the caller waiting");
 
         Assertions.assertTrue(done.proven());
+    }
+
+    @Test
+    void theVerifiersOwnWholeRunStatusIsCarriedAlongWithTheVerdict() throws Exception {
+        verifier.stream(JOB_PATH, script(1000, LOG_A, DONE_WITH_STATUS));
+
+        StatusMessage.Done done = mock().streamStatus("mock", JOB, log -> { });
+
+        Assertions.assertEquals(new StatusMessage.Done(true, "3.2 J for the whole run"), done);
     }
 
     @Test
@@ -306,7 +316,8 @@ class HttpVerifierClientJobTest {
             "no-type", "{\"message\": \"untyped\"}",
             "log-without-message", "{\"type\": \"log\"}",
             "done-without-proven", "{\"type\": \"done\"}",
-            "done-with-string-proven", "{\"type\": \"done\", \"proven\": \"true\"}");
+            "done-with-string-proven", "{\"type\": \"done\", \"proven\": \"true\"}",
+            "done-with-non-string-status", "{\"type\": \"done\", \"proven\": true, \"status\": 3}");
 
         for (Map.Entry<String, String> message : messages.entrySet()) {
             String path = "/mock/jobs/" + UUID.nameUUIDFromBytes(message.getKey().getBytes(StandardCharsets.UTF_8));

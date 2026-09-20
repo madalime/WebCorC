@@ -24,25 +24,26 @@ import java.util.logging.Logger;
  * statements. {@link #forVerifier} narrows the tree for one Verifier — its own Verifier
  * Conditions in the primary condition fields, structural fields as they are.
  * {@link #resetForRun} defaults every catalog Verifier's entry before a run,
- * {@link #merge} writes a Verifier's actual result once it reports one, and
+ * {@link #merge} writes a Verifier's actual per-statement result once it reports one,
+ * {@link #writeRootResult} the whole-run verdict it reported with its {@code done}, and
  * {@link #markFailed} records a Verifier whose run failed outright instead.
  * {@link #writeFunctionalResult} and {@link #writeFormulaFunctionalResult} record the
  * Functional Verifier's own result-only entry, and {@link #recomputeIsProven} aggregates
  * {@code isProven} over it and every enabled non-functional Verifier's own entry.
  *
  * <p>The backend's statement model has no id of its own, hence the numbering here; the program
- * level (root conditions, global conditions) is attributed to id 0. A skip or return statement
- * is sent as a {@code simple} leaf: the contract's {@code strongWeak} kind requires a nested
- * statement, which neither has. Class and method name are the ones the {@link CodeGenerator}
- * gives every program, since a formula names neither.
+ * level — the Root, with its conditions and the global conditions — is attributed to id 0 when a
+ * condition is sent out, and is a result target of its own: {@link #resetForRun} and
+ * {@link #markFailed} write the formula's own {@code verifiers} map alongside the statements',
+ * {@link #writeRootResult} and {@link #writeFormulaFunctionalResult} write it alone. A skip or return
+ * statement is sent as a {@code simple} leaf: the contract's {@code strongWeak} kind requires a
+ * nested statement, which neither has. Class and method name are the ones the
+ * {@link CodeGenerator} gives every program, since a formula names neither.
  *
  * <p>Every write operation synchronizes on this instance: several Verifiers' results merge into
  * one tree, and a narrowing must not read a {@code verifiers} map another thread is writing.
  */
 public final class NarrowedProgram {
-
-    /** {@code status} text for a catalog Verifier's entry when it was not enabled for a run. */
-    public static final String DISABLED_STATUS = "Not verified: Verifier was disabled during the last verification";
 
     private static final String FUNC = VerifierCatalogService.FUNCTIONAL_VERIFIER_ID;
 
@@ -160,48 +161,65 @@ public final class NarrowedProgram {
                     verifierId, reported.getKey()));
                 continue;
             }
-            setEntry(statement, verifierId, reported.getValue().proven(), reported.getValue().status());
+            setEntry(statement, verifierId, reported.getValue().proven(), reported.getValue().status(), null);
         }
     }
 
     /**
-     * Resets every statement's entry for each id in {@code enabledVerifierIds} ({@code proven:
-     * false}, {@code status} cleared — a Verifier that is about to run) and each id in
-     * {@code disabledVerifierIds} ({@code proven: false}, {@code status} set to
-     * {@link #DISABLED_STATUS} — a catalog Verifier not enabled this run), keeping any authored
-     * conditions and creating entries where none existed. The Functional Verifier is never
-     * touched even if its id is passed in.
+     * Resets the entry of each id in {@code enabledVerifierIds} ({@code proven: false},
+     * {@code status} and {@code disabled} cleared — a Verifier that is about to run) and of each
+     * id in {@code disabledVerifierIds} ({@code proven: false}, {@code disabled: true} and no
+     * {@code status} — a catalog Verifier not enabled this run), on every statement and on the
+     * Root alike, keeping any authored conditions and creating entries where none existed. Called
+     * at the start of every run, before functional verification, so that no verdict of an earlier
+     * run survives whatever this one does. The Functional Verifier is never touched even if its
+     * id is passed in: {@link #writeFunctionalResult} is its only writer.
      */
     public synchronized void resetForRun(Collection<String> enabledVerifierIds, Collection<String> disabledVerifierIds) {
         for (String id : enabledVerifierIds) {
-            markEveryStatement(id, false, null);
+            markRootAndEveryStatement(id, false, null, null);
         }
         for (String id : disabledVerifierIds) {
-            markEveryStatement(id, false, DISABLED_STATUS);
+            markRootAndEveryStatement(id, false, null, true);
         }
     }
 
     /**
-     * Marks {@code verifierId}'s entry on every statement {@code proven: false} with
-     * {@code reason} as its {@code status}, keeping any authored conditions — how a Verifier
-     * whose run failed outright is recorded, since it never reported a per-statement result.
+     * Writes {@code verifierId}'s whole-run verdict — what it reported with its {@code done} —
+     * onto the Root alone, keeping any authored conditions there; the statements carry that
+     * Verifier's own per-statement results, written by {@link #merge}. {@code status} is the
+     * Verifier's own text for the run, or {@code null} when it sent none.
      */
-    public synchronized void markFailed(String verifierId, String reason) {
-        markEveryStatement(verifierId, false, reason);
+    public synchronized void writeRootResult(String verifierId, boolean proven, String status) {
+        if (FUNC.equals(verifierId)) {
+            return;
+        }
+        setRootEntry(verifierId, proven, status, null);
     }
 
-    private void markEveryStatement(String verifierId, boolean proven, String status) {
+    /**
+     * Marks {@code verifierId}'s entry on every statement and on the Root {@code proven: false}
+     * with {@code reason} as its {@code status} and no {@code disabled} marker — it was enabled,
+     * it just did not deliver — keeping any authored conditions. How a Verifier whose run failed
+     * outright is recorded, since it never reported a result of any kind.
+     */
+    public synchronized void markFailed(String verifierId, String reason) {
+        markRootAndEveryStatement(verifierId, false, reason, null);
+    }
+
+    private void markRootAndEveryStatement(String verifierId, boolean proven, String status, Boolean disabled) {
         if (FUNC.equals(verifierId)) {
             return;
         }
         for (AbstractStatement statement : statementsById.values()) {
-            setEntry(statement, verifierId, proven, status);
+            setEntry(statement, verifierId, proven, status, disabled);
         }
+        setRootEntry(verifierId, proven, status, disabled);
     }
 
     /**
      * Writes the Functional Verifier's own result-only entry ({@code proven}, never
-     * {@code status} or conditions) onto every statement, from each statement's own
+     * {@code status}, {@code disabled} or conditions) onto every statement, from each statement's own
      * {@code isProven} right after functional verification has completed. Unlike every other
      * Verifier's entry, this one is never reset, marked disabled, or failed by the fan-out — this
      * is its only writer. Overwrites whatever {@code func} entry a statement already carried, so a
@@ -209,25 +227,19 @@ public final class NarrowedProgram {
      */
     public synchronized void writeFunctionalResult() {
         for (AbstractStatement statement : statementsById.values()) {
-            setEntry(statement, FUNC, statement.isProven(), null);
+            setEntry(statement, FUNC, statement.isProven(), null, null);
         }
     }
 
     /**
-     * Writes the Functional Verifier's own result-only entry onto the formula's own root-level
-     * {@code verifiers} map (id {@code 0}) from the formula's own {@code isProven}. This is a
-     * different map from the actual top-level statement's own entry {@link #writeFunctionalResult}
-     * already writes: one feeds the frontend's synthetic root-statement wrapper, the other the
-     * real top statement. Whatever else already sits in the formula's {@code verifiers} map is
+     * Writes the Functional Verifier's own result-only entry onto the Root's {@code verifiers}
+     * map from the formula's own {@code isProven}. This is a different map from the actual
+     * top-level statement's own entry {@link #writeFunctionalResult} already writes: one is the
+     * Root's, the other the real top statement's. Whatever else already sits in the Root's map is
      * preserved.
      */
     public synchronized void writeFormulaFunctionalResult() {
-        Map<String, VerifierEntry> verifiers = formula.getVerifiers();
-        if (verifiers == null) {
-            verifiers = new LinkedHashMap<>();
-            formula.setVerifiers(verifiers);
-        }
-        verifiers.put(FUNC, withProvenAndStatus(verifiers.get(FUNC), formula.isProven(), null));
+        setRootEntry(FUNC, formula.isProven(), null, null);
     }
 
     /**
@@ -260,22 +272,38 @@ public final class NarrowedProgram {
         return entry != null && Boolean.TRUE.equals(entry.proven());
     }
 
-    private static void setEntry(AbstractStatement statement, String verifierId, Boolean proven, String status) {
+    private static void setEntry(AbstractStatement statement, String verifierId, Boolean proven, String status, Boolean disabled) {
         Map<String, VerifierEntry> verifiers = statement.getVerifiers();
         if (verifiers == null) {
             verifiers = new LinkedHashMap<>();
             statement.setVerifiers(verifiers);
         }
-        verifiers.put(verifierId, withProvenAndStatus(verifiers.get(verifierId), proven, status));
+        verifiers.put(verifierId, withResult(verifiers.get(verifierId), proven, status, disabled));
     }
 
-    private static VerifierEntry withProvenAndStatus(VerifierEntry existing, Boolean proven, String status) {
+    private void setRootEntry(String verifierId, Boolean proven, String status, Boolean disabled) {
+        Map<String, VerifierEntry> verifiers = rootVerifiers();
+        verifiers.put(verifierId, withResult(verifiers.get(verifierId), proven, status, disabled));
+    }
+
+    /** The Root's {@code verifiers} map, created on the formula if it had none yet. */
+    private Map<String, VerifierEntry> rootVerifiers() {
+        Map<String, VerifierEntry> verifiers = formula.getVerifiers();
+        if (verifiers == null) {
+            verifiers = new LinkedHashMap<>();
+            formula.setVerifiers(verifiers);
+        }
+        return verifiers;
+    }
+
+    private static VerifierEntry withResult(VerifierEntry existing, Boolean proven, String status, Boolean disabled) {
         return new VerifierEntry(
             existing == null ? null : existing.preCondition(),
             existing == null ? null : existing.postCondition(),
             existing == null ? null : existing.intermediateCondition(),
             proven,
-            status);
+            status,
+            disabled);
     }
 
     private AbstractStatement statementOf(String id) {

@@ -192,7 +192,7 @@ describe("mock Verifier", () => {
       await assertProblem(await fetch(`${base}/jobs/plain-get`), 426);
     });
 
-    it("sends log messages, then exactly one done with the scripted proven, then closes normally", async () => {
+    it("sends log messages, then exactly one done with the scripted proven and status, then closes normally", async () => {
       await postJob(base, "streamed");
 
       const { messages, code } = await streamStatus(base, "streamed");
@@ -205,7 +205,11 @@ describe("mock Verifier", () => {
         assert.equal(typeof log.message, "string");
         assert.ok(log.message.length > 0);
       }
-      assert.deepEqual(messages.at(-1), { type: "done", proven: true });
+      const done = messages.at(-1);
+      assert.equal(done.type, "done");
+      assert.equal(done.proven, true);
+      assert.equal(typeof done.status, "string");
+      assert.ok(done.status.length > 0, "the whole run's Verifier Status travels with done");
     });
 
     it("sends the same sequence for every job", async () => {

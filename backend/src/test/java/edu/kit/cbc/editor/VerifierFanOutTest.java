@@ -87,7 +87,11 @@ class VerifierFanOutTest {
     }
 
     private static StatusMessage done(boolean proven) {
-        return new StatusMessage.Done(proven);
+        return new StatusMessage.Done(proven, null);
+    }
+
+    private static StatusMessage done(boolean proven, String status) {
+        return new StatusMessage.Done(proven, status);
     }
 
     private List<VerificationMessage> of(String verifier) {
@@ -125,6 +129,41 @@ class VerifierFanOutTest {
         Assertions.assertEquals("safe(x)", root.getSecondStatement().getVerifiers().get("sec").preCondition().getCondition(),
             "The authored Verifier Condition survives the merge");
         Assertions.assertTrue(formula.isProven(), "The Functional Verifier's verdict is untouched");
+    }
+
+    @Test
+    void theRootCarriesWhatEachVerifiersDoneSaidAboutTheWholeRun() throws Exception {
+        FakeVerifierClient client = new FakeVerifierClient()
+            .running("eebc", ALL_PROVEN, done(true, "3 J over the whole program"))
+            .running("sec", Map.of("3", new StatementResult(false, "leak")), done(false));
+        CbCFormula formula = formula();
+
+        run(client, NarrowedProgram.of(formula), EEBC, SEC);
+
+        VerifierEntry eebcRoot = formula.getVerifiers().get("eebc");
+        Assertions.assertEquals(Boolean.TRUE, eebcRoot.proven(), "The Root's verdict is the Verifier's own, not the top statement's");
+        Assertions.assertEquals("3 J over the whole program", eebcRoot.status());
+        Assertions.assertNull(eebcRoot.disabled());
+        Assertions.assertEquals("e == 0", eebcRoot.preCondition().getCondition(), "The Root's authored condition survives");
+
+        VerifierEntry secRoot = formula.getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secRoot.proven());
+        Assertions.assertNull(secRoot.status(), "sec said nothing about the run as a whole");
+    }
+
+    @Test
+    void aVerifiersPerStatementResultNeverWritesTheRoot() throws Exception {
+        FakeVerifierClient client = new FakeVerifierClient().running("eebc", ALL_PROVEN, done(false, "over budget"));
+        CbCFormula formula = formula();
+
+        run(client, NarrowedProgram.of(formula), EEBC);
+
+        Assertions.assertEquals(Boolean.TRUE, formula.getStatement().getVerifiers().get("eebc").proven(),
+            "Every statement it reported on passed");
+        VerifierEntry eebcRoot = formula.getVerifiers().get("eebc");
+        Assertions.assertEquals(Boolean.FALSE, eebcRoot.proven(),
+            "The Root says what done said, even where it contradicts every statement's own result");
+        Assertions.assertEquals("over budget", eebcRoot.status());
     }
 
     @Test
