@@ -19,8 +19,26 @@ describe("CompositionStatementNode.finalizeVerifierConditions", () => {
 
     expect(() => node.finalize()).not.toThrow();
 
-    expect(composition.verifiers["mock"].proven).toBe(true);
-    expect(composition.verifiers["mock"].status).toBe("ok");
+    expect(composition.verifiers["mock"]).toEqual({ proven: true, status: "ok" });
+  });
+
+  it("writes only the live intermediate condition for a verifier with no pre/postcondition", () => {
+    const composition = new CompositionStatement(
+      "c",
+      new Condition("true"),
+      new Condition("true"),
+      new Condition("mid"),
+      undefined,
+      undefined,
+    );
+    const node = new CompositionStatementNode(composition, undefined);
+
+    node.verifierIntermediateCondition("energy").next(new Condition("mid2"));
+    node.finalize();
+
+    expect(composition.verifiers["energy"]).toEqual({
+      intermediateCondition: new Condition("mid2"),
+    });
   });
 
   it("preserves a stored result when the entry is rebuilt with a live intermediate condition", () => {

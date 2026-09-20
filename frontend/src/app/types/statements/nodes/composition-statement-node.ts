@@ -1,12 +1,12 @@
 import { ICompositionStatement } from "../composition-statement";
-import { Condition, ICondition } from "../../condition/condition";
+import { ICondition } from "../../condition/condition";
 import { BehaviorSubject } from "rxjs";
 import { AbstractStatementNode } from "./abstract-statement-node";
 import {
   createEmptyStatementNode,
   statementNodeUtils,
 } from "./statement-node-utils";
-import { hasVerifierResult, IVerifiers, StatementType } from "../abstract-statement";
+import { IVerifiers, sparseVerifierEntry, StatementType } from "../abstract-statement";
 
 export class CompositionStatementNode extends AbstractStatementNode {
   public intermediateCondition: BehaviorSubject<ICondition>;
@@ -92,12 +92,9 @@ export class CompositionStatementNode extends AbstractStatementNode {
 
   /**
    * Extends every verifier's entry by its intermediate condition, so a composition
-   * persists all of its verifier conditions in the single `verifiers` record.
-   * Verifiers that only carry an intermediate condition get an entry with empty
-   * pre- and postconditions; cleared intermediate conditions are dropped to keep
-   * the entries sparse — unless the entry carries a result (`proven`/`status`),
-   * which survives regardless of how empty its conditions are (a Verifier can
-   * report a result for a statement it was never given any condition for).
+   * persists all of its verifier conditions in the single `verifiers` record. The
+   * intermediate condition is the third slot the sparse form applies to: present
+   * only when non-empty, and enough on its own to keep an entry alive.
    */
   protected override finalizeVerifierConditions(): IVerifiers {
     const conditions = super.finalizeVerifierConditions();
@@ -113,27 +110,13 @@ export class CompositionStatementNode extends AbstractStatementNode {
 
     const finalized: IVerifiers = {};
     for (const verifierId of verifierIds) {
-      const conditionSet = conditions[verifierId];
-      const intermediateCondition = intermediateConditions[verifierId];
-      const hasResult = hasVerifierResult(conditionSet);
-      if (!intermediateCondition) {
-        const preCondition = conditionSet?.preCondition ?? new Condition("");
-        const postCondition = conditionSet?.postCondition ?? new Condition("");
-        if (
-          conditionSet &&
-          (hasResult ||
-            !(preCondition.condition === "" && postCondition.condition === ""))
-        ) {
-          finalized[verifierId] = { ...conditionSet, preCondition, postCondition };
-        }
-        continue;
+      const sparse = sparseVerifierEntry({
+        ...conditions[verifierId],
+        intermediateCondition: intermediateConditions[verifierId],
+      });
+      if (sparse) {
+        finalized[verifierId] = sparse;
       }
-      finalized[verifierId] = {
-        ...conditionSet,
-        preCondition: conditionSet?.preCondition ?? new Condition(""),
-        postCondition: conditionSet?.postCondition ?? new Condition(""),
-        intermediateCondition,
-      };
     }
     return finalized;
   }

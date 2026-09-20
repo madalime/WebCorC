@@ -3,6 +3,7 @@ import {
   AbstractStatement,
   IAbstractStatement,
   IVerifiers,
+  sparseVerifierEntry,
 } from "../../../types/statements/abstract-statement";
 import { IPosition, Position } from "../../../types/position";
 import {
@@ -295,23 +296,18 @@ export class CbcFormulaMapperService {
   ): IVerifiers {
     const imported: IVerifiers = {};
     for (const [verifierId, entry] of Object.entries(verifiers ?? {})) {
-      imported[verifierId] = {
-        preCondition: this.importCondition(entry.preCondition),
-        postCondition: this.importCondition(entry.postCondition),
-      };
-      // Only compositions carry an intermediate condition, and only when non-empty.
-      if (entry.intermediateCondition) {
-        imported[verifierId].intermediateCondition = this.importCondition(
-          entry.intermediateCondition,
-        );
-      }
-      // A result is opaque and untouched by import — carried through as-is
-      // wherever a verifier has already reported one.
-      if (entry.proven !== undefined) {
-        imported[verifierId].proven = entry.proven;
-      }
-      if (entry.status !== undefined) {
-        imported[verifierId].status = entry.status;
+      // Absent or empty conditions stay absent (a result-only entry has none), and a
+      // result is opaque — carried through as-is wherever a verifier reported one.
+      const sparse = sparseVerifierEntry({
+        preCondition: entry.preCondition && this.importCondition(entry.preCondition),
+        postCondition: entry.postCondition && this.importCondition(entry.postCondition),
+        intermediateCondition:
+          entry.intermediateCondition && this.importCondition(entry.intermediateCondition),
+        proven: entry.proven,
+        status: entry.status,
+      });
+      if (sparse) {
+        imported[verifierId] = sparse;
       }
     }
     return imported;

@@ -40,5 +40,43 @@ describe("AbstractStatementNode.finalizeVerifierConditions", () => {
 
     expect(statement.verifiers["mock"].proven).toBe(false);
     expect(statement.verifiers["mock"].status).toBe("timed out");
+    // The untouched empty slot must not turn into a `""` condition on the wire —
+    // the backend rejects those, which made every second verify run a 400.
+    expect(statement.verifiers["mock"].preCondition).toBeUndefined();
+    expect(statement.verifiers["mock"].postCondition).toBeUndefined();
+  });
+
+  it("strips empty-string conditions from a stored entry it never touched", () => {
+    const statement = new Statement("s", new Condition("true"), new Condition("true"));
+    // Shape persisted by earlier builds: a result padded with empty conditions.
+    statement.verifiers = {
+      func: {
+        preCondition: new Condition(""),
+        postCondition: new Condition(""),
+        proven: true,
+      },
+      stale: {
+        preCondition: new Condition(""),
+        postCondition: new Condition(""),
+      },
+    };
+    const node = new SimpleStatementNode(statement, undefined);
+
+    node.finalize();
+
+    expect(statement.verifiers["func"]).toEqual({ proven: true });
+    expect(statement.verifiers["stale"]).toBeUndefined();
+  });
+
+  it("keeps a partially authored entry sparse: only the non-empty condition is written", () => {
+    const statement = new Statement("s", new Condition("true"), new Condition("true"));
+    const node = new SimpleStatementNode(statement, undefined);
+
+    node.verifierPostcondition("energy").next(new Condition("x > 1"));
+
+    node.finalize();
+
+    expect(statement.verifiers["energy"].preCondition).toBeUndefined();
+    expect(statement.verifiers["energy"].postCondition?.condition).toBe("x > 1");
   });
 });

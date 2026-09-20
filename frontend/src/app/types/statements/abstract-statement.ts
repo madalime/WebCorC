@@ -41,11 +41,30 @@ export interface IVerifierEntry {
 }
 
 /**
- * Whether a verifier entry carries a reported result — used to keep a result-only entry
- * (no authored conditions) from being pruned as "empty" when conditions are finalized.
+ * The sparse form of a verifier entry: empty-string conditions are dropped (the
+ * backend cannot parse `""` and rejects the whole request), and an entry left with
+ * neither a condition nor a reported result is dropped altogether.
  */
-export function hasVerifierResult(entry: IVerifierEntry | undefined): boolean {
-  return entry?.proven !== undefined || entry?.status !== undefined;
+export function sparseVerifierEntry(
+  entry: IVerifierEntry,
+): IVerifierEntry | undefined {
+  const sparse: IVerifierEntry = {};
+  if (entry.preCondition?.condition) {
+    sparse.preCondition = entry.preCondition;
+  }
+  if (entry.postCondition?.condition) {
+    sparse.postCondition = entry.postCondition;
+  }
+  if (entry.intermediateCondition?.condition) {
+    sparse.intermediateCondition = entry.intermediateCondition;
+  }
+  if (entry.proven !== undefined) {
+    sparse.proven = entry.proven;
+  }
+  if (entry.status !== undefined) {
+    sparse.status = entry.status;
+  }
+  return Object.keys(sparse).length === 0 ? undefined : sparse;
 }
 
 /**

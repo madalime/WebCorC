@@ -1,9 +1,9 @@
 import { BehaviorSubject } from "rxjs";
 import { Condition, ICondition } from "../../condition/condition";
 import {
-  hasVerifierResult,
   IAbstractStatement,
   IVerifiers,
+  sparseVerifierEntry,
   StatementType,
 } from "../abstract-statement";
 import { IPosition } from "../../position";
@@ -207,18 +207,14 @@ export class AbstractStatementNode {
   }
 
   /**
-   * Persisted form of the verifier conditions: stored entries of verifiers whose
-   * subjects were never instantiated are kept as-is, instantiated ones are written
-   * back, and entries whose conditions are both empty are dropped to keep the
-   * record sparse — unless the entry carries a result (`proven`/`status`), which is
-   * never dropped just because its conditions are empty. Subclasses owning further
-   * verifier conditions extend the entries by overriding this (see
-   * {@link CompositionStatementNode.finalizeVerifierConditions}).
+   * Persisted form of the verifier conditions: instantiated pre/postcondition
+   * subjects are written back over the stored entry, and every entry is reduced to
+   * its sparse form (see {@link sparseVerifierEntry}) — so an untouched slot never
+   * becomes a `""` condition, and only a condition or a reported result keeps an
+   * entry alive. Subclasses owning further verifier conditions extend the entries
+   * by overriding this (see {@link CompositionStatementNode.finalizeVerifierConditions}).
    */
   protected finalizeVerifierConditions(): IVerifiers {
-    const conditions: IVerifiers = {
-      ...this.statement.verifiers,
-    };
     const preSlot = AbstractStatementNode.slotVerifierConditions.get(
       this.precondition,
     );
@@ -226,28 +222,22 @@ export class AbstractStatementNode {
       this.postcondition,
     );
     const verifierIds = new Set([
+      ...Object.keys(this.statement.verifiers ?? {}),
       ...(preSlot?.keys() ?? []),
       ...(postSlot?.keys() ?? []),
     ]);
+    const conditions: IVerifiers = {};
     for (const verifierId of verifierIds) {
       const stored = this.statement.verifiers?.[verifierId];
-      const preCondition =
-        preSlot?.get(verifierId)?.getValue() ??
-        stored?.preCondition ??
-        new Condition("");
-      const postCondition =
-        postSlot?.get(verifierId)?.getValue() ??
-        stored?.postCondition ??
-        new Condition("");
-      const hasResult = hasVerifierResult(stored);
-      if (
-        !hasResult &&
-        preCondition.condition === "" &&
-        postCondition.condition === ""
-      ) {
-        delete conditions[verifierId];
-      } else {
-        conditions[verifierId] = { ...stored, preCondition, postCondition };
+      const sparse = sparseVerifierEntry({
+        ...stored,
+        preCondition:
+          preSlot?.get(verifierId)?.getValue() ?? stored?.preCondition,
+        postCondition:
+          postSlot?.get(verifierId)?.getValue() ?? stored?.postCondition,
+      });
+      if (sparse) {
+        conditions[verifierId] = sparse;
       }
     }
     return conditions;
