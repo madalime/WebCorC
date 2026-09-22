@@ -29,11 +29,6 @@ export interface ICBCFormula {
   globalConditions: ICondition[];
   renamings: IRenaming[] | null;
   isProven: boolean;
-  /**
-   * Which mode this formula was last verified under. Absent on a formula that has
-   * never been through a run on this branch.
-   */
-  verificationScope?: "functional" | "all";
 }
 
 export interface ILocalCBCFormula {
@@ -43,7 +38,6 @@ export interface ILocalCBCFormula {
   globalConditions: ICondition[];
   renamings: IRenaming[] | null;
   isProven: boolean;
-  verificationScope?: "functional" | "all";
   readonly local: true;
 }
 
@@ -62,7 +56,6 @@ export class LocalCBCFormula implements ILocalCBCFormula {
     public renamings: IRenaming[] | null = null,
     public isProven: boolean = false,
     public position: IPosition = new Position(0, 0),
-    public verificationScope?: "functional" | "all",
   ) {}
 
   /** Serialize with the statement tree last, keeping the scalar fields readable. */
@@ -74,7 +67,6 @@ export class LocalCBCFormula implements ILocalCBCFormula {
       globalConditions: this.globalConditions,
       renamings: this.renamings,
       isProven: this.isProven,
-      verificationScope: this.verificationScope,
       position: this.position,
       statement: this.statement,
     };
@@ -102,7 +94,6 @@ export class CBCFormula implements ICBCFormula {
     public isProven: boolean = false,
     public position: IPosition = new Position(0, 0),
     public verifiers: IVerifiers = {},
-    public verificationScope?: "functional" | "all",
   ) {}
 
   /** Serialize with the statement tree last, keeping the scalar fields readable. */
@@ -116,7 +107,6 @@ export class CBCFormula implements ICBCFormula {
       globalConditions: this.globalConditions,
       renamings: this.renamings,
       isProven: this.isProven,
-      verificationScope: this.verificationScope,
       position: this.position,
       statement: this.statement,
     };

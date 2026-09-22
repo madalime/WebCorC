@@ -38,6 +38,7 @@ export interface IVerifierEntry {
   intermediateCondition?: ICondition;
   proven?: boolean;
   status?: string;
+  disabled?: true;
 }
 
 /**
@@ -63,6 +64,9 @@ export function sparseVerifierEntry(
   }
   if (entry.status !== undefined) {
     sparse.status = entry.status;
+  }
+  if (entry.disabled !== undefined) {
+    sparse.disabled = entry.disabled;
   }
   return Object.keys(sparse).length === 0 ? undefined : sparse;
 }
@@ -107,21 +111,38 @@ export type NodeState =
   | 'failed'
   | 'failed-non-functional';
 
-/**
- * `failed-non-functional` means a *different*, non-functional Verifier is what failed —
- * `func` itself still proved this statement, unlike a plain `failed`.
- */
+
 export function nodeStateFor(
-  isProven: boolean,
   verifiers: IVerifiers | undefined,
-  verifiedState: NodeState,
+  enabledVerifiers: readonly string[],
 ): NodeState {
-  if (isProven) {
-    return verifiedState;
+  const functionalVerifier = verifiers?.[FUNCTIONAL_VERIFIER_ID];
+  if (!functionalVerifier) {
+    return 'unverified';
   }
-  return verifiers?.[FUNCTIONAL_VERIFIER_ID]?.proven === true
-    ? "failed-non-functional"
-    : "failed";
+  if (functionalVerifier.proven === false) {
+    return 'failed';
+  }
+  if (enabledVerifiers.length === 0) {
+    return 'verified-functional';
+  }
+  if (
+      enabledVerifiers.some(verifierId => {
+        const verifier = verifiers?.[verifierId];
+        return verifier?.proven === false && !verifier?.disabled;
+      })
+  ) {
+    return 'failed-non-functional';
+  }
+  if (
+      enabledVerifiers.some(verifierId => {
+        const verifier = verifiers?.[verifierId];
+        return verifier?.disabled || !verifier;
+      })
+  ) {
+    return 'settings-changed';
+  }
+  return 'verified-all';
 }
 
 /**

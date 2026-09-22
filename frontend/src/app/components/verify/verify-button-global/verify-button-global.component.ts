@@ -130,6 +130,7 @@ export class VerifyButtonGlobalComponent {
           });
         },
         reject: () => {
+          this.treeService.beginRun();
           this.globalSettingsService.isVerifying = true;
           this.networkTreeService.verify(
             this.treeService.rootFormula,
@@ -140,6 +141,7 @@ export class VerifyButtonGlobalComponent {
         },
       });
     } else {
+      this.treeService.beginRun();
       this.globalSettingsService.isVerifying = true;
       this.networkTreeService.verify(
         this.treeService.rootFormula,

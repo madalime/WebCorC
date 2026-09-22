@@ -220,6 +220,8 @@ export class StatementComponent {
       return;
     }
     this.isVerifying.set(true);
+    this.globalSettingsService.isVerifying = true;
+    this.treeService.beginRun();
 
     // Finalize statements first
     this.treeService.finalizeStatements();
@@ -336,13 +338,7 @@ export class StatementComponent {
    */
   public verifierStatusText(verifier: Verifier): string | undefined {
     const result = this._node.statement.verifiers?.[verifier.id];
-    if (result?.status !== undefined) {
-      return result.status;
-    }
-    if (result?.proven !== undefined) {
-      return result.proven ? "Passed" : "Failed";
-    }
-    return verifier.statusPlaceholder;
+    return result?.status ?? verifier.statusPlaceholder;
   }
 
   /**

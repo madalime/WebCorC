@@ -69,6 +69,7 @@ export class CbcFormulaMapperService {
     let rootStatement: RootStatement | undefined;
     if (statement && statement.type === RootStatement.TYPE) {
       rootStatement = statement as RootStatement;
+      rootStatement.isProven = formula.isProven;
       // Ensure pre/post/position are filled from formula if missing on the root
       rootStatement.preCondition =
         rootStatement.preCondition || formula.preCondition;
@@ -90,6 +91,7 @@ export class CbcFormulaMapperService {
         statement,
         position,
       );
+      rootStatement.isProven = formula.isProven;
       rootStatement.verifiers = this.importVerifiers(
         formula.verifiers,
       );
@@ -104,7 +106,6 @@ export class CbcFormulaMapperService {
       formula.isProven,
       /*TODO maybe implement a some position logic here or get it from the backend*/
       undefined,
-      formula.verificationScope,
     );
   }
 
@@ -120,7 +121,6 @@ export class CbcFormulaMapperService {
       formula.isProven,
       formula.statement?.position,
       formula.statement?.verifiers ?? {},
-      formula.verificationScope,
     );
     return newFormula;
   }
@@ -305,6 +305,7 @@ export class CbcFormulaMapperService {
           entry.intermediateCondition && this.importCondition(entry.intermediateCondition),
         proven: entry.proven,
         status: entry.status,
+        disabled: entry.disabled,
       });
       if (sparse) {
         imported[verifierId] = sparse;

@@ -2,9 +2,8 @@ import { Injectable, inject } from "@angular/core";
 import { LocalCBCFormula } from "../../../types/CBCFormula";
 import { ProjectService } from "../../project/project.service";
 import { TreeService } from "../tree.service";
-import { IRootStatement } from "../../../types/statements/root-statement";
 import { ConsoleService } from "../../console/console.service";
-import { IAbstractStatement, NodeState, nodeStateFor } from "../../../types/statements/abstract-statement";
+import { IAbstractStatement, nodeStateFor } from "../../../types/statements/abstract-statement";
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { GlobalSettingsService } from "../../global-settings.service";
 import { ConsoleInfoLine, ConsoleLogGroup } from "../../console/log";
@@ -14,6 +13,7 @@ import {
   VerificationMessage,
 } from "../../../types/VerificationMessage";
 import { FUNCTIONAL_VERIFIER_ID } from "../../../types/Verifier";
+import {VerifierService} from "../../verifier/verifier.service";
 
 /**
  * Service to distribute the verification result from the http response to the tree service.
@@ -27,6 +27,7 @@ export class VerificationService {
   private treeService = inject(TreeService);
   private consoleService = inject(ConsoleService);
   private globalSettingsService = inject(GlobalSettingsService);
+  private verifierService = inject(VerifierService)
 
   /** Inserted by Angular inject() migration for backwards compatibility */
   constructor(...args: unknown[]);
@@ -99,12 +100,9 @@ export class VerificationService {
     group: ConsoleLogGroup,
     formula: LocalCBCFormula,
     urn: string,
-    functionalOnly: boolean,
   ) {
     this.consoleService.finishLoading();
-    const verifiedState: NodeState = functionalOnly
-      ? "verified-functional"
-      : "verified-all";
+    const enabledVerifiers = this.verifierService.effectiveEnabledNonFunctionalVerifierIds;
     if (formula.statement) {
       const currentFormula = await this.projectService.getFileContent(urn);
       const currentStatements = this.treeService.getStatementsFromFormula(
@@ -114,20 +112,10 @@ export class VerificationService {
       // The statements should be in the same order, since the structure should be unchanged.
       currentStatements.forEach((stmt, index) => {
         stmt.isProven = newStatements[index]?.isProven;
-        stmt.nodeState = nodeStateFor(stmt.isProven, newStatements[index]?.verifiers, verifiedState);
-        // Carry each Verifier's per-statement result onto the live tree the same way
-        // isProven/nodeState already are — the mechanism the statement editor uses to
-        // surface it (see StatementComponent.verifierStatusText).
+        stmt.nodeState = nodeStateFor(newStatements[index]?.verifiers, enabledVerifiers);
         stmt.verifiers = newStatements[index]?.verifiers ?? stmt.verifiers;
       });
-      if (
-        (currentFormula as LocalCBCFormula).statement &&
-        formula.statement.type == "ROOT" &&
-        (formula.statement as IRootStatement).statement?.isProven
-      ) {
-        (currentFormula as LocalCBCFormula).statement!.isProven = true;
-        (currentFormula as LocalCBCFormula).statement!.nodeState = verifiedState;
-      }
+      this.treeService.reapplyRunChanges(currentStatements);
       this.projectService.syncLocalFileContent(urn, currentFormula);
     }
     this.globalSettingsService.isVerifying = false;
@@ -161,12 +149,9 @@ export class VerificationService {
     formula: LocalCBCFormula,
     statementNode: AbstractStatementNode,
     urn: string,
-    functionalOnly: boolean,
   ) {
-    const verifiedState: NodeState = functionalOnly
-      ? "verified-functional"
-      : "verified-all";
     this.consoleService.finishLoading();
+    const enabledVerifiers = this.verifierService.effectiveEnabledNonFunctionalVerifierIds;
 
     if (!formula.statement) {
       group.lines.push(
@@ -206,6 +191,7 @@ export class VerificationService {
       subtreeStatements.length,
     );
 
+    const updatedStatements: IAbstractStatement[] = [];
     for (let i = 0; i < minLength; i++) {
       const resultStmt = resultStatements[resultStartIndex + i];
       const subtreeStmt = subtreeStatements[i];
@@ -214,19 +200,13 @@ export class VerificationService {
       const node = subtreeNodes.find((n) => n.statement.id === subtreeStmt.id);
       if (node) {
         node.statement.isProven = resultStmt.isProven || false;
-        node.statement.nodeState = nodeStateFor(node.statement.isProven, resultStmt.verifiers, verifiedState);
+        node.statement.nodeState = nodeStateFor(resultStmt.verifiers, enabledVerifiers);
         node.statement.verifiers = resultStmt.verifiers ?? node.statement.verifiers;
+        updatedStatements.push(node.statement);
       }
     }
 
-    // Update the root statement node if it's a ROOT type
-    if (
-      formula.statement.type === "ROOT" &&
-      (formula.statement as IRootStatement).statement?.isProven
-    ) {
-      statementNode.statement.isProven = true;
-      statementNode.statement.nodeState = verifiedState;
-    }
+    this.treeService.reapplyRunChanges(updatedStatements);
 
     // Refresh nodes to trigger UI update
     this.treeService.refreshNodes();

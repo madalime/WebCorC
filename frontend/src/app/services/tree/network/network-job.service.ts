@@ -101,7 +101,7 @@ export class NetworkJobService {
               )
               .pipe(map((formula) => this.mapper.importFormula(formula)))
               .subscribe((formula: LocalCBCFormula) => {
-                this.verificationService.next(consoleGroup, formula, urn, functionalOnly);
+                this.verificationService.next(consoleGroup, formula, urn);
                 this.projectService.downloadWorkspace();
               });
           }
@@ -196,7 +196,6 @@ export class NetworkJobService {
                   formula,
                   statementNode,
                   urn,
-                  functionalOnly,
                 );
                 onComplete();
               });

@@ -189,5 +189,81 @@ describe('CbcFormulaMapperService', () => {
         Object.prototype.hasOwnProperty.call(exported, 'verifierConditions'),
       ).toBe(false);
     });
+
+    it('importFormula preserves disabled: true flag on verifier entries', () => {
+      const formula: ICBCFormula = {
+        name: 'f',
+        preCondition: { condition: 'true' },
+        postCondition: { condition: 'true' },
+        javaVariables: [],
+        globalConditions: [],
+        renamings: [],
+        isProven: false,
+        statement: {
+          id: '1',
+          name: 's',
+          type: 'STATEMENT',
+          preCondition: { condition: 'true' },
+          postCondition: { condition: 'true' },
+          isProven: false,
+          nodeState: 'unverified',
+          programStatement: 'x = 1;',
+          verifiers: {
+            mock: {
+              proven: false,
+              disabled: true,
+            },
+          },
+        } as unknown as IStatement,
+      };
+
+      const imported = service.importFormula(formula);
+      const inner = (imported.statement as RootStatement).statement as IStatement;
+      expect(inner.verifiers?.['mock']).toEqual({ proven: false, disabled: true });
+    });
+
+    it('importFormula sets rootStatement.isProven from formula.isProven in both branches', () => {
+      // 1. Wrapped branch (formula.statement is not RootStatement)
+      const formula1: ICBCFormula = {
+        name: 'f',
+        preCondition: { condition: 'true' },
+        postCondition: { condition: 'true' },
+        javaVariables: [],
+        globalConditions: [],
+        renamings: [],
+        isProven: true,
+        statement: {
+          id: '1',
+          name: 's',
+          type: 'STATEMENT',
+          preCondition: { condition: 'true' },
+          postCondition: { condition: 'true' },
+          isProven: true,
+          nodeState: 'unverified',
+          programStatement: 'x = 1;',
+        } as unknown as IStatement,
+      };
+      const imported1 = service.importFormula(formula1);
+      expect(imported1.statement?.isProven).toBe(true);
+
+      // 2. Existing RootStatement branch
+      const formula2: ICBCFormula = {
+        name: 'f',
+        preCondition: { condition: 'true' },
+        postCondition: { condition: 'true' },
+        javaVariables: [],
+        globalConditions: [],
+        renamings: [],
+        isProven: true,
+        statement: new RootStatement(
+            'rootNode',
+            { condition: 'true' },
+            { condition: 'true' },
+            undefined,
+        ),
+      };
+      const imported2 = service.importFormula(formula2);
+      expect(imported2.statement?.isProven).toBe(true);
+    });
   });
 });

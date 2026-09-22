@@ -1,9 +1,12 @@
-import { inject, Injectable, signal, Signal, WritableSignal } from "@angular/core";
+import { effect, inject, Injectable, signal, Signal, WritableSignal } from "@angular/core";
 import { Subject } from "rxjs";
 import { VerifierService } from "../verifier/verifier.service";
+import { GlobalSettingsService } from "../global-settings.service";
 import {
   AbstractStatement,
   IAbstractStatement,
+  IVerifiers,
+  nodeStateFor,
   StatementType,
 } from "../../types/statements/abstract-statement";
 import { JavaVariable, JavaVariableKind } from "../../types/JavaVariable";
@@ -41,6 +44,33 @@ export class TreeService {
   private _urn = "";
 
   private readonly verifierService = inject(VerifierService);
+  private readonly globalSettingsService = inject(GlobalSettingsService);
+
+  /**
+   * Statement ids passed to {@link markSubtreeUnverified}/{@link markWholeTreeUnverified}
+   * while a verification run is in progress. Applied by {@link reapplyRunChanges} once the
+   * run's result lands, so an edit made mid-run is not overwritten by a stale result.
+   * Session-local to the current run only; cleared by {@link beginRun} and by
+   * {@link reapplyRunChanges}.
+   */
+  private editedDuringRun = new Set<string>();
+
+  /**
+   * Whether an enabled Verifier's setting value changed while a verification run is in
+   * progress. Session-local to the current run only; cleared the same way as
+   * {@link editedDuringRun}.
+   */
+  private settingValueChangedDuringRun = false;
+
+  /**
+   * Ids of Verifiers that have had a setting change land for them, while enabled, since the
+   * last verification result was applied. Unlike {@link settingValueChangedDuringRun} (scoped
+   * to a single in-flight run), this survives across runs so a `settings-changed` status is
+   * not lost to an unrelated disable/re-enable of the same Verifier in between — see
+   * {@link recomputeAllNodeStates}. Cleared unconditionally whenever a fresh result lands
+   * ({@link reapplyRunChanges}).
+   */
+  private settingsDirtyVerifierIds = new Set<string>();
 
   public constructor() {
     this._verificationResultNotifier = new Subject<AbstractStatement>();
@@ -49,17 +79,118 @@ export class TreeService {
     this._resetVerifyNotifier = new Subject<void>();
     this._finalizeNotifier = new Subject<void>();
 
-    this.verifierService.overridesChanged.subscribe(() =>
-      this.markVerifiedAllAsSettingsChanged(),
-    );
+    this.verifierService.overridesChanged.subscribe((change) => {
+      if (change.kind === "enabled") {
+        this.recomputeAllNodeStates();
+      } else {
+        this.markVerifiedAllAsSettingsChanged(change.id);
+      }
+    });
+
+    // The verify-mode toggle (Functional vs. All) changes which Verifiers are in `E` for
+    // decision 2's derivation without a new run landing — every rendered node's state must
+    // react immediately, not just its color/label (statement.component.ts's mode-dependent
+    // coloring is a separate, already-correct concern).
+    effect(() => {
+      this.verifierService.functionalOnly();
+      this.recomputeAllNodeStates();
+    });
   }
 
   /**
-   * A user-driven verifier override change invalidates the previously computed
-   * all-verifiers proof; `verified-functional` results are left alone since the
-   * functional verifier is not settings-driven.
+   * Clears the current run's bookkeeping ({@link editedDuringRun},
+   * {@link settingValueChangedDuringRun}). Called wherever a verification run starts.
    */
-  private markVerifiedAllAsSettingsChanged(): void {
+  public beginRun(): void {
+    this.editedDuringRun.clear();
+    this.settingValueChangedDuringRun = false;
+  }
+
+  /**
+   * Applies decision 5's mid-run-change survival after a verification result has been
+   * written onto `statements`: an id edited during the run is forced back to `unverified`
+   * (the result is stale for it); otherwise, if a setting value changed during the run, a
+   * `verified-all` result is downgraded to `settings-changed`. Clears both markers
+   * afterward — they describe only the run that just landed.
+   */
+  public reapplyRunChanges(statements: IAbstractStatement[]): void {
+    for (const statement of statements) {
+      if (this.editedDuringRun.has(statement.id)) {
+        statement.isProven = false;
+        statement.nodeState = "unverified";
+      } else if (
+        this.settingValueChangedDuringRun &&
+        statement.nodeState === "verified-all"
+      ) {
+        statement.nodeState = "settings-changed";
+      }
+    }
+    this.editedDuringRun.clear();
+    this.settingValueChangedDuringRun = false;
+    // A fresh result makes every prior dirty marker moot: a functional-only run disables
+    // every non-functional entry anyway, and a run that did not include a Verifier leaves it
+    // absent — both already read as `settings-changed`/`disabled` from the entries themselves.
+    this.settingsDirtyVerifierIds.clear();
+  }
+
+  /**
+   * A Verifier was enabled or disabled: every node's state is recomputed from decision 2's
+   * table over its own entries, since enabling/disabling changes the `E` set the derivation
+   * runs over (a `disabled` entry for a newly-enabled id now counts, for instance).
+   */
+  private recomputeAllNodeStates(): void {
+    if (!this.rootStatementNode) {
+      return;
+    }
+    const enabledIds = this.verifierService.effectiveEnabledNonFunctionalVerifierIds;
+    const subtreeNodes = this.collectSubtreeNodes(this.rootStatementNode);
+    for (const node of subtreeNodes) {
+      node.statement.nodeState = nodeStateFor(
+        this.withSettingsDirtyOverlay(node.statement.verifiers),
+        enabledIds,
+      );
+    }
+    this.refreshNodes();
+  }
+
+  /**
+   * Overlays {@link settingsDirtyVerifierIds} onto `verifiers` for {@link nodeStateFor}: a
+   * Verifier whose setting changed since the last landed result is treated as `disabled` for
+   * this derivation, so re-enabling it after an unrelated disable does not resurrect the
+   * stale `proven:true` entry as `verified-all` (see {@link markVerifiedAllAsSettingsChanged}).
+   * A shallow copy only — the stored entry itself is never mutated. No-ops when nothing is
+   * dirty.
+   */
+  private withSettingsDirtyOverlay(verifiers: IVerifiers | undefined): IVerifiers | undefined {
+    if (this.settingsDirtyVerifierIds.size === 0 || !verifiers) {
+      return verifiers;
+    }
+    const overlaid: IVerifiers = { ...verifiers };
+    for (const id of this.settingsDirtyVerifierIds) {
+      const entry = verifiers[id];
+      if (entry) {
+        overlaid[id] = { ...entry, disabled: true };
+      }
+    }
+    return overlaid;
+  }
+
+  /**
+   * A setting value changed for an enabled Verifier: invalidates the previously computed
+   * all-verifiers proof; `verified-functional` results are left alone since the functional
+   * verifier is not settings-driven. A no-op for a Verifier that is not currently enabled.
+   */
+  private markVerifiedAllAsSettingsChanged(verifierId: string): void {
+    const verifier = this.verifierService
+      .verifiers()
+      .find((candidate) => candidate.id === verifierId);
+    if (!verifier?.enabled) {
+      return;
+    }
+    this.settingsDirtyVerifierIds.add(verifierId);
+    if (this.globalSettingsService.isVerifying) {
+      this.settingValueChangedDuringRun = true;
+    }
     if (!this.rootStatementNode) {
       return;
     }
@@ -442,6 +573,9 @@ export class TreeService {
     subtreeNodes.forEach((subtreeNode) => {
       subtreeNode.statement.isProven = false;
       subtreeNode.statement.nodeState = 'unverified'
+      if (this.globalSettingsService.isVerifying) {
+        this.editedDuringRun.add(subtreeNode.statement.id);
+      }
     });
     if (this.rootFormula) {
       this.rootFormula.isProven = false;

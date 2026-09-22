@@ -397,6 +397,42 @@ describe("VerifierService", () => {
     expect(service.verifiersValid()).toBeTrue();
   });
 
+  describe("effectiveEnabledNonFunctionalVerifierIds", () => {
+    it("is the enabled non-functional list when functionalOnly is false", () => {
+      loadCatalog([
+        functionalVerifier,
+        { id: 'mock', label: 'Mock', enabled: true, settings: [], variables: [] },
+        { id: 'off', label: 'Off', enabled: false, settings: [], variables: [] },
+      ]);
+
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual(['mock']);
+    });
+
+    it("is empty when functionalOnly is true regardless of what's enabled", () => {
+      loadCatalog([
+        functionalVerifier,
+        { id: 'mock', label: 'Mock', enabled: true, settings: [], variables: [] },
+      ]);
+
+      service.setFunctionalOnly(true);
+
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual([]);
+    });
+
+    it("reacts live to flipping functionalOnly back and forth", () => {
+      loadCatalog([
+        functionalVerifier,
+        { id: 'mock', label: 'Mock', enabled: true, settings: [], variables: [] },
+      ]);
+
+      service.setFunctionalOnly(true);
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual([]);
+
+      service.setFunctionalOnly(false);
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual(['mock']);
+    });
+  });
+
   it("treats an empty optional numeric setting as valid", () => {
     loadCatalog([
       { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
