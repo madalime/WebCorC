@@ -67,6 +67,9 @@ public class VerifierCatalogService {
     /**
      * The Functional Verifier's Self-Description: locked on ({@code enabled: true},
      * {@code toggleable: false}), no settings, no variables, no status placeholder.
+     *
+     * <p>Mirrored by hand in the frontend's {@code VerifierService.FUNCTIONAL_VERIFIER_FALLBACK}
+     * (shown before the Catalog arrives or when its fetch fails); change both together.
      */
     public static final SelfDescription FUNCTIONAL_SELF_DESCRIPTION = new SelfDescription(
         "Functional correctness",

@@ -39,7 +39,10 @@ export class VerifierService {
   private network = inject(VerifierNetworkService);
   private consoleService = inject(ConsoleService);
 
-  /** Local mirror of the backend's Functional Verifier entry, so the invariant "every Catalog contains `func`, locked on" holds even before a Catalog has been fetched. */
+  /**
+   * Local mirror of the backend's Functional Verifier entry, so the invariant "every Catalog contains `func`, locked on" holds even before a Catalog has been fetched.
+   * Hand-copied from `FUNCTIONAL_SELF_DESCRIPTION` in the backend's `VerifierCatalogService`; change both together.
+   */
   private static readonly FUNCTIONAL_VERIFIER_FALLBACK: Verifier = {
     id: FUNCTIONAL_VERIFIER_ID,
     label: "Functional correctness",
