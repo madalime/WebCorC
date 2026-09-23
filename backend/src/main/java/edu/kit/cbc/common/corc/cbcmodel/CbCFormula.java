@@ -24,12 +24,10 @@ public class CbCFormula {
     private List<Renaming> renamings;
 
     /**
-     * The Root's per-Verifier conditions and results (mirrors
-     * {@code openapi/schema/cbc/formula.yml}'s {@code verifiers}): the same shape and the same
-     * rules as a statement's map (see {@link AbstractStatement#getVerifiers()}), carrying
-     * {@code func} and every catalog Verifier once a run has happened. The conditions are the
-     * ones flattened into the formula's own pre-/postcondition on export; a non-functional
-     * Verifier's {@code proven}/{@code status} here are its whole-run verdict, not a statement's.
+     * The Root's per-Verifier conditions and results; mirrors
+     * {@code openapi/schema/cbc/formula.yml}'s {@code verifiers}, with the same shape and rules
+     * as a statement's map (see {@link AbstractStatement#getVerifiers()} and
+     * {@link VerifierEntry}).
      */
     private Map<String, VerifierEntry> verifiers;
 

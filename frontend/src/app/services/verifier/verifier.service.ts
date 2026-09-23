@@ -243,9 +243,9 @@ export class VerifierService {
   }
 
   /**
-   * Enabled Verifiers excluding the Functional Verifier — the `E` set decision 2's
-   * derivation table is defined over. Unlike {@link activeVerifierIds}, which includes the
-   * Functional Verifier, this is what {@link nodeStateFor} expects as its `enabledVerifiers`
+   * Enabled Verifiers excluding the Functional Verifier — the enabled set {@link nodeStateFor}
+   * derives a node's state over. Unlike {@link activeVerifierIds}, which includes the
+   * Functional Verifier, this is what that function expects as its `enabledVerifiers`
    * argument.
    */
   public get enabledNonFunctionalVerifierIds(): string[] {
@@ -255,7 +255,7 @@ export class VerifierService {
   }
 
   /**
-   * The `E` set {@link nodeStateFor} should actually be derived over right now: `[]` when
+   * The enabled set {@link nodeStateFor} should actually be derived over right now: `[]` when
    * the "Verify Functional" display mode is selected (a Verifier that is live-enabled but
    * not part of the current mode should not make an already-landed result look stale), else
    * {@link enabledNonFunctionalVerifierIds}. Node state reacts to the mode the user is

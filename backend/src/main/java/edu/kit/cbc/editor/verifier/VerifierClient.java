@@ -13,19 +13,16 @@ import java.util.function.Consumer;
  * appends the operation path, and hands back typed results. No other backend code holds or
  * builds a Verifier URL.
  *
- * <p>Every operation blocks the calling thread and classifies its failure the same way: the
- * Verifier could not be talked to (connect failure, timeout, 5xx) is
- * {@link VerifierUnreachableException}; it answered, but not as the contract promises (any
- * other non-2xx status, a body or message that does not fit the schema), is
- * {@link InvalidVerifierResponseException}; an id no Verifier is registered under is an
- * {@link IllegalArgumentException} — a programming error, never a Verifier's fault.
+ * <p>Every operation blocks the calling thread and classifies its failure via
+ * {@link VerifierClientException}'s two kinds; an id no Verifier is registered under is
+ * instead an {@link IllegalArgumentException} — a programming error, never a Verifier's
+ * fault.
  *
  * <p>A verification job against one Verifier is the three job operations in order, all
  * addressed by the job id the backend minted — the Verifier never mints one: {@link #startJob},
  * then {@link #streamStatus} until its done message, then {@link #fetchResult}.
  *
- * <p>An interface so that tests can drive the Catalog service and the fan-out through a fake;
- * the production implementation is {@link HttpVerifierClient}.
+ * <p>Production implementation: {@link HttpVerifierClient}.
  */
 public interface VerifierClient {
 
@@ -34,9 +31,9 @@ public interface VerifierClient {
      *
      * @param id the Verifier's Registry id
      * @return what the Verifier declares about itself
-     * @throws VerifierUnreachableException if the Verifier could not be talked to
-     * @throws InvalidVerifierResponseException if the Verifier answered with something that does
-     *     not parse to the Self-Description schema
+     * @throws VerifierUnreachableException if the Verifier is unreachable
+     * @throws InvalidVerifierResponseException if the response does not parse to the
+     *     Self-Description schema
      * @throws IllegalArgumentException if no Verifier is registered under {@code id}
      */
     SelfDescription describe(String id) throws VerifierUnreachableException, InvalidVerifierResponseException;
@@ -50,21 +47,19 @@ public interface VerifierClient {
      * @param jobId the backend-minted job id, used verbatim on the wire
      * @param request the narrowed program with this Verifier's own conditions, the project's
      *     files and this Verifier's resolved Settings
-     * @throws VerifierUnreachableException if the Verifier could not be talked to
-     * @throws InvalidVerifierResponseException if the Verifier refused the request (any other
-     *     non-2xx status, e.g. 400)
+     * @throws VerifierUnreachableException if the Verifier is unreachable
+     * @throws InvalidVerifierResponseException if the Verifier refused the request
      * @throws IllegalArgumentException if no Verifier is registered under {@code id}
      */
     void startJob(String id, UUID jobId, StartJobRequest request)
         throws VerifierUnreachableException, InvalidVerifierResponseException;
 
     /**
-     * Opens the job's status stream ({@code GET <url>/jobs/{jobId}} as a WebSocket) and consumes
-     * it until the Verifier's done message: every log message is handed to {@code onLog} on the
-     * calling thread, in the order received, and the done message is returned. The stream is
-     * closed by the client once done has arrived; whether the Verifier closes it too is not
-     * waited for. There is no timeout — a Verifier that neither sends done nor closes keeps the
-     * caller waiting.
+     * Opens the job's status stream ({@code GET <url>/jobs/{jobId}} as a WebSocket): each log
+     * message is handed to {@code onLog}, on the calling thread, in the order received. The
+     * client closes the stream once the Verifier's done message arrives; whether the Verifier
+     * closes it too is not waited for. There is no timeout — a Verifier that neither sends done
+     * nor closes keeps the caller waiting.
      *
      * @param id the Verifier's Registry id
      * @param jobId the job id the job was started under
@@ -87,9 +82,9 @@ public interface VerifierClient {
      * @param jobId the job id the job was started under
      * @return the Verifier's per-statement results, keyed by the string form of the statement
      *     ids of the program it was given; every entry has its {@code proven} set
-     * @throws VerifierUnreachableException if the Verifier could not be talked to
-     * @throws InvalidVerifierResponseException if the Verifier answered with any other non-2xx
-     *     status, or a body that does not parse to the result schema
+     * @throws VerifierUnreachableException if the Verifier is unreachable
+     * @throws InvalidVerifierResponseException if the response does not parse to the result
+     *     schema
      * @throws IllegalArgumentException if no Verifier is registered under {@code id}
      */
     Map<String, StatementResult> fetchResult(String id, UUID jobId)

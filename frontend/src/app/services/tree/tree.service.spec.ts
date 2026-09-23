@@ -74,7 +74,7 @@ describe("TreeService", () => {
     expect(service).toBeTruthy();
   });
 
-  describe("overrides subscription (decision 4)", () => {
+  describe("overrides subscription", () => {
     it("setEnabled on a Verifier that ran keeps verified-all", () => {
       loadCatalog([functionalVerifier, mockVerifier(true)]);
       const root = buildRootNode("verified-all", {
@@ -123,7 +123,7 @@ describe("TreeService", () => {
     });
   });
 
-  describe("mid-run change survival (decision 5)", () => {
+  describe("mid-run change survival", () => {
     it("an id marked unverified during a run stays unverified after reapplyRunChanges, then clears", () => {
       loadCatalog([functionalVerifier]);
       const root = buildRootNode("verified-all", { func: { proven: true } });
@@ -242,8 +242,8 @@ describe("TreeService", () => {
       verifierService.updateSetting("mock", "threshold", "5");
       expect(root.nodeState).toBe("settings-changed");
 
-      // A fresh verify-all result lands for "mock"; reapplyRunChanges is what clears the
-      // dirty marker (decision 5's "clear both markers afterward", extended to this set).
+      // A fresh verify-all result lands for "mock"; reapplyRunChanges clears both the
+      // editedDuringRun and settingValueChangedDuringRun markers afterward, extended to this set.
       root.verifiers = { func: { proven: true }, mock: { proven: true } };
       root.nodeState = "verified-all";
       service.reapplyRunChanges([root]);

@@ -19,10 +19,8 @@ export interface ICBCFormula {
   preCondition: ICondition;
   postCondition: ICondition;
   /**
-   * Per-verifier conditions and results of the root statement. Lives at formula
-   * level because the root statement wrapper is flattened into
-   * `preCondition`/`postCondition` on export — its verifiers are handled the same
-   * way.
+   * The root statement's per-verifier conditions and results; same shape and rules as
+   * {@link IAbstractStatement.verifiers} (see {@link IVerifierEntry}).
    */
   verifiers?: IVerifiers;
   javaVariables: IJavaVariable[];

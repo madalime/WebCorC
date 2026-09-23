@@ -87,8 +87,8 @@ export class TreeService {
       }
     });
 
-    // The verify-mode toggle (Functional vs. All) changes which Verifiers are in `E` for
-    // decision 2's derivation without a new run landing — every rendered node's state must
+    // The verify-mode toggle (Functional vs. All) changes the enabled-Verifier set
+    // `nodeStateFor` derives over without a new run landing — every rendered node's state must
     // react immediately, not just its color/label (statement.component.ts's mode-dependent
     // coloring is a separate, already-correct concern).
     effect(() => {
@@ -107,8 +107,8 @@ export class TreeService {
   }
 
   /**
-   * Applies decision 5's mid-run-change survival after a verification result has been
-   * written onto `statements`: an id edited during the run is forced back to `unverified`
+   * Keeps changes made during the run from being overwritten by the result just written
+   * onto `statements`: an id edited during the run is forced back to `unverified`
    * (the result is stale for it); otherwise, if a setting value changed during the run, a
    * `verified-all` result is downgraded to `settings-changed`. Clears both markers
    * afterward — they describe only the run that just landed.
@@ -134,9 +134,9 @@ export class TreeService {
   }
 
   /**
-   * A Verifier was enabled or disabled: every node's state is recomputed from decision 2's
-   * table over its own entries, since enabling/disabling changes the `E` set the derivation
-   * runs over (a `disabled` entry for a newly-enabled id now counts, for instance).
+   * A Verifier was enabled or disabled: every node's state is recomputed via
+   * {@link nodeStateFor} over its own entries, since enabling/disabling changes the
+   * enabled-Verifier set the derivation runs over (a `disabled` entry for a newly-enabled id now counts, for instance).
    */
   private recomputeAllNodeStates(): void {
     if (!this.rootStatementNode) {

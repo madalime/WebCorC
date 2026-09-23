@@ -20,25 +20,14 @@ import java.util.logging.Logger;
 
 /**
  * The job's formula as the Verifiers see it: every statement numbered once, in pre-order from
- * 1, so that each Verifier receives the same ids and its flat result maps back onto the same
- * statements. {@link #forVerifier} narrows the tree for one Verifier — its own Verifier
- * Conditions in the primary condition fields, structural fields as they are.
- * {@link #resetForRun} defaults every catalog Verifier's entry before a run,
- * {@link #merge} writes a Verifier's actual per-statement result once it reports one,
- * {@link #writeRootResult} the whole-run verdict it reported with its {@code done}, and
- * {@link #markFailed} records a Verifier whose run failed outright instead.
- * {@link #writeFunctionalResult} and {@link #writeFormulaFunctionalResult} record the
- * Functional Verifier's own result-only entry, and {@link #recomputeIsProven} aggregates
- * {@code isProven} over it and every enabled non-functional Verifier's own entry.
+ * 1, so every Verifier is handed the same ids and every result reported against them maps back
+ * onto the same statements. See {@link #forVerifier} for how one Verifier's view of the tree is
+ * built, and the methods below for how a Verifier's result is written back onto it.
  *
- * <p>The backend's statement model has no id of its own, hence the numbering here; the program
- * level — the Root, with its conditions and the global conditions — is attributed to id 0 when a
- * condition is sent out, and is a result target of its own: {@link #resetForRun} and
- * {@link #markFailed} write the formula's own {@code verifiers} map alongside the statements',
- * {@link #writeRootResult} and {@link #writeFormulaFunctionalResult} write it alone. A skip or return
- * statement is sent as a {@code simple} leaf: the contract's {@code strongWeak} kind requires a
- * nested statement, which neither has. Class and method name are the ones the
- * {@link CodeGenerator} gives every program, since a formula names neither.
+ * <p>The backend's statement model carries no id of its own, hence the numbering here. The
+ * program level -- the Root, with its own conditions and the global conditions -- is attributed
+ * to id 0 and is a result target in its own right: several of the write methods below record the
+ * formula's own {@code verifiers} map alongside, or instead of, the statements'.
  *
  * <p>Every write operation synchronizes on this instance: several Verifiers' results merge into
  * one tree, and a narrowing must not read a {@code verifiers} map another thread is writing.

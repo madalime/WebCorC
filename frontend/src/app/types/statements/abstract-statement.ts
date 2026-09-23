@@ -112,6 +112,10 @@ export type NodeState =
   | 'failed-non-functional';
 
 
+/**
+ * A Verifier missing from `verifiers` counts as `disabled` when it's in `enabledVerifiers`;
+ * a `disabled` Verifier absent from `enabledVerifiers` has no effect on the result.
+ */
 export function nodeStateFor(
   verifiers: IVerifiers | undefined,
   enabledVerifiers: readonly string[],

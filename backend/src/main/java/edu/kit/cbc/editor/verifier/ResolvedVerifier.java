@@ -8,11 +8,9 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 /**
- * One Verifier a verification job calls, with its Settings resolved to one concrete value per
- * declared Setting — the Catalog default (Verifier Registry policy already applied) overlaid
- * with the project's persisted Verifier Override, by the same rules the frontend's
- * {@code applyOverrides} uses to show them: a locked toggle ({@code toggleable: false}) is
- * Catalog-owned, and an Override input counts only if it fits the Setting's kind.
+ * One Verifier a verification job calls, with every declared Setting already resolved to exactly
+ * one concrete value -- never absent, never the raw Catalog/Override pair a caller would
+ * otherwise have to reconcile itself. See {@link #enabled} for how that resolution is done.
  *
  * @param settings the resolved values in declaration order, keyed by Setting id
  */
