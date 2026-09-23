@@ -6,43 +6,33 @@ import { startMockVerifier } from "../mock-verifier.js";
 
 /**
  * A start-a-job request whose program nests every statement kind once, so the
- * scripted result's key set can be checked against all ids: 0..6.
+ * scripted result's key set can be checked against all ids: 0..5.
  */
 function startRequest() {
-  const condition = (content) => ({ content, originID: 0, title: "" });
+  const condition = (condition) => ({ condition });
   return {
     program: {
       name: "demo",
-      className: "Demo",
-      methodName: "run",
       javaVariables: ["int x"],
-      globalConditions: [],
       preCondition: condition("energy <= energyBudget"),
       statement: {
         id: 0,
         name: "root",
-        statementType: "composition",
-        leftStatement: { id: 1, name: "s1", statementType: "simple" },
-        rightStatement: {
+        type: "COMPOSITION",
+        firstStatement: { id: 1, name: "s1", type: "STATEMENT", programStatement: "x = 1;" },
+        secondStatement: {
           id: 2,
           name: "loop",
-          statementType: "repetition",
-          invariantCondition: condition("true"),
-          guardCondition: condition("x > 0"),
-          variant: "x",
+          type: "REPETITION",
+          guard: condition("x > 0"),
           loopStatement: {
             id: 3,
             name: "branch",
-            statementType: "selection",
+            type: "SELECTION",
             guards: [condition("x > 1"), condition("x <= 1")],
-            statements: [
-              { id: 4, name: "s4", statementType: "simple" },
-              {
-                id: 5,
-                name: "sw",
-                statementType: "strongWeak",
-                statement: { id: 6, name: "s6", statementType: "simple" },
-              },
+            commands: [
+              { id: 4, name: "s4", type: "STATEMENT", programStatement: "x = x - 1;" },
+              { id: 5, name: "s5", type: "SKIP" },
             ],
           },
         },
@@ -233,7 +223,7 @@ describe("mock Verifier", () => {
       assert.equal(response.status, 200);
       assert.match(response.headers.get("content-type"), /^application\/json/);
       const result = await response.json();
-      assert.deepEqual(Object.keys(result).sort(), ["0", "1", "2", "3", "4", "5", "6"]);
+      assert.deepEqual(Object.keys(result).sort(), ["0", "1", "2", "3", "4", "5"]);
       for (const entry of Object.values(result)) {
         assert.equal(entry.proven, true);
         assert.equal(typeof entry.status, "string");

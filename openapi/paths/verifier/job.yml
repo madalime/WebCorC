@@ -17,12 +17,14 @@ post:
   description: >-
     Starts one verification job under the given, backend-minted id. The
     request is static-analysis input, never generated or compiled code: the
-    same structural program representation the Functional Verifier already
-    works from, with this Verifier's own Verifier Condition already swapped
-    into each statement's (and the program root's) primary condition
-    fields — its sparse per-Verifier conditions are never sent separately,
-    so a statement with nothing written for this Verifier simply carries no
-    condition here.
+    same program representation the editor and the Functional Verifier work
+    from, in the editor model's own field names, with this Verifier's own
+    Verifier Condition already swapped into each statement's (and the
+    program root's) primary condition fields — its sparse per-Verifier
+    conditions are never sent separately, so a statement with nothing
+    written for this Verifier simply carries no condition here. The
+    program's functional specification is not sent: functional verification
+    has already succeeded by the time any Verifier is started.
 
     The project's existing source and include files are unconditionally
     attached — every Verifier receives them with every job, with no flag or

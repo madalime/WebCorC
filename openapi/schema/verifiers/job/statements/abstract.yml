@@ -1,11 +1,11 @@
 type: object
 description: >-
   Shared fields of every statement kind in the program a Verifier receives —
-  a narrowed view of WebCorC's own internal statement shape (see ADR
-  0001-verifiers-are-external-services): only what a Verifier needs to
-  perform static analysis. `preCondition`/`postCondition` already carry this
-  Verifier's own Verifier Condition, never a sparse per-Verifier map, and are
-  both absent where the user has not written one for this statement and
+  WebCorC's own statement shape (see ADR 0001-verifiers-are-external-services)
+  narrowed to code-level input. `preCondition`/`postCondition` carry this
+  Verifier's own Verifier Condition — not the statement's functional
+  pre/postcondition, which is not sent — never a sparse per-Verifier map, and
+  are both absent where the user has not written one for this statement and
   Verifier.
 properties:
   id:
@@ -19,16 +19,22 @@ properties:
   name:
     type: string
 
-  statementType:
+  type:
     type: string
+    enum:
+      - STATEMENT
+      - SKIP
+      - COMPOSITION
+      - SELECTION
+      - REPETITION
 
   preCondition:
-    $ref: '../../../cbc/condition.yml'
+    $ref: '../condition.yml'
 
   postCondition:
-    $ref: '../../../cbc/condition.yml'
+    $ref: '../condition.yml'
 
 required:
   - id
   - name
-  - statementType
+  - type

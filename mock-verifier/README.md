@@ -37,7 +37,7 @@ Test Resources config depends on the runtime. Try the full flow against the dev 
 
 ```
 curl -X POST localhost:8081/jobs/demo -H 'content-type: application/json' \
-  -d '{"program":{"statement":{"id":1,"name":"s","statementType":"simple"}},"files":[],"settings":{"strategy":"strict","threshold":"50"}}'
+  -d '{"program":{"statement":{"id":1,"name":"s","type":"STATEMENT","programStatement":"x = 1;"}},"files":[],"settings":{"strategy":"strict","threshold":"50"}}'
 websocat ws://localhost:8081/jobs/demo      # or any WebSocket client
 curl localhost:8081/jobs/demo/result
 ```

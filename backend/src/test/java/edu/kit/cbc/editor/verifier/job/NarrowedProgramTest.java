@@ -1,16 +1,22 @@
 package edu.kit.cbc.editor.verifier.job;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
 import edu.kit.cbc.common.corc.cbcmodel.Condition;
 import edu.kit.cbc.common.corc.cbcmodel.VerifierEntry;
 import edu.kit.cbc.common.corc.cbcmodel.statements.AbstractStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.CompositionStatement;
+import edu.kit.cbc.common.corc.cbcmodel.statements.ReturnStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SelectionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SmallRepetitionStatement;
+import edu.kit.cbc.common.corc.cbcmodel.statements.Statement;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
+import io.micronaut.json.JsonMapper;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -18,12 +24,13 @@ import org.junit.jupiter.api.Test;
 /**
  * The narrowed program a Verifier receives, built from the job's formula: every statement gets
  * a stable id, the receiving Verifier's own Verifier Conditions are swapped into the primary
- * condition fields (absent where none is written), structural fields are carried unchanged, and
- * a Verifier's flat result merges back into the same statements by those ids.
+ * condition fields (absent where none is written), the program's code (program text, guards) is
+ * carried unchanged while its functional specification is left out, and a Verifier's flat
+ * result merges back into the same statements by those ids.
  */
 class NarrowedProgramTest {
 
-    /** Every statement kind once: composition(simple, repetition(selection(simple, skip))). */
+    /** Every statement kind once: composition(statement, repetition(selection(statement, skip))). */
     private static final String FORMULA_JSON = """
         {
           "name": "Demo",
@@ -79,9 +86,9 @@ class NarrowedProgramTest {
         return new ObjectMapper().readValue(FORMULA_JSON, CbCFormula.class);
     }
 
-    /** A condition as the backend prints it, attributed to the statement {@code originId}. */
-    private static JobCondition condition(String content, long originId) {
-        return new JobCondition(Condition.fromString(content).getCondition(), originId, "");
+    /** A condition as the backend prints it. */
+    private static JobCondition condition(String content) {
+        return new JobCondition(Condition.fromString(content).getCondition());
     }
 
     @Test
@@ -91,22 +98,99 @@ class NarrowedProgramTest {
         JobProgram energy = program.forVerifier("energy");
 
         JobStatement expected = JobStatement.composition(1, "Comp",
-            condition("energy == 0", 1), condition("energy <= budget", 1), condition("energy <= 1", 1),
-            JobStatement.simple(2, "Assign", condition("energy == 0", 2), condition("energy <= 1", 2)),
-            JobStatement.repetition(3, "Loop", null, null,
-                condition("x <= 10", 3), condition("x < 10", 3), Condition.fromString("10 - x").getCondition(),
+            condition("energy == 0"), condition("energy <= budget"), condition("energy <= 1"),
+            JobStatement.statement(2, "Assign", condition("energy == 0"), condition("energy <= 1"), "x = 1;"),
+            JobStatement.repetition(3, "Loop", null, null, condition("x < 10"),
                 JobStatement.selection(4, "Branch", null, null,
-                    List.of(condition("x < 5", 4), condition("x >= 5", 4)),
+                    List.of(condition("x < 5"), condition("x >= 5")),
                     List.of(
-                        JobStatement.simple(5, "Step", null, null),
-                        JobStatement.simple(6, "Rest", condition("energy <= 1", 6), condition("energy <= 1", 6))))));
-        Assertions.assertEquals(new JobProgram("Demo", "SrcGen", "method", List.of("int x", "int total"),
-            List.of(condition("total >= 0", 0)), condition("energy == 0", 0), condition("energy <= budget", 0), expected),
-            energy);
+                        JobStatement.statement(5, "Step", null, null, "x = x + 1;"),
+                        JobStatement.skip(6, "Rest", condition("energy <= 1"), condition("energy <= 1"))))));
+        Assertions.assertEquals(new JobProgram("Demo", List.of("int x", "int total"),
+            condition("energy == 0"), condition("energy <= budget"), expected), energy);
     }
 
     @Test
-    void aVerifierWithoutAnyConditionsStillGetsTheWholeStructure() throws Exception {
+    void aStatementCarriesItsProgramTextAndASkipIsItsOwnKind() throws Exception {
+        NarrowedProgram program = NarrowedProgram.of(formula());
+
+        JobStatement root = program.forVerifier("energy").statement();
+
+        JobStatement assign = root.firstStatement();
+        Assertions.assertEquals(JobStatement.STATEMENT, assign.type());
+        Assertions.assertEquals("x = 1;", assign.programStatement());
+        JobStatement rest = root.secondStatement().loopStatement().commands().get(1);
+        Assertions.assertEquals(JobStatement.SKIP, rest.type(), "A skip is SKIP, not STATEMENT");
+        Assertions.assertNull(rest.programStatement(), "A skip has no program text");
+    }
+
+    @Test
+    void aStatementWithoutProgramTextStillCarriesTheRequiredField() throws Exception {
+        CbCFormula formula = formula();
+        ((CompositionStatement) formula.getStatement()).setFirstStatement(new Statement());
+
+        JobStatement first = NarrowedProgram.of(formula).forVerifier("energy").statement().firstStatement();
+
+        Assertions.assertEquals("", first.programStatement(), "programStatement is required on the wire");
+    }
+
+    @Test
+    void aStatementKindWithoutAJobKindIsRefusedRatherThanSentAsAnotherKind() throws Exception {
+        CbCFormula formula = formula();
+        ((CompositionStatement) formula.getStatement()).setFirstStatement(new ReturnStatement());
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> NarrowedProgram.of(formula).forVerifier("energy"));
+    }
+
+    @Test
+    void theJobCarriesOnlyCodeLevelInputInTheModelsShape() throws Exception {
+        NarrowedProgram program = NarrowedProgram.of(formula());
+
+        String json = JsonMapper.createDefault().writeValueAsString(program.forVerifier("maint"));
+        JsonNode wire = new ObjectMapper().readTree(json);
+
+        Assertions.assertEquals(Set.of("name", "javaVariables", "statement"), fieldNames(wire),
+            "No className, methodName, globalConditions; no Root conditions for a Verifier that wrote none: " + json);
+        JsonNode comp = wire.get("statement");
+        Assertions.assertEquals(Set.of("id", "name", "type", "firstStatement", "secondStatement"), fieldNames(comp), json);
+        Assertions.assertEquals("COMPOSITION", comp.get("type").asText());
+        JsonNode loop = comp.get("secondStatement");
+        Assertions.assertEquals(Set.of("id", "name", "type", "guard", "loopStatement"), fieldNames(loop),
+            "No invariant or variant: " + json);
+        Assertions.assertEquals("REPETITION", loop.get("type").asText());
+        Assertions.assertEquals(new ObjectMapper().createObjectNode().put("condition", condition("x < 10").condition()),
+            loop.get("guard"), "A guard is the model's {condition}");
+        JsonNode branch = loop.get("loopStatement");
+        Assertions.assertEquals(Set.of("id", "name", "type", "guards", "commands"), fieldNames(branch), json);
+        Assertions.assertEquals("SELECTION", branch.get("type").asText());
+        Assertions.assertEquals(Set.of("condition"), fieldNames(branch.get("guards").get(0)));
+        JsonNode step = branch.get("commands").get(0);
+        Assertions.assertEquals(Set.of("id", "name", "type", "programStatement"), fieldNames(step), json);
+        Assertions.assertEquals("STATEMENT", step.get("type").asText());
+        JsonNode rest = branch.get("commands").get(1);
+        Assertions.assertEquals(Set.of("id", "name", "type"), fieldNames(rest), json);
+        Assertions.assertEquals("SKIP", rest.get("type").asText());
+    }
+
+    @Test
+    void theReceivingVerifiersOwnConditionsAreSentAsConditionObjects() throws Exception {
+        NarrowedProgram program = NarrowedProgram.of(formula());
+
+        String json = JsonMapper.createDefault().writeValueAsString(program.forVerifier("energy"));
+        JsonNode wire = new ObjectMapper().readTree(json);
+
+        Assertions.assertEquals(Set.of("condition"), fieldNames(wire.get("preCondition")), json);
+        Assertions.assertEquals(Set.of("condition"), fieldNames(wire.get("statement").get("intermediateCondition")), json);
+    }
+
+    private static Set<String> fieldNames(JsonNode node) {
+        Set<String> names = new HashSet<>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names;
+    }
+
+    @Test
+    void aVerifierWithoutAnyConditionsStillGetsTheWholeProgram() throws Exception {
         NarrowedProgram program = NarrowedProgram.of(formula());
 
         JobProgram bare = program.forVerifier("maint");
@@ -114,16 +198,15 @@ class NarrowedProgramTest {
         Assertions.assertNull(bare.preCondition());
         Assertions.assertNull(bare.postCondition());
         JobStatement root = bare.statement();
-        Assertions.assertEquals(JobStatement.COMPOSITION, root.statementType());
+        Assertions.assertEquals(JobStatement.COMPOSITION, root.type());
         Assertions.assertNull(root.preCondition());
         Assertions.assertNull(root.intermediateCondition());
-        Assertions.assertEquals(2, root.leftStatement().id());
-        Assertions.assertEquals(condition("x < 10", 3), root.rightStatement().guardCondition(),
-            "Structural fields are the same for every Verifier");
-        Assertions.assertEquals(List.of(condition("x < 5", 4), condition("x >= 5", 4)),
-            root.rightStatement().loopStatement().guards());
+        Assertions.assertEquals(2, root.firstStatement().id());
+        Assertions.assertEquals(condition("x < 10"), root.secondStatement().guard(),
+            "The program's own control flow is the same for every Verifier");
+        Assertions.assertEquals(List.of(condition("x < 5"), condition("x >= 5")),
+            root.secondStatement().loopStatement().guards());
         Assertions.assertEquals(List.of("int x", "int total"), bare.javaVariables());
-        Assertions.assertEquals(List.of(condition("total >= 0", 0)), bare.globalConditions());
     }
 
     @Test
@@ -132,9 +215,9 @@ class NarrowedProgramTest {
 
         JobStatement root = program.forVerifier("sec").statement();
 
-        Assertions.assertEquals(condition("safe(x)", 1), root.preCondition());
+        Assertions.assertEquals(condition("safe(x)"), root.preCondition());
         Assertions.assertNull(root.intermediateCondition(), "sec wrote no intermediate condition");
-        Assertions.assertNull(root.leftStatement().preCondition(), "energy's condition on Assign is not sec's");
+        Assertions.assertNull(root.firstStatement().preCondition(), "energy's condition on Assign is not sec's");
     }
 
     @Test
@@ -146,12 +229,11 @@ class NarrowedProgramTest {
     }
 
     private static List<Long> ids(JobStatement statement) {
-        return switch (statement.statementType()) {
-            case JobStatement.COMPOSITION -> concat(statement.id(), ids(statement.leftStatement()), ids(statement.rightStatement()));
+        return switch (statement.type()) {
+            case JobStatement.COMPOSITION -> concat(statement.id(), ids(statement.firstStatement()), ids(statement.secondStatement()));
             case JobStatement.REPETITION -> concat(statement.id(), ids(statement.loopStatement()), List.of());
             case JobStatement.SELECTION -> concat(statement.id(),
-                statement.statements().stream().flatMap(s -> ids(s).stream()).toList(), List.of());
-            case JobStatement.STRONG_WEAK -> concat(statement.id(), ids(statement.statement()), List.of());
+                statement.commands().stream().flatMap(s -> ids(s).stream()).toList(), List.of());
             default -> List.of(statement.id());
         };
     }

@@ -181,10 +181,10 @@ class VerifierFanOutTest {
         }
         StartJobRequest eebc = client.startedJobs().stream().filter(s -> s.id().equals("eebc")).findFirst().orElseThrow().request();
         StartJobRequest sec = client.startedJobs().stream().filter(s -> s.id().equals("sec")).findFirst().orElseThrow().request();
-        Assertions.assertEquals("e == 0", eebc.program().preCondition().content(), "eebc's own root condition");
+        Assertions.assertEquals("e == 0", eebc.program().preCondition().condition(), "eebc's own root condition");
         Assertions.assertNull(sec.program().preCondition(), "sec wrote none for the root");
-        Assertions.assertEquals("safe(x)", sec.program().statement().rightStatement().preCondition().content());
-        Assertions.assertNull(eebc.program().statement().rightStatement().preCondition());
+        Assertions.assertEquals("safe(x)", sec.program().statement().secondStatement().preCondition().condition());
+        Assertions.assertNull(eebc.program().statement().secondStatement().preCondition());
         Assertions.assertEquals(Map.of("threshold", JsonNode.createStringNode("50")), eebc.settings());
         Assertions.assertEquals(Map.of(), sec.settings());
     }

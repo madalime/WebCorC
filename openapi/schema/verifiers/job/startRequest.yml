@@ -1,7 +1,7 @@
 type: object
 description: >-
   Request body for starting a verification job. Everything this Verifier
-  needs to perform static analysis on the program: the structural
+  needs to perform static analysis on the program: the program's code-level
   representation with this Verifier's own conditions already in place, the
   project's source, and this Verifier's resolved Settings.
 properties:

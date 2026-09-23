@@ -1,26 +1,18 @@
 description: >-
-  A repetition (loop) statement. `invariantCondition`, `guardCondition` and
-  `variant` describe the loop itself rather than a property-specific
-  contract, so they are structural: the same values regardless of which
-  Verifier receives the program, never swapped per Verifier.
+  A repetition (loop) statement. `guard` is the program's own loop
+  condition — the expression of its `while (…)` — and so the same for every
+  Verifier. The loop's invariant and variant are functional specification
+  and are not sent.
 allOf:
   - $ref: './abstract.yml'
   - type: object
     properties:
-      invariantCondition:
-        $ref: '../../../cbc/condition.yml'
-
-      guardCondition:
-        $ref: '../../../cbc/condition.yml'
-
-      variant:
-        type: string
+      guard:
+        $ref: '../condition.yml'
 
       loopStatement:
         $ref: '../statement.yml'
 
     required:
-      - invariantCondition
-      - guardCondition
-      - variant
+      - guard
       - loopStatement

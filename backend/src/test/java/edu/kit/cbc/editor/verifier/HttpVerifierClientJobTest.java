@@ -44,25 +44,23 @@ class HttpVerifierClientJobTest {
     private static final String EXPECTED_START_BODY = """
         {
           "program": {
-            "name": "demo", "className": "Demo", "methodName": "run",
-            "javaVariables": ["int x"], "globalConditions": [],
-            "preCondition": {"content": "energy <= energyBudget", "originID": 0, "title": ""},
+            "name": "demo",
+            "javaVariables": ["int x"],
+            "preCondition": {"condition": "energy <= energyBudget"},
             "statement": {
-              "id": 0, "name": "root", "statementType": "composition",
-              "intermediateCondition": {"content": "mid", "originID": 0, "title": ""},
-              "leftStatement": {"id": 1, "name": "s1", "statementType": "simple"},
-              "rightStatement": {
-                "id": 2, "name": "loop", "statementType": "repetition",
-                "invariantCondition": {"content": "true", "originID": 0, "title": ""},
-                "guardCondition": {"content": "x > 0", "originID": 0, "title": ""},
-                "variant": "x",
+              "id": 0, "name": "root", "type": "COMPOSITION",
+              "intermediateCondition": {"condition": "mid"},
+              "firstStatement": {"id": 1, "name": "s1", "type": "STATEMENT", "programStatement": "x = 1;"},
+              "secondStatement": {
+                "id": 2, "name": "loop", "type": "REPETITION",
+                "guard": {"condition": "x > 0"},
                 "loopStatement": {
-                  "id": 3, "name": "branch", "statementType": "selection",
-                  "guards": [{"content": "x > 1", "originID": 0, "title": ""}, {"content": "x <= 1", "originID": 0, "title": ""}],
-                  "statements": [
-                    {"id": 4, "name": "s4", "statementType": "simple", "preCondition": {"content": "pre4", "originID": 0, "title": ""}},
-                    {"id": 5, "name": "sw", "statementType": "strongWeak",
-                     "statement": {"id": 6, "name": "s6", "statementType": "simple"}}
+                  "id": 3, "name": "branch", "type": "SELECTION",
+                  "guards": [{"condition": "x > 1"}, {"condition": "x <= 1"}],
+                  "commands": [
+                    {"id": 4, "name": "s4", "type": "STATEMENT", "programStatement": "x = x - 1;",
+                     "preCondition": {"condition": "pre4"}},
+                    {"id": 5, "name": "s5", "type": "SKIP"}
                   ]
                 }
               }
@@ -112,20 +110,19 @@ class HttpVerifierClientJobTest {
         }
     }
 
-    private static JobCondition condition(String content) {
-        return new JobCondition(content, 0, "");
+    private static JobCondition condition(String condition) {
+        return new JobCondition(condition);
     }
 
-    /** A start request whose program nests every statement kind once, ids 0..6. */
+    /** A start request whose program nests every statement kind once, ids 0..5. */
     private static StartJobRequest startRequest() {
         JobStatement statement = JobStatement.composition(0, "root", null, null, condition("mid"),
-            JobStatement.simple(1, "s1", null, null),
-            JobStatement.repetition(2, "loop", null, null, condition("true"), condition("x > 0"), "x",
+            JobStatement.statement(1, "s1", null, null, "x = 1;"),
+            JobStatement.repetition(2, "loop", null, null, condition("x > 0"),
                 JobStatement.selection(3, "branch", null, null, List.of(condition("x > 1"), condition("x <= 1")), List.of(
-                    JobStatement.simple(4, "s4", condition("pre4"), null),
-                    JobStatement.strongWeak(5, "sw", null, null, JobStatement.simple(6, "s6", null, null))))));
-        JobProgram program = new JobProgram("demo", "Demo", "run", List.of("int x"), List.of(),
-            condition("energy <= energyBudget"), null, statement);
+                    JobStatement.statement(4, "s4", condition("pre4"), null, "x = x - 1;"),
+                    JobStatement.skip(5, "s5", null, null)))));
+        JobProgram program = new JobProgram("demo", List.of("int x"), condition("energy <= energyBudget"), null, statement);
         return new StartJobRequest(program, List.of(new SourceFile("Demo.java", "class Demo {}")),
             Map.of("threshold", JsonNode.createStringNode("50"), "verbose", JsonNode.createBooleanNode(true)));
     }

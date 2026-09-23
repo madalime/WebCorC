@@ -7,16 +7,11 @@ import java.util.List;
 
 public final class CodeGenerator {
 
-    /** The class every generated program lives in; a formula carries no class name of its own. */
-    public static final String CLASS_NAME = "SrcGen";
-    /** The method every generated program is the body of; a formula carries no method name of its own. */
-    public static final String METHOD_NAME = "method";
-
     private static final String TAB_SPACES = "    ";
     private static final String CLASS_PATTERN = """
-        public final class %s {
+        public final class SrcGen {
         %s
-        public void %s() {
+        public void method() {
         %s
         }
         }
@@ -28,9 +23,7 @@ public final class CodeGenerator {
     public static String generate(CbCFormula formula) {
         return fixTabs(String.format(
             CLASS_PATTERN,
-            CLASS_NAME,
             generateLocalVariables(formula.getJavaVariables()),
-            METHOD_NAME,
             formula.getStatement().generateCode()
         ));
     }

@@ -24,8 +24,7 @@ class StartJobRequestTest {
 
     @Test
     void emptyFilesAndSettingsAreStillSerialized() throws Exception {
-        JobProgram program = new JobProgram("demo", "Demo", "run", List.of(), List.of(), null, null,
-            JobStatement.simple(0, "root", null, null));
+        JobProgram program = new JobProgram("demo", List.of(), null, null, JobStatement.skip(0, "root", null, null));
         StartJobRequest request = new StartJobRequest(program, List.of(), Map.of());
 
         String body = jsonMapper.writeValueAsString(request).replaceAll("\\s+", "");

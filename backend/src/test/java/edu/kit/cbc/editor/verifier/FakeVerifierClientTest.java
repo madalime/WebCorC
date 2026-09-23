@@ -25,7 +25,7 @@ class FakeVerifierClientTest {
 
     private static final UUID JOB = UUID.randomUUID();
     private static final StartJobRequest REQUEST = new StartJobRequest(
-        new JobProgram("demo", "Demo", "run", List.of(), List.of(), null, null, JobStatement.simple(0, "root", null, null)),
+        new JobProgram("demo", List.of(), null, null, JobStatement.skip(0, "root", null, null)),
         List.of(), Map.of());
     private static final Map<String, StatementResult> RESULT = Map.of("0", new StatementResult(true, "ok"));
     private static final VerifierUnreachableException UNREACHABLE = new VerifierUnreachableException("down", null);

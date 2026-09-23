@@ -7,8 +7,9 @@ import edu.kit.cbc.common.corc.cbcmodel.VerifierEntry;
 import edu.kit.cbc.common.corc.cbcmodel.statements.AbstractStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.CompositionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SelectionStatement;
+import edu.kit.cbc.common.corc.cbcmodel.statements.SkipStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SmallRepetitionStatement;
-import edu.kit.cbc.common.corc.codegeneration.CodeGenerator;
+import edu.kit.cbc.common.corc.cbcmodel.statements.Statement;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,8 +26,8 @@ import java.util.logging.Logger;
  * built, and the methods below for how a Verifier's result is written back onto it.
  *
  * <p>The backend's statement model carries no id of its own, hence the numbering here. The
- * program level -- the Root, with its own conditions and the global conditions -- is attributed
- * to id 0 and is a result target in its own right: several of the write methods below record the
+ * program level -- the Root, with its own conditions -- is attributed to id 0 and is a result
+ * target in its own right: several of the write methods below record the
  * formula's own {@code verifiers} map alongside, or instead of, the statements'.
  *
  * <p>Every write operation synchronizes on this instance: several Verifiers' results merge into
@@ -74,25 +75,22 @@ public final class NarrowedProgram {
         return List.copyOf(statementsById.keySet());
     }
 
-    /** The program with {@code verifierId}'s own Verifier Conditions in the primary condition fields. */
+    /**
+     * The program with {@code verifierId}'s own Verifier Conditions in the primary condition
+     * fields. Code-level input only: functional verification has already proven the functional
+     * conditions by the time any Verifier runs.
+     */
     public synchronized JobProgram forVerifier(String verifierId) {
         VerifierEntry root = entry(formula.getVerifiers(), verifierId);
-        List<JobCondition> globalConditions = new ArrayList<>();
-        for (Condition condition : formula.getGlobalConditions() == null ? List.<Condition>of() : formula.getGlobalConditions()) {
-            globalConditions.add(condition(condition, 0));
-        }
         List<String> javaVariables = new ArrayList<>();
         for (JavaVariable variable : formula.getJavaVariables() == null ? List.<JavaVariable>of() : formula.getJavaVariables()) {
             javaVariables.add(variable.getName());
         }
         return new JobProgram(
             formula.getName(),
-            CodeGenerator.CLASS_NAME,
-            CodeGenerator.METHOD_NAME,
             javaVariables,
-            globalConditions,
-            root == null ? null : condition(root.preCondition(), 0),
-            root == null ? null : condition(root.postCondition(), 0),
+            root == null ? null : condition(root.preCondition()),
+            root == null ? null : condition(root.postCondition()),
             narrow(formula.getStatement(), verifierId)
         );
     }
@@ -100,23 +98,21 @@ public final class NarrowedProgram {
     private JobStatement narrow(AbstractStatement statement, String verifierId) {
         long id = idsByStatement.get(statement);
         VerifierEntry entry = entry(statement.getVerifiers(), verifierId);
-        JobCondition pre = entry == null ? null : condition(entry.preCondition(), id);
-        JobCondition post = entry == null ? null : condition(entry.postCondition(), id);
+        JobCondition pre = entry == null ? null : condition(entry.preCondition());
+        JobCondition post = entry == null ? null : condition(entry.postCondition());
         String name = statement.getName();
         return switch (statement) {
+            case Statement leaf -> JobStatement.statement(id, name, pre, post,
+                leaf.getProgramStatement() == null ? "" : leaf.getProgramStatement());
+            case SkipStatement skip -> JobStatement.skip(id, name, pre, post);
             case CompositionStatement composition -> JobStatement.composition(id, name, pre, post,
-                entry == null ? null : condition(entry.intermediateCondition(), id),
+                entry == null ? null : condition(entry.intermediateCondition()),
                 narrow(composition.getFirstStatement(), verifierId),
                 narrow(composition.getSecondStatement(), verifierId));
-            case SmallRepetitionStatement repetition -> JobStatement.repetition(id, name, pre, post,
-                condition(repetition.getInvariant(), id),
-                condition(repetition.getGuard(), id),
-                repetition.getVariant() == null ? null : repetition.getVariant().getCondition(),
-                narrow(repetition.getLoopStatement(), verifierId));
             case SelectionStatement selection -> {
                 List<JobCondition> guards = new ArrayList<>();
                 for (Condition guard : selection.getGuards()) {
-                    guards.add(condition(guard, id));
+                    guards.add(condition(guard));
                 }
                 List<JobStatement> commands = new ArrayList<>();
                 for (AbstractStatement command : selection.getCommands()) {
@@ -124,7 +120,13 @@ public final class NarrowedProgram {
                 }
                 yield JobStatement.selection(id, name, pre, post, guards, commands);
             }
-            default -> JobStatement.simple(id, name, pre, post);
+            case SmallRepetitionStatement repetition -> JobStatement.repetition(id, name, pre, post,
+                condition(repetition.getGuard()),
+                narrow(repetition.getLoopStatement(), verifierId));
+            // ReturnStatement: a backend-only stub the editor cannot create, and one functional
+            // verification throws on, so no Verifier is ever started for a program containing one.
+            default -> throw new IllegalArgumentException(
+                "No Verifier job kind for statement type " + statement.getClass().getSimpleName());
         };
     }
 
@@ -132,8 +134,8 @@ public final class NarrowedProgram {
         return verifiers == null ? null : verifiers.get(verifierId);
     }
 
-    private static JobCondition condition(Condition condition, long originId) {
-        return condition == null ? null : new JobCondition(condition.getCondition(), originId, "");
+    private static JobCondition condition(Condition condition) {
+        return condition == null ? null : new JobCondition(condition.getCondition());
     }
 
     /**

@@ -1,21 +1,17 @@
 type: object
 description: >-
-  The root of the program a Verifier receives to start a job: the same
-  structural, static-analysis-friendly representation the Functional
-  Verifier already works from — never generated or compiled code. A
-  narrowed view of WebCorC's own internal formula shape (see ADR
-  0001-verifiers-are-external-services), carrying only what a Verifier
-  needs. `preCondition`/`postCondition` already carry this Verifier's own
-  Verifier Condition for the root, in place of a sparse per-Verifier map,
-  and are both absent where the user has not written one.
+  The root of the program a Verifier receives to start a job: WebCorC's own
+  program representation — never generated or compiled code — in the editor
+  model's own field names, narrowed to code-level input. Functional
+  verification has already succeeded before any Verifier runs, so the
+  program's functional specification (global conditions, functional
+  pre/postconditions, loop invariants and variants) is not sent. The
+  `preCondition`/`postCondition` fields here and on every statement are not
+  that functional specification: they carry this Verifier's own Verifier
+  Condition, in place of a sparse per-Verifier map, and are absent where the
+  user has not written one.
 properties:
   name:
-    type: string
-
-  className:
-    type: string
-
-  methodName:
     type: string
 
   javaVariables:
@@ -24,27 +20,16 @@ properties:
     items:
       type: string
 
-  globalConditions:
-    type: array
-    description: >-
-      Conditions declared once for the whole program, outside any single
-      statement. Structural — the same for every Verifier, never swapped.
-    items:
-      $ref: '../../cbc/condition.yml'
-
   preCondition:
-    $ref: '../../cbc/condition.yml'
+    $ref: './condition.yml'
 
   postCondition:
-    $ref: '../../cbc/condition.yml'
+    $ref: './condition.yml'
 
   statement:
     $ref: './statement.yml'
 
 required:
   - name
-  - className
-  - methodName
   - javaVariables
-  - globalConditions
   - statement

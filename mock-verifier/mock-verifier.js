@@ -144,11 +144,10 @@ function validateStartRequest(body) {
 /** Every statement id in the tree, root first, in source order. */
 function statementIds(statement) {
   const children = {
-    composition: (s) => [s.leftStatement, s.rightStatement],
-    repetition: (s) => [s.loopStatement],
-    selection: (s) => s.statements ?? [],
-    strongWeak: (s) => [s.statement],
-  }[statement.statementType]?.(statement) ?? [];
+    COMPOSITION: (s) => [s.firstStatement, s.secondStatement],
+    REPETITION: (s) => [s.loopStatement],
+    SELECTION: (s) => s.commands ?? [],
+  }[statement.type]?.(statement) ?? [];
   return [statement.id, ...children.filter(Boolean).flatMap(statementIds)];
 }
 

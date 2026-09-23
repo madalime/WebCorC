@@ -4,7 +4,7 @@ import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
 import edu.kit.cbc.common.corc.cbcmodel.Condition;
 import edu.kit.cbc.common.corc.cbcmodel.StatementType;
 import edu.kit.cbc.common.corc.cbcmodel.VerifierEntry;
-import edu.kit.cbc.common.corc.cbcmodel.statements.AbstractStatement;
+import edu.kit.cbc.common.corc.cbcmodel.statements.Statement;
 import edu.kit.cbc.common.corc.proof.ProofContext;
 import edu.kit.cbc.editor.verifier.FakeVerifierClient;
 import edu.kit.cbc.editor.verifier.ResolvedVerifier;
@@ -50,8 +50,8 @@ class VerificationJobTest {
         new Verifier(FUNC, "Functional correctness", true, false, null, List.of(), List.of(), null),
         new Verifier("off", "Off", false, true, null, List.of(), List.of(), null)), null);
 
-    /** Stands in for a KeY-proven statement: a fixed verdict, one log line. */
-    private static final class StubStatement extends AbstractStatement {
+    /** Stands in for a KeY-proven leaf statement: a fixed verdict, one log line. */
+    private static final class StubStatement extends Statement {
 
         private final boolean verdict;
 

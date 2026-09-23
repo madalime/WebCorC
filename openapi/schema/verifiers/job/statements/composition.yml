@@ -1,6 +1,5 @@
 description: >-
-  A composition statement: `leftStatement` followed by `rightStatement`,
-  joined by an intermediate condition that must hold between them.
+  A composition statement: `firstStatement` followed by `secondStatement`.
 allOf:
   - $ref: './abstract.yml'
   - type: object
@@ -10,14 +9,14 @@ allOf:
           This Verifier's own condition for the join point. Present only
           where the user has written one for this statement and Verifier.
         allOf:
-          - $ref: '../../../cbc/condition.yml'
+          - $ref: '../condition.yml'
 
-      leftStatement:
+      firstStatement:
         $ref: '../statement.yml'
 
-      rightStatement:
+      secondStatement:
         $ref: '../statement.yml'
 
     required:
-      - leftStatement
-      - rightStatement
+      - firstStatement
+      - secondStatement

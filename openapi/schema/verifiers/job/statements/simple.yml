@@ -1,4 +1,0 @@
-description: >-
-  A simple statement: a leaf with no nested statements of its own.
-allOf:
-  - $ref: './abstract.yml'
