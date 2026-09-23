@@ -10,6 +10,8 @@ import { GlobalSettingsService } from '../../../../services/global-settings.serv
 import { NetworkJobService } from '../../../../services/tree/network/network-job.service';
 import { AbstractStatementNode } from '../../../../types/statements/nodes/abstract-statement-node';
 import { Verifier } from '../../../../types/Verifier';
+import { VerifierService } from '../../../../services/verifier/verifier.service';
+import { signal } from '@angular/core';
 
 describe('StatementComponent', () => {
   let component: StatementComponent;
@@ -34,13 +36,13 @@ describe('StatementComponent', () => {
 });
 
 /**
- * These two describe blocks unit-test plain methods of {@link StatementComponent} directly
+ * The describe blocks below unit-test plain methods of {@link StatementComponent} directly
  * (constructed via `TestBed.runInInjectionContext`, never rendered) rather than going through
  * `TestBed.createComponent` + `fixture.detectChanges()` as the block above does: rendering this
  * component is a pre-existing, unrelated `NG0919` failure in this checkout (see
  * `docs/agents/test-environment.md`), which the shared `beforeEach` above already hits for the
- * one "should create" spec. `verifyStatement()` and `verifierStatusText()` do not touch the
- * template, so they can be exercised on a plain instance without triggering it.
+ * one "should create" spec. The methods under test do not touch the template, so they can be
+ * exercised on a plain instance without triggering it.
  */
 describe('StatementComponent.verifyStatement (ticket 12 fix C)', () => {
   let verifyComponent: StatementComponent;
@@ -84,6 +86,52 @@ describe('StatementComponent.verifyStatement (ticket 12 fix C)', () => {
     verifyComponent.verifyStatement();
 
     expect(treeServiceSpy.beginRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('StatementComponent.getStatementSeverity', () => {
+  let severityComponent: StatementComponent;
+  let enabledNonFunctional: string[];
+  const functionalOnly = signal(false);
+
+  const nodeIn = (nodeState: string) =>
+    ({ statement: { nodeState } }) as unknown as AbstractStatementNode;
+
+  beforeEach(() => {
+    enabledNonFunctional = [];
+    functionalOnly.set(false);
+    const verifierServiceStub = {
+      functionalOnly,
+      get enabledNonFunctionalVerifierIds() {
+        return enabledNonFunctional;
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VerifierService, useValue: verifierServiceStub },
+        { provide: TreeService, useValue: {} },
+      ],
+    });
+    severityComponent = TestBed.runInInjectionContext(() => new StatementComponent());
+  });
+
+  it('shows verified-functional as success in mode "all" when no non-functional Verifier is enabled', () => {
+    expect(severityComponent.getStatementSeverity(nodeIn('verified-functional'))).toBe('success');
+  });
+
+  it('shows verified-functional as warn in mode "all" when a non-functional Verifier is enabled', () => {
+    enabledNonFunctional = ['mock'];
+
+    expect(severityComponent.getStatementSeverity(nodeIn('verified-functional'))).toBe('warn');
+  });
+
+  it('shows verified-functional as success in functional-only mode even with a non-functional Verifier enabled', () => {
+    enabledNonFunctional = ['mock'];
+    functionalOnly.set(true);
+
+    expect(severityComponent.getStatementSeverity(nodeIn('verified-functional'))).toBe('success');
   });
 });
 

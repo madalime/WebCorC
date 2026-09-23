@@ -1,3 +1,4 @@
+@if (showModeDropdown()) {
 <p-splitbutton
     [model]="verifyOptions()"
     [disabled]="isDisabled || isVerifying"
@@ -5,3 +6,11 @@
     [label]="verifyButtonLabel()"
     (onClick)="verify()"
     class="verify-splitbutton"/>
+} @else {
+<p-button
+    [disabled]="isDisabled || isVerifying"
+    [icon]="isVerifying ? 'pi pi-spin pi-spinner' : 'pi pi-check-circle'"
+    label="Verify"
+    (onClick)="verify()"
+    class="verify-plain-button"/>
+}

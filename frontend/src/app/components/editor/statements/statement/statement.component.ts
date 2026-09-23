@@ -177,10 +177,13 @@ export class StatementComponent {
       case "verified-all":
         return "success";
       case "verified-functional":
-        if (!this.verifierService.functionalOnly()) {
-          return "warn";
+        if (
+          this.verifierService.functionalOnly() ||
+          this.verifierService.enabledNonFunctionalVerifierIds.length === 0
+        ) {
+          return "success";
         }
-        return "success";
+        return "warn";
       case "settings-changed":
         return "warn";
       case "failed":
