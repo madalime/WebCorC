@@ -11,7 +11,7 @@ get:
   operationId: readJobResultByUUID
   description: >-
     The job's formula with every result merged in: the Functional Verifier's
-    own `proven`/`isProven`, and each statement's `verifiers` entries carrying
+    own `isProven`, and each statement's `verifiers` entries carrying
     the `proven`/`status` each Verifier reported for it. Available once the
     job's status stream (`/ws/verify/{id}`) has sent its complete message;
     until then — or once the job has been forgotten — the request fails.
