@@ -177,7 +177,7 @@
               <ul class="variables-list">
                 @for (variable of item.variables; track variable.id) {
                   <li class="variable">
-                    <span class="variable-name">{{ variable.name }}</span>
+                    <span class="variable-name">{{ variable.id }}</span>
                     <span class="variable-type">: {{ variable.type }}</span>
                     @if (variable.description) {
                       <button

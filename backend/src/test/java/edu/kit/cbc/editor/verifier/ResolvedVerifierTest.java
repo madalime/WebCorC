@@ -38,8 +38,7 @@ class ResolvedVerifierTest {
     private static JsonNode variable(String id) {
         return JsonNode.createObjectNode(Map.of(
             "id", JsonNode.createStringNode(id),
-            "type", JsonNode.createStringNode("double"),
-            "name", JsonNode.createStringNode(id)));
+            "type", JsonNode.createStringNode("double")));
     }
 
     private static final Verifier FUNC = VerifierCatalogService.merge(

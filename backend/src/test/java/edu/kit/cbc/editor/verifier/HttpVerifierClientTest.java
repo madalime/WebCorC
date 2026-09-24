@@ -40,7 +40,7 @@ class HttpVerifierClientTest {
             {"id": "verbose", "type": "boolean", "label": "Verbose output", "default": true}
           ],
           "variables": [
-            {"id": "energyBudget", "type": "double", "name": "Energy budget"}
+            {"id": "energyBudget", "type": "double"}
           ],
           "allowFunctionalVariables": true
         }

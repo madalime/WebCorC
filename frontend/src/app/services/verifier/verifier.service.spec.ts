@@ -96,7 +96,7 @@ describe("VerifierService", () => {
           { id: 's', label: 's', type: 'text' },
         ], variables: [] },
         { id: 'vars', label: 'Variables', enabled: true, settings: [], variables: [
-          { id: 'x', name: 'x', type: 'int' },
+          { id: 'x', type: 'int' },
         ] },
         functionalVerifier,
       ]);

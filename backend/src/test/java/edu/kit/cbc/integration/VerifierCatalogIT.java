@@ -105,7 +105,7 @@ class VerifierCatalogIT {
         Assertions.assertEquals(1, variables.size());
         Assertions.assertEquals("energyBudget", variables.get(0).get("id").asText());
         Assertions.assertEquals("double", variables.get(0).get("type").asText());
-        Assertions.assertEquals("Energy budget", variables.get(0).get("name").asText());
+        Assertions.assertFalse(variables.get(0).has("name"), "name is removed from the schema entirely");
 
         JsonNode settings = mock.get("settings");
         Assertions.assertEquals(List.of("reportTitle", "threshold", "strategy", "verbose"), ids(settings),

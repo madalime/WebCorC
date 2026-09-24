@@ -61,7 +61,6 @@
     {
       "id": "energyBudget",
       "type": "double",
-      "name": "Energy budget",
       "description": "Maximum energy budget in joules the mock's conditions may reference."
     }
   ],

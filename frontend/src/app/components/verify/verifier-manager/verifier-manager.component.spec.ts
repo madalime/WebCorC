@@ -233,4 +233,23 @@ describe('VerifierManagerComponent', () => {
       expect(root.nodeState).toBe('verified-all');
     }));
   });
+
+  describe("a Verifier's Variables list", () => {
+    it('renders each Variable by its id and type, with no separate name', () => {
+      httpTesting.expectOne(catalogUrl).flush({
+        verifiers: [
+          { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
+          {
+            id: 'vars', label: 'Variables', enabled: true, toggleable: true, settings: [],
+            variables: [{ id: 'energyBudget', type: 'double' }],
+          },
+        ],
+      });
+      component.updateExpandedSections(['vars']);
+      fixture.detectChanges();
+
+      const item: HTMLElement = fixture.nativeElement.querySelector('.variable');
+      expect(item.textContent!.replace(/\s+/g, ' ').trim()).toBe('energyBudget: double');
+    });
+  });
 });

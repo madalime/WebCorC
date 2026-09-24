@@ -208,8 +208,7 @@ class VerifierCatalogServiceTest {
             null, JsonNode.createBooleanNode(true), null, null, null, null);
         JsonNode variable = JsonNode.createObjectNode(Map.of(
             "id", JsonNode.createStringNode("energyBudget"),
-            "type", JsonNode.createStringNode("double"),
-            "name", JsonNode.createStringNode("Energy budget")));
+            "type", JsonNode.createStringNode("double")));
         SelfDescription description = new SelfDescription(
             "Mock Verifier", true, true, "Waiting for mock verification",
             List.of(text, number, select, bool), List.of(variable), true);
@@ -638,16 +637,13 @@ class VerifierCatalogServiceTest {
     }
 
     /** A variable {@code v} with the given fields; {@code null} leaves a field out. */
-    private static JsonNode variable(String id, String type, String name, JsonNode description) {
+    private static JsonNode variable(String id, String type, JsonNode description) {
         Map<String, JsonNode> fields = new HashMap<>();
         if (id != null) {
             fields.put("id", JsonNode.createStringNode(id));
         }
         if (type != null) {
             fields.put("type", JsonNode.createStringNode(type));
-        }
-        if (name != null) {
-            fields.put("name", JsonNode.createStringNode(name));
         }
         if (description != null) {
             fields.put("description", description);
@@ -668,36 +664,60 @@ class VerifierCatalogServiceTest {
 
     @Test
     void rejectsAVariableWithoutId() {
-        String reason = lockedOffReason(declaring(variable(null, "double", "Energy budget", null)));
+        String reason = lockedOffReason(declaring(variable(null, "double", null)));
 
         Assertions.assertTrue(reason.contains("variable #1") && reason.contains("no id"), reason);
     }
 
     @Test
     void rejectsAVariableWithoutType() {
-        String reason = lockedOffReason(declaring(variable("v", null, "Energy budget", null)));
+        String reason = lockedOffReason(declaring(variable("v", null, null)));
 
         Assertions.assertTrue(reason.contains("'v'") && reason.contains("no type"), reason);
     }
 
     @Test
-    void rejectsAVariableWithoutName() {
-        String reason = lockedOffReason(declaring(variable("v", "double", null, null)));
+    void rejectsAVariableIdWithASpace() {
+        String reason = lockedOffReason(declaring(variable("energy budget", "double", null)));
 
-        Assertions.assertTrue(reason.contains("'v'") && reason.contains("no name"), reason);
+        Assertions.assertTrue(reason.contains("'energy budget'") && reason.contains("not a valid identifier"), reason);
+    }
+
+    @Test
+    void rejectsAVariableIdWithALeadingDigit() {
+        String reason = lockedOffReason(declaring(variable("1x", "double", null)));
+
+        Assertions.assertTrue(reason.contains("'1x'") && reason.contains("not a valid identifier"), reason);
+    }
+
+    @Test
+    void rejectsAVariableIdWithAHyphen() {
+        String reason = lockedOffReason(declaring(variable("energy-budget", "double", null)));
+
+        Assertions.assertTrue(reason.contains("'energy-budget'") && reason.contains("not a valid identifier"), reason);
+    }
+
+    @Test
+    void acceptsVariableIdsThatAreValidIdentifiers() {
+        FakeVerifierClient client = new FakeVerifierClient()
+            .describing("sec", declaring(variable("energyBudget", "double", null), variable("_x1", "int", null)));
+
+        VerifierCatalog catalog = build(registryOf("sec"), client);
+
+        Assertions.assertNull(catalog.message());
     }
 
     @Test
     void rejectsAVariableWhoseDescriptionIsNotAString() {
-        String reason = lockedOffReason(declaring(variable("v", "double", "Energy budget", JsonNode.createNumberNode(1))));
+        String reason = lockedOffReason(declaring(variable("v", "double", JsonNode.createNumberNode(1))));
 
         Assertions.assertTrue(reason.contains("'v'") && reason.contains("description") && reason.contains("string"), reason);
     }
 
     @Test
     void acceptsVariablesWithEveryFieldOfTheSchema() {
-        JsonNode budget = variable("energyBudget", "double", "Energy budget", JsonNode.createStringNode("Joules per run"));
-        JsonNode cores = variable("cores", "int", "Cores", null);
+        JsonNode budget = variable("energyBudget", "double", JsonNode.createStringNode("Joules per run"));
+        JsonNode cores = variable("cores", "int", null);
         FakeVerifierClient client = new FakeVerifierClient().describing("sec", declaring(budget, cores));
 
         VerifierCatalog catalog = build(registryOf("sec"), client);

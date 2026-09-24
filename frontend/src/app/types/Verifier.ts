@@ -97,12 +97,10 @@ export type VerifierSetting =
  * it, it is passed through to the verifier backend.
  */
 export interface VerifierVariable {
-  /** Stable key of the variable, used to address it when persisting changes. */
+  /** The variable's only name: what a Verifier Condition references it by and what is shown. */
   id: string;
   /** Type name of the variable (e.g. `int`, `boolean`, a class name). */
   type: string;
-  /** Human-readable name of the variable. */
-  name: string;
   /** Optional longer description of what the variable represents. */
   description?: string;
 }
