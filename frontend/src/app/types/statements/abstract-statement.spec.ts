@@ -1,5 +1,30 @@
-import { IVerifiers, nodeStateFor } from "./abstract-statement";
+import {
+  IVerifierEntry,
+  IVerifiers,
+  nodeStateFor,
+  VerifierResult,
+  verifierResultFor,
+} from "./abstract-statement";
 import { FUNCTIONAL_VERIFIER_ID } from "../Verifier";
+
+describe("verifierResultFor", () => {
+  const cases: [string, IVerifierEntry | undefined, boolean, VerifierResult][] = [
+    ["proven", { proven: true }, false, "proven"],
+    ["failed", { proven: false, status: "timed out" }, false, "failed"],
+    ["no entry", undefined, false, "none"],
+    ["no proven", { preCondition: { condition: "x > 0" } } as IVerifierEntry, false, "none"],
+    ["disabled: true", { proven: false, disabled: true }, false, "none"],
+    ["dirty proven", { proven: true }, true, "stale"],
+    ["dirty failed", { proven: false }, true, "stale"],
+    ["dirty without a result", { disabled: true }, true, "none"],
+  ];
+
+  for (const [name, entry, dirty, expected] of cases) {
+    it(`${name} -> ${expected}`, () => {
+      expect(verifierResultFor(entry, dirty)).toBe(expected);
+    });
+  }
+});
 
 describe("nodeStateFor", () => {
   it("returns unverified when func entry is absent", () => {

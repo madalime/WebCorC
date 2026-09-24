@@ -47,6 +47,7 @@ import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "prim
 import { MatTooltip } from "@angular/material/tooltip";
 import { BehaviorSubject } from "rxjs";
 import { ICondition } from "../../../../types/condition/condition";
+import { verifierResultClass } from "../../../../types/statements/abstract-statement";
 
 /**
  * Component to present the statements.
@@ -342,6 +343,12 @@ export class StatementComponent {
   public verifierStatusText(verifier: Verifier): string | undefined {
     const result = this._node.statement.verifiers?.[verifier.id];
     return result?.status ?? verifier.statusPlaceholder;
+  }
+
+  public panelResultClass(verifier: Verifier): string {
+    return verifierResultClass(
+      this.treeService.verifierResult(this._node.statement, verifier.id),
+    );
   }
 
   /**

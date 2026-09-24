@@ -170,6 +170,22 @@ describe('StatementComponent.verifierStatusText (ticket 12 item 6)', () => {
     expect(statusComponent.verifierStatusText(mockVerifier)).toBe('All good');
   });
 
+  it("binds each Verifier panel's result class from that Verifier's entry on this statement", () => {
+    statusComponent._node = {
+      statement: {
+        verifiers: {
+          func: { proven: true },
+          mock: { proven: false, status: 'too slow' },
+          off: { proven: false, disabled: true },
+        },
+      },
+    } as unknown as AbstractStatementNode;
+
+    expect(statusComponent.panelResultClass({ ...mockVerifier, id: 'func' })).toBe('verifier-result--proven');
+    expect(statusComponent.panelResultClass(mockVerifier)).toBe('verifier-result--failed');
+    expect(statusComponent.panelResultClass({ ...mockVerifier, id: 'off' })).toBe('verifier-result--none');
+    expect(statusComponent.panelResultClass({ ...mockVerifier, id: 'never-ran' })).toBe('verifier-result--none');
+  });
   it('is undefined, never a derived "Passed"/"Failed", when status and placeholder are both absent', () => {
     statusComponent._node = {
       statement: { verifiers: { mock: { proven: false } } },

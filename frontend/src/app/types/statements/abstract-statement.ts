@@ -149,6 +149,35 @@ export function nodeStateFor(
   return 'verified-all';
 }
 
+export type VerifierResult = 'proven' | 'failed' | 'stale' | 'none';
+
+/**
+ * `isSettingsDirty`: the Verifier had a setting change since its last result landed. A
+ * `disabled` entry means the Verifier did not run in the last check, so it has no result.
+ */
+export function verifierResultFor(
+  entry: IVerifierEntry | undefined,
+  isSettingsDirty: boolean,
+): VerifierResult {
+  if (entry?.proven === undefined || entry.disabled) {
+    return 'none';
+  }
+  if (isSettingsDirty) {
+    return 'stale';
+  }
+  return entry.proven ? 'proven' : 'failed';
+}
+
+/**
+ * The shared highlight classes live in the global `styles.css`. A Verifier switched off now
+ * keeps its result's color, dimmed.
+ */
+export function verifierResultClass(result: VerifierResult, switchedOff = false): string {
+  return switchedOff
+    ? `verifier-result--${result} verifier-result--off`
+    : `verifier-result--${result}`;
+}
+
 /**
  * Data only representation of the statements edited in the editor.
  * @see IAbstractStatement

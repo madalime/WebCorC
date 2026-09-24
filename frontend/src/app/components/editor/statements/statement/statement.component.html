@@ -200,7 +200,7 @@
     <p-accordion [multiple]="true" [(value)]="openPanels">
         @for (item of items; track item.id) {
             @if (!hasBody(item)) {
-                <p-accordion-panel [value]="item.id">
+                <p-accordion-panel [value]="item.id" [class]="panelResultClass(item)">
                     <p-accordion-header>
                         <span class="flex items-center gap-2 w-full min-w-0">
                             <span>{{ item.label }}</span>
@@ -221,7 +221,7 @@
                     </p-accordion-header>
                 </p-accordion-panel>
             } @else {
-            <p-accordion-panel [value]="item.id">
+            <p-accordion-panel [value]="item.id" [class]="panelResultClass(item)">
                 <p-accordion-header>
                     <span class="flex items-center gap-2 w-full min-w-0">
                         <span>{{ item.label }}</span>

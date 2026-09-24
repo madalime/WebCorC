@@ -16,6 +16,8 @@ import { LocalCBCFormula } from "../../types/CBCFormula";
 import { RootStatement } from "../../types/statements/root-statement";
 import { IAbstractStatement, IVerifiers, NodeState } from "../../types/statements/abstract-statement";
 import { Condition } from "../../types/condition/condition";
+import { CompositionStatement } from "../../types/statements/composition-statement";
+import { Statement } from "../../types/statements/simple-statement";
 
 describe("TreeService", () => {
   const catalogUrl = environment.apiUrl + "/editor/verifiers";
@@ -254,6 +256,125 @@ describe("TreeService", () => {
       expect(root.nodeState).toBe("verified-functional");
       verifierService.setEnabled("mock", true);
       expect(root.nodeState).toBe("verified-all");
+    });
+  });
+
+  describe("statement edits clear the entries' results", () => {
+    const otherVerifier: Verifier = {
+      id: "other", label: "Other", enabled: true, toggleable: true,
+      settings: [{ id: "level", label: "Level", type: "text" }],
+      variables: [],
+    };
+
+    /** root -> composition -> (first, second), every statement verified by func and mock. */
+    function buildTree() {
+      const proven = (): IVerifiers => ({ func: { proven: true }, mock: { proven: true } });
+      const first = new Statement("first", new Condition("true"), new Condition("true"));
+      first.verifiers = {
+        func: { proven: true },
+        mock: { preCondition: new Condition("x > 0"), proven: false, status: "too slow" },
+      };
+      const second = new Statement("second", new Condition("true"), new Condition("true"));
+      second.verifiers = proven();
+      const composition = new CompositionStatement(
+        "comp", new Condition("true"), new Condition("true"), new Condition("mid"), first, second,
+      );
+      composition.verifiers = proven();
+      const root = new RootStatement("root", new Condition("true"), new Condition("true"), composition);
+      root.verifiers = {
+        func: { proven: true },
+        mock: { proven: true, status: "whole run ok" },
+        other: { proven: false, disabled: true },
+      };
+      service.setFormula(new LocalCBCFormula("f", root), "urn");
+      return { root, composition, first, second };
+    }
+
+    it("an edit clears proven/status in the edited subtree and on the root, keeping conditions, disabled, the ancestors in between and the root's card state", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      const { root, composition, first, second } = buildTree();
+      const firstCondition = first.verifiers["mock"].preCondition;
+
+      service.markSubtreeUnverified(service.findStatementNodeById(first.id)!);
+
+      expect(first.verifiers).toEqual({ mock: { preCondition: firstCondition } });
+      expect(root.verifiers).toEqual({ other: { disabled: true } });
+      expect(first.nodeState).toBe("unverified");
+      // Only the Root's entries are cleared; its card keeps its state until the next re-derivation.
+      expect(root.nodeState).toBe("verified-all");
+      expect(composition.verifiers).toEqual({ func: { proven: true }, mock: { proven: true } });
+      expect(composition.nodeState).toBe("verified-all");
+      expect(second.nodeState).toBe("verified-all");
+    });
+
+    it("a Verifier toggle or a mode switch after an edit doesn't bring the old green back", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      const root = buildRootNode("verified-all", { func: { proven: true }, mock: { proven: true } });
+
+      service.markWholeTreeUnverified();
+      verifierService.setEnabled("mock", false);
+      expect(root.nodeState).toBe("unverified");
+
+      verifierService.setFunctionalOnly(true);
+      TestBed.tick();
+      expect(root.nodeState).toBe("unverified");
+    });
+
+    it("an edit during a run clears the result that lands for the edited statement and the root", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      const { root, first } = buildTree();
+      TestBed.inject(GlobalSettingsService).isVerifying = true;
+      service.beginRun();
+      service.markSubtreeUnverified(service.findStatementNodeById(first.id)!);
+
+      first.verifiers = { func: { proven: true }, mock: { proven: true } };
+      root.verifiers = { func: { proven: true }, mock: { proven: true } };
+      service.reapplyRunChanges([root, first]);
+
+      expect(service.verifierResult(first, "mock")).toBe("none");
+      expect(service.verifierResult(root, "mock")).toBe("none");
+      verifierService.setEnabled("mock", true);
+      expect(first.nodeState).toBe("unverified");
+      expect(root.nodeState).toBe("unverified");
+    });
+
+    it("setFormula recomputes nodeState from the entries", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      const { root, composition, first } = buildTree();
+
+      expect(root.nodeState).toBe("verified-all");
+      expect(composition.nodeState).toBe("verified-all");
+      expect(first.nodeState).toBe("failed-non-functional");
+    });
+
+    it("recomputes nodeState once the Catalog arrives after the diagram was loaded", () => {
+      TestBed.tick();
+      const root = new RootStatement("root", new Condition("true"), new Condition("true"), undefined);
+      root.verifiers = { func: { proven: true }, mock: { proven: false } };
+      service.setFormula(new LocalCBCFormula("f", root), "urn");
+      expect(root.nodeState).toBe("verified-functional");
+
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      TestBed.tick();
+
+      expect(root.nodeState).toBe("failed-non-functional");
+    });
+
+    it("the per-Verifier query reflects the dirty set only for the changed Verifier, and the Functional Verifier is never stale", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true), otherVerifier]);
+      const root = buildRootNode("verified-all", {
+        func: { proven: true },
+        mock: { proven: true },
+        other: { proven: false },
+      });
+      expect(service.verifierResult(root, "mock")).toBe("proven");
+
+      verifierService.updateSetting("mock", "threshold", "5");
+      verifierService.updateSetting("func", "any", "1");
+
+      expect(service.verifierResult(root, "mock")).toBe("stale");
+      expect(service.verifierResult(root, "other")).toBe("failed");
+      expect(service.verifierResult(root, "func")).toBe("proven");
     });
   });
 });
