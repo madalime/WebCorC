@@ -13,13 +13,11 @@ import java.util.logging.Logger;
  * one concrete value -- never absent, never the raw Catalog/Override pair a caller would
  * otherwise have to reconcile itself. See {@link #enabled} for how that resolution is done.
  *
+ * <p>{@code variableIds} plus, with {@code allowFunctionalVariables}, the program's own variables
+ * are the scope this Verifier's Verifier Conditions may reference.
+ *
  * @param settings the resolved values in declaration order, keyed by Setting id
- * @param settingsUpdatedAt the Override's settings stamp, or {@code null} when it has none;
- *     never sent to the Verifier
- * @param variableIds the {@code id}s of this Verifier's own declared Variables -- its Verifier
- *     Conditions' scope, together with {@code allowFunctionalVariables}
- * @param allowFunctionalVariables whether the program's own variables are in scope too, alongside
- *     {@code variableIds}
+ * @param settingsUpdatedAt the Override's settings stamp, or {@code null} when it has none
  */
 public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Long settingsUpdatedAt,
         List<String> variableIds, boolean allowFunctionalVariables) {
@@ -31,7 +29,6 @@ public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Long s
         variableIds = variableIds == null ? List.of() : List.copyOf(variableIds);
     }
 
-    /** No Variables, the program's own variables never in scope. */
     public ResolvedVerifier(String id, Map<String, JsonNode> settings, Long settingsUpdatedAt) {
         this(id, settings, settingsUpdatedAt, List.of(), false);
     }
@@ -54,7 +51,7 @@ public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Long s
             variableIds(verifier), Boolean.TRUE.equals(verifier.allowFunctionalVariables()));
     }
 
-    /** The {@code id} of every Variable the Catalog entry declares, in declaration order. */
+    /** A Variable without a string {@code id} is skipped; the Self-Description validator rejects it anyway. */
     private static List<String> variableIds(Verifier verifier) {
         List<String> ids = new ArrayList<>();
         for (JsonNode variable : verifier.variables()) {

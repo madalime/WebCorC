@@ -143,7 +143,6 @@ public final class SelfDescriptionValidator {
         }
     }
 
-    /** A Variable {@code id}: what a Verifier Condition references it by, and what the frontend shows. */
     private static final Pattern VARIABLE_ID = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     /**

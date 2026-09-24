@@ -216,7 +216,6 @@ export class VerifierService {
     this._overridesChanged.next({ kind: "setting", id: verifierId });
   }
 
-  /** The current settings stamp of a Verifier's Override; `undefined` while its settings were never changed. */
   public settingsStamp(verifierId: string): number | undefined {
     return this._overrides()[verifierId]?.settingsUpdatedAt;
   }

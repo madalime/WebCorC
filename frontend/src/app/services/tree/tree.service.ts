@@ -142,11 +142,7 @@ export class TreeService {
     return overlaid;
   }
 
-  /**
-   * A result is stale when the settings stamp it was computed under is not the Override's
-   * current one. Equality only; missing equals missing. The Functional Verifier has no
-   * settings, so it is never stale.
-   */
+  /** Equality only; missing equals missing. */
   private isStale(verifierId: string, entry: IVerifierEntry): boolean {
     return (
       verifierId !== FUNCTIONAL_VERIFIER_ID &&
@@ -570,7 +566,6 @@ export class TreeService {
     statement.verifiers = kept;
   }
 
-  /** Verifier X's result on `statement`, stale when it ran under other settings than X's current ones. */
   public verifierResult(statement: IAbstractStatement, verifierId: string): VerifierResult {
     const entry = statement.verifiers?.[verifierId];
     return verifierResultFor(entry, entry !== undefined && this.isStale(verifierId, entry));

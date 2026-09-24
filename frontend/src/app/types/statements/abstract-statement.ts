@@ -31,7 +31,7 @@ export type StatementType =
  * statement still reports a result, producing a result-only entry with neither.
  * `proven`/`status` are that verifier's result for this statement, absent until it
  * has actually reported one. `settingsUpdatedAt` is an opaque stamp, only ever compared for
- * equality; never on a `disabled` entry or on the Functional Verifier's.
+ * equality.
  */
 export interface IVerifierEntry {
   preCondition?: ICondition;

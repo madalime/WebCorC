@@ -148,10 +148,8 @@ public final class NarrowedProgram {
     }
 
     /**
-     * The first identifier outside {@code verifierId}'s scope that one of its own Verifier
-     * Conditions references, if any: in scope is {@code variableIds}, plus the program's own
-     * variables when {@code allowFunctionalVariables} is {@code true}. Empty when every condition
-     * it wrote stays inside that scope.
+     * A message naming the first out-of-scope identifier in one of {@code verifierId}'s own
+     * Verifier Conditions, and where it sits.
      */
     public synchronized Optional<String> scopeViolation(
         String verifierId, Collection<String> variableIds, boolean allowFunctionalVariables

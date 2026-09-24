@@ -16,8 +16,7 @@ import io.micronaut.serde.annotation.Serdeable;
  * On the Root, {@code proven}/{@code status} are the whole-run verdict, not derived from the
  * statements below.
  *
- * <p>{@code settingsUpdatedAt} is an opaque stamp, only ever compared for equality. Never on a
- * {@code disabled} entry or on the Functional Verifier's.
+ * <p>{@code settingsUpdatedAt} is an opaque stamp, only ever compared for equality.
  */
 @Serdeable
 @JsonInclude(JsonInclude.Include.NON_NULL)
