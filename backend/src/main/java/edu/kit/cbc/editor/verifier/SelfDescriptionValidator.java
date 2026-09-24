@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * Enforces on a parsed {@link SelfDescription} the constraints of the Self-Description schema
@@ -16,7 +17,7 @@ import java.util.function.Function;
  * ids, the required fields of every variable, and {@code allowFunctionalVariables} only next to
  * declared variables. A Self-Description that fails is <em>invalid</em> — the Verifier
  * answered, but not with something the Catalog can serve — and is reported as one
- * {@link InvalidSelfDescriptionException} listing every violation, so an operator sees all of
+ * {@link InvalidVerifierResponseException} listing every violation, so an operator sees all of
  * them at once rather than one per restart.
  *
  * <p>Rules, each with its own reason in the message:
@@ -37,9 +38,11 @@ import java.util.function.Function;
  *   <li>a boolean setting declares a boolean {@code default};</li>
  *   <li>a text or select setting's {@code default}, when present, is a string;</li>
  *   <li>setting ids are unique;</li>
- *   <li>every variable is an object with string {@code id}, {@code type} and {@code name}, and
- *       a {@code description}, when present, that is a string — {@code type} is free-form, so
+ *   <li>every variable is an object with string {@code id} and {@code type}, and a
+ *       {@code description}, when present, that is a string — {@code type} is free-form, so
  *       nothing about its value is checked;</li>
+ *   <li>a variable's {@code id} matches {@code [A-Za-z_][A-Za-z0-9_]*} — it is the sole name a
+ *       Verifier Condition references it by, and what the frontend shows;</li>
  *   <li>{@code allowFunctionalVariables: true} only together with non-empty {@code variables}.</li>
  * </ul>
  *
@@ -67,14 +70,14 @@ public final class SelfDescriptionValidator {
      * @return the default rules the Verifier breaks that an override covers, each worded like a
      *     violation ({@code "setting 'x' declares a default that is not a string"}); empty when
      *     the Verifier's own defaults are all usable
-     * @throws InvalidSelfDescriptionException listing every violated rule
+     * @throws InvalidVerifierResponseException listing every violated rule
      */
     public static List<String> validate(
         String id, SelfDescription description, Function<String, Optional<JsonNode>> overrides
-    ) throws InvalidSelfDescriptionException {
+    ) throws InvalidVerifierResponseException {
         Findings findings = findings(description, overrides);
         if (!findings.violations().isEmpty()) {
-            throw new InvalidSelfDescriptionException(
+            throw new InvalidVerifierResponseException(
                 "Self-Description of Verifier '" + id + "' is invalid: " + String.join("; ", findings.violations()), null);
         }
         return findings.overridden();
@@ -140,10 +143,12 @@ public final class SelfDescriptionValidator {
         }
     }
 
+    private static final Pattern VARIABLE_ID = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
     /**
      * The constraints of {@code variable.yml} on one variable, which the Catalog carries as raw
-     * JSON: an object whose {@code id}, {@code type} and {@code name} are present strings and
-     * whose {@code description}, if any, is a string.
+     * JSON: an object whose {@code id} and {@code type} are present strings, whose {@code id} is
+     * also a valid identifier, and whose {@code description}, if any, is a string.
      *
      * @param position 1-based position in {@code variables}, for the message while no id is known
      */
@@ -159,13 +164,12 @@ public final class SelfDescriptionValidator {
             return violations;
         }
         String name = "variable '" + id + "'";
+        if (!VARIABLE_ID.matcher(id).matches()) {
+            violations.add(name + " has an id that is not a valid identifier");
+        }
         String type = stringField(variable, "type");
         if (type == null || type.isBlank()) {
             violations.add(name + " has no type");
-        }
-        String humanName = stringField(variable, "name");
-        if (humanName == null || humanName.isBlank()) {
-            violations.add(name + " has no name");
         }
         JsonNode variableDescription = variable.get("description");
         if (variableDescription != null && !variableDescription.isString()) {

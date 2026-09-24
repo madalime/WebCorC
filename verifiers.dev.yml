@@ -1,8 +1,9 @@
 # Verifier Registry for the dev compose stack (docker-compose.dev.yml).
 # Mounted into the backend container and pointed to via MICRONAUT_CONFIG_FILES.
 #
-# `mock` is the mock-verifier/ Caddy container built by docker-compose.dev.yml,
-# reachable on the compose network under its service name.
+# `mock` is the mock-verifier/ container built by docker-compose.dev.yml (a small Node service
+# with scripted responses, see mock-verifier/README.md), reachable on the compose network under
+# its service name.
 #
 # To see a locked-off Verifier in the panel, add an entry at a URL nobody listens on, e.g.
 #   - id: dead

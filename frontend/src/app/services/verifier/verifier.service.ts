@@ -20,6 +20,13 @@ export type CatalogFetchState =
   | { status: "failed" };
 
 /**
+ * What kind of user-driven override change {@link VerifierService.overridesChanged} just
+ * fired for: `enabled` from {@link VerifierService.setEnabled}, `setting` from
+ * {@link VerifierService.updateSetting}. `id` is the affected Verifier's id.
+ */
+export type OverrideChange = { kind: "enabled" | "setting"; id: string };
+
+/**
  * State is split into a read-only Catalog ({@link _catalog}, fetched once at construction and
  * held in memory only — never sessionStorage, so a reload shows the deployment's current
  * Catalog) and sparse {@link _overrides} for user edits. {@link verifiers} merges the two.
@@ -32,7 +39,10 @@ export class VerifierService {
   private network = inject(VerifierNetworkService);
   private consoleService = inject(ConsoleService);
 
-  /** Local mirror of the backend's Functional Verifier entry, so the invariant "every Catalog contains `func`, locked on" holds even before a Catalog has been fetched. */
+  /**
+   * Local mirror of the backend's Functional Verifier entry, so the invariant "every Catalog contains `func`, locked on" holds even before a Catalog has been fetched.
+   * Hand-copied from `FUNCTIONAL_SELF_DESCRIPTION` in the backend's `VerifierCatalogService`; change both together.
+   */
   private static readonly FUNCTIONAL_VERIFIER_FALLBACK: Verifier = {
     id: FUNCTIONAL_VERIFIER_ID,
     label: "Functional correctness",
@@ -170,19 +180,27 @@ export class VerifierService {
       return { ...overrides, [id]: { ...existing, enabled } };
     });
     this.persist();
-    this._overridesChanged.next();
+    this._overridesChanged.next({ kind: "enabled", id });
   }
 
   /**
    * Routes setting-input updates through the service so every consumer (side menu, bottom
    * menu) observes the same value. `input` is a string for text/select settings, a boolean
-   * for boolean settings.
+   * for boolean settings. Stamps the Override, which makes every earlier result of this
+   * Verifier stale; a no-op when `input` is the setting's current value (Catalog default
+   * included), so a control re-reporting its value cannot stale anything.
    */
   public updateSetting(
     verifierId: string,
     settingId: string,
     input: string | boolean,
   ): void {
+    const current = this.verifiers()
+      .find((verifier) => verifier.id === verifierId)
+      ?.settings.find((setting) => setting.id === settingId)?.input;
+    if (current === input) {
+      return;
+    }
     this._overrides.update((overrides) => {
       const existing = overrides[verifierId] ?? { settings: {} };
       return {
@@ -190,16 +208,21 @@ export class VerifierService {
         [verifierId]: {
           ...existing,
           settings: { ...existing.settings, [settingId]: input },
+          settingsUpdatedAt: Date.now(),
         },
       };
     });
     this.persist();
-    this._overridesChanged.next();
+    this._overridesChanged.next({ kind: "setting", id: verifierId });
+  }
+
+  public settingsStamp(verifierId: string): number | undefined {
+    return this._overrides()[verifierId]?.settingsUpdatedAt;
   }
 
   /** Fires after a user-driven override change (setEnabled/updateSetting) — not on initial hydration, so consumers can tell the two apart. */
-  private readonly _overridesChanged = new Subject<void>();
-  public readonly overridesChanged: Observable<void> =
+  private readonly _overridesChanged = new Subject<OverrideChange>();
+  public readonly overridesChanged: Observable<OverrideChange> =
     this._overridesChanged.asObservable();
 
   /** Persists overrides via {@link ProjectService} (sessionStorage cache + `.internal/verifiers.json`). */
@@ -229,6 +252,33 @@ export class VerifierService {
    */
   public get activeVerifiers(): Verifier[] {
     return this.verifiers().filter((verifier) => verifier.enabled);
+  }
+
+  public get activeVerifierIds(): string[] {
+    return this.activeVerifiers.map((verifier) => verifier.id);
+  }
+
+  /**
+   * Enabled Verifiers excluding the Functional Verifier — the enabled set {@link nodeStateFor}
+   * derives a node's state over. Unlike {@link activeVerifierIds}, which includes the
+   * Functional Verifier, this is what that function expects as its `enabledVerifiers`
+   * argument.
+   */
+  public get enabledNonFunctionalVerifierIds(): string[] {
+    return this.activeVerifiers
+      .filter((verifier) => verifier.id !== FUNCTIONAL_VERIFIER_ID)
+      .map((verifier) => verifier.id);
+  }
+
+  /**
+   * The enabled set {@link nodeStateFor} should actually be derived over right now: `[]` when
+   * the "Verify Functional" display mode is selected (a Verifier that is live-enabled but
+   * not part of the current mode should not make an already-landed result look stale), else
+   * {@link enabledNonFunctionalVerifierIds}. Node state reacts to the mode the user is
+   * looking at, not the mode a past run happened to use.
+   */
+  public get effectiveEnabledNonFunctionalVerifierIds(): string[] {
+    return this.functionalOnly() ? [] : this.enabledNonFunctionalVerifierIds;
   }
 
   /** Enabled verifiers with invalid settings, each narrowed to just the invalid ones — mirrors the {@link verifiersValid} gate. */

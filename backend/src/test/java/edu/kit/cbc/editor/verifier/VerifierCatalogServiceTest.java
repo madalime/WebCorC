@@ -3,9 +3,7 @@ package edu.kit.cbc.editor.verifier;
 import io.micronaut.json.tree.JsonNode;
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,71 +41,14 @@ import org.junit.jupiter.api.Test;
  */
 class VerifierCatalogServiceTest {
 
-    /**
-     * Canned Self-Descriptions or failures per id; records which ids were asked for. A queue
-     * of failures per id lets a Verifier fail a few times and then answer (reachable on a
-     * retry).
-     */
-    private static final class FakeVerifierClient implements VerifierClient {
-
-        private final Map<String, SelfDescription> descriptions = new HashMap<>();
-        private final Map<String, VerifierClientException> alwaysFailing = new HashMap<>();
-        private final Map<String, Deque<VerifierClientException>> failingFirst = new HashMap<>();
-        private final List<String> describedIds = new ArrayList<>();
-
-        FakeVerifierClient describing(String id, SelfDescription description) {
-            descriptions.put(id, description);
-            return this;
-        }
-
-        /** Every call for {@code id} fails with {@code failure}. */
-        FakeVerifierClient failing(String id, VerifierClientException failure) {
-            alwaysFailing.put(id, failure);
-            return this;
-        }
-
-        /** The next {@code times} calls for {@code id} fail with {@code failure}, later ones answer. */
-        FakeVerifierClient failingFirst(int times, String id, VerifierClientException failure) {
-            Deque<VerifierClientException> queue = new ArrayDeque<>();
-            for (int i = 0; i < times; i++) {
-                queue.add(failure);
-            }
-            failingFirst.put(id, queue);
-            return this;
-        }
-
-        @Override
-        public SelfDescription describe(String id) throws VerifierUnreachableException, InvalidSelfDescriptionException {
-            describedIds.add(id);
-            VerifierClientException failure = alwaysFailing.get(id);
-            if (failure == null && failingFirst.containsKey(id)) {
-                failure = failingFirst.get(id).poll();
-            }
-            switch (failure) {
-                case VerifierUnreachableException unreachable -> throw unreachable;
-                case InvalidSelfDescriptionException invalid -> throw invalid;
-                case null -> { }
-            }
-            SelfDescription description = descriptions.get(id);
-            if (description == null) {
-                throw new AssertionError("Unexpected describe(" + id + ")");
-            }
-            return description;
-        }
-
-        long calls(String id) {
-            return describedIds.stream().filter(id::equals).count();
-        }
-    }
-
     private static final SelfDescription MINIMAL = new SelfDescription(
         "Minimal", false, null, null, null, null, null);
 
     private static final VerifierUnreachableException UNREACHABLE =
         new VerifierUnreachableException("Verifier could not be reached: Connection refused", null);
 
-    private static final InvalidSelfDescriptionException NOT_PARSEABLE =
-        new InvalidSelfDescriptionException("Verifier answered 404 instead of a Self-Description", null);
+    private static final InvalidVerifierResponseException NOT_PARSEABLE =
+        new InvalidVerifierResponseException("Verifier answered 404 instead of a Self-Description", null);
 
     private final List<LogRecord> logRecords = new ArrayList<>();
     private final Handler logHandler = new Handler() {
@@ -226,7 +167,7 @@ class VerifierCatalogServiceTest {
 
         Assertions.assertNull(catalog.message());
         Assertions.assertEquals(List.of("func"), ids(catalog));
-        Assertions.assertTrue(client.describedIds.isEmpty(), "Nothing to fetch");
+        Assertions.assertTrue(client.describedIds().isEmpty(), "Nothing to fetch");
         Verifier func = catalog.verifiers().get(0);
         Assertions.assertEquals("Functional correctness", func.label());
         Assertions.assertTrue(func.enabled());
@@ -247,7 +188,7 @@ class VerifierCatalogServiceTest {
         VerifierCatalog catalog = build(registryOf("sec", "eebc", "maint"), client);
 
         Assertions.assertEquals(List.of("func", "sec", "eebc", "maint"), ids(catalog));
-        Assertions.assertEquals(List.of("sec", "eebc", "maint"), client.describedIds,
+        Assertions.assertEquals(List.of("sec", "eebc", "maint"), client.describedIds(),
             "Every Registry entry is fetched, by id, in Registry order");
         Assertions.assertNull(catalog.message());
         Assertions.assertEquals(List.of(), warnings());
@@ -267,8 +208,7 @@ class VerifierCatalogServiceTest {
             null, JsonNode.createBooleanNode(true), null, null, null, null);
         JsonNode variable = JsonNode.createObjectNode(Map.of(
             "id", JsonNode.createStringNode("energyBudget"),
-            "type", JsonNode.createStringNode("double"),
-            "name", JsonNode.createStringNode("Energy budget")));
+            "type", JsonNode.createStringNode("double")));
         SelfDescription description = new SelfDescription(
             "Mock Verifier", true, true, "Waiting for mock verification",
             List.of(text, number, select, bool), List.of(variable), true);
@@ -358,14 +298,17 @@ class VerifierCatalogServiceTest {
     @Test
     void constructingDoesNotWaitForTheVerifiers() throws Exception {
         CountDownLatch verifierAnswers = new CountDownLatch(1);
-        VerifierClient stalling = id -> {
-            try {
-                verifierAnswers.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new VerifierUnreachableException("interrupted", e);
+        VerifierClient stalling = new FakeVerifierClient() {
+            @Override
+            public SelfDescription describe(String id) throws VerifierUnreachableException, InvalidVerifierResponseException {
+                try {
+                    verifierAnswers.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new VerifierUnreachableException("interrupted", e);
+                }
+                return MINIMAL;
             }
-            return MINIMAL;
         };
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
@@ -694,16 +637,13 @@ class VerifierCatalogServiceTest {
     }
 
     /** A variable {@code v} with the given fields; {@code null} leaves a field out. */
-    private static JsonNode variable(String id, String type, String name, JsonNode description) {
+    private static JsonNode variable(String id, String type, JsonNode description) {
         Map<String, JsonNode> fields = new HashMap<>();
         if (id != null) {
             fields.put("id", JsonNode.createStringNode(id));
         }
         if (type != null) {
             fields.put("type", JsonNode.createStringNode(type));
-        }
-        if (name != null) {
-            fields.put("name", JsonNode.createStringNode(name));
         }
         if (description != null) {
             fields.put("description", description);
@@ -724,36 +664,60 @@ class VerifierCatalogServiceTest {
 
     @Test
     void rejectsAVariableWithoutId() {
-        String reason = lockedOffReason(declaring(variable(null, "double", "Energy budget", null)));
+        String reason = lockedOffReason(declaring(variable(null, "double", null)));
 
         Assertions.assertTrue(reason.contains("variable #1") && reason.contains("no id"), reason);
     }
 
     @Test
     void rejectsAVariableWithoutType() {
-        String reason = lockedOffReason(declaring(variable("v", null, "Energy budget", null)));
+        String reason = lockedOffReason(declaring(variable("v", null, null)));
 
         Assertions.assertTrue(reason.contains("'v'") && reason.contains("no type"), reason);
     }
 
     @Test
-    void rejectsAVariableWithoutName() {
-        String reason = lockedOffReason(declaring(variable("v", "double", null, null)));
+    void rejectsAVariableIdWithASpace() {
+        String reason = lockedOffReason(declaring(variable("energy budget", "double", null)));
 
-        Assertions.assertTrue(reason.contains("'v'") && reason.contains("no name"), reason);
+        Assertions.assertTrue(reason.contains("'energy budget'") && reason.contains("not a valid identifier"), reason);
+    }
+
+    @Test
+    void rejectsAVariableIdWithALeadingDigit() {
+        String reason = lockedOffReason(declaring(variable("1x", "double", null)));
+
+        Assertions.assertTrue(reason.contains("'1x'") && reason.contains("not a valid identifier"), reason);
+    }
+
+    @Test
+    void rejectsAVariableIdWithAHyphen() {
+        String reason = lockedOffReason(declaring(variable("energy-budget", "double", null)));
+
+        Assertions.assertTrue(reason.contains("'energy-budget'") && reason.contains("not a valid identifier"), reason);
+    }
+
+    @Test
+    void acceptsVariableIdsThatAreValidIdentifiers() {
+        FakeVerifierClient client = new FakeVerifierClient()
+            .describing("sec", declaring(variable("energyBudget", "double", null), variable("_x1", "int", null)));
+
+        VerifierCatalog catalog = build(registryOf("sec"), client);
+
+        Assertions.assertNull(catalog.message());
     }
 
     @Test
     void rejectsAVariableWhoseDescriptionIsNotAString() {
-        String reason = lockedOffReason(declaring(variable("v", "double", "Energy budget", JsonNode.createNumberNode(1))));
+        String reason = lockedOffReason(declaring(variable("v", "double", JsonNode.createNumberNode(1))));
 
         Assertions.assertTrue(reason.contains("'v'") && reason.contains("description") && reason.contains("string"), reason);
     }
 
     @Test
     void acceptsVariablesWithEveryFieldOfTheSchema() {
-        JsonNode budget = variable("energyBudget", "double", "Energy budget", JsonNode.createStringNode("Joules per run"));
-        JsonNode cores = variable("cores", "int", "Cores", null);
+        JsonNode budget = variable("energyBudget", "double", JsonNode.createStringNode("Joules per run"));
+        JsonNode cores = variable("cores", "int", null);
         FakeVerifierClient client = new FakeVerifierClient().describing("sec", declaring(budget, cores));
 
         VerifierCatalog catalog = build(registryOf("sec"), client);

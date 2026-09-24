@@ -2,7 +2,8 @@ import { Injectable } from "@angular/core";
 import {
   AbstractStatement,
   IAbstractStatement,
-  IVerifierConditions,
+  IVerifiers,
+  sparseVerifierEntry,
 } from "../../../types/statements/abstract-statement";
 import { IPosition, Position } from "../../../types/position";
 import {
@@ -68,6 +69,7 @@ export class CbcFormulaMapperService {
     let rootStatement: RootStatement | undefined;
     if (statement && statement.type === RootStatement.TYPE) {
       rootStatement = statement as RootStatement;
+      rootStatement.isProven = formula.isProven;
       // Ensure pre/post/position are filled from formula if missing on the root
       rootStatement.preCondition =
         rootStatement.preCondition || formula.preCondition;
@@ -76,9 +78,9 @@ export class CbcFormulaMapperService {
       if (rootStatement.position === undefined && position) {
         rootStatement.position = position;
       }
-      if (Object.keys(rootStatement.verifierConditions).length === 0) {
-        rootStatement.verifierConditions = this.importVerifierConditions(
-          formula.verifierConditions,
+      if (Object.keys(rootStatement.verifiers).length === 0) {
+        rootStatement.verifiers = this.importVerifiers(
+          formula.verifiers,
         );
       }
     } else {
@@ -89,8 +91,9 @@ export class CbcFormulaMapperService {
         statement,
         position,
       );
-      rootStatement.verifierConditions = this.importVerifierConditions(
-        formula.verifierConditions,
+      rootStatement.isProven = formula.isProven;
+      rootStatement.verifiers = this.importVerifiers(
+        formula.verifiers,
       );
     }
 
@@ -102,6 +105,7 @@ export class CbcFormulaMapperService {
       this.importRenaming(formula.renamings),
       formula.isProven,
       /*TODO maybe implement a some position logic here or get it from the backend*/
+      undefined,
     );
   }
 
@@ -116,7 +120,7 @@ export class CbcFormulaMapperService {
       formula.renamings,
       formula.isProven,
       formula.statement?.position,
-      formula.statement?.verifierConditions ?? {},
+      formula.statement?.verifiers ?? {},
     );
     return newFormula;
   }
@@ -158,8 +162,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newStatement.isProven = statement.isProven;
-    newStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newStatement;
   }
@@ -173,8 +177,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newStatement.isProven = statement.isProven;
-    newStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newStatement;
   }
@@ -202,8 +206,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newSelectionStatement.isProven = statement.isProven;
-    newSelectionStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newSelectionStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newSelectionStatement;
   }
@@ -225,8 +229,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newRepetitionStatement.isProven = statement.isProven;
-    newRepetitionStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newRepetitionStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newRepetitionStatement;
   }
@@ -244,8 +248,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newCompositionStatement.isProven = statement.isProven;
-    newCompositionStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newCompositionStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newCompositionStatement;
   }
@@ -258,8 +262,8 @@ export class CbcFormulaMapperService {
       statement.position,
     );
     newSkipStatement.isProven = statement.isProven;
-    newSkipStatement.verifierConditions = this.importVerifierConditions(
-      statement.verifierConditions,
+    newSkipStatement.verifiers = this.importVerifiers(
+      statement.verifiers,
     );
     return newSkipStatement;
   }
@@ -280,27 +284,32 @@ export class CbcFormulaMapperService {
     return newConditions;
   }
 
-  private importCondition(condition: ICondition): Condition {
+  private importCondition(condition: ICondition | undefined): Condition {
     if (!condition) {
       return new Condition("");
     }
     return new Condition(condition.condition);
   }
 
-  private importVerifierConditions(
-    conditions: IVerifierConditions | undefined,
-  ): IVerifierConditions {
-    const imported: IVerifierConditions = {};
-    for (const [verifierId, conditionSet] of Object.entries(conditions ?? {})) {
-      imported[verifierId] = {
-        preCondition: this.importCondition(conditionSet.preCondition),
-        postCondition: this.importCondition(conditionSet.postCondition),
-      };
-      // Only compositions carry an intermediate condition, and only when non-empty.
-      if (conditionSet.intermediateCondition) {
-        imported[verifierId].intermediateCondition = this.importCondition(
-          conditionSet.intermediateCondition,
-        );
+  private importVerifiers(
+    verifiers: IVerifiers | undefined,
+  ): IVerifiers {
+    const imported: IVerifiers = {};
+    for (const [verifierId, entry] of Object.entries(verifiers ?? {})) {
+      // Absent or empty conditions stay absent (a result-only entry has none), and a
+      // result is opaque — carried through as-is wherever a verifier reported one.
+      const sparse = sparseVerifierEntry({
+        preCondition: entry.preCondition && this.importCondition(entry.preCondition),
+        postCondition: entry.postCondition && this.importCondition(entry.postCondition),
+        intermediateCondition:
+          entry.intermediateCondition && this.importCondition(entry.intermediateCondition),
+        proven: entry.proven,
+        status: entry.status,
+        disabled: entry.disabled,
+        settingsUpdatedAt: entry.settingsUpdatedAt,
+      });
+      if (sparse) {
+        imported[verifierId] = sparse;
       }
     }
     return imported;

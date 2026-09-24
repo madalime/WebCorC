@@ -14,7 +14,7 @@
 <p-accordion [value]="expandedSections" [multiple]="true" (valueChange)="updateExpandedSections($event)">
   @for (item of items; track item.id) {
     @if (item.settings.length === 0 && item.variables.length === 0) {
-      <p-accordion-panel [value]="item.id">
+      <p-accordion-panel [value]="item.id" [class]="rootResultClass(item)">
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
@@ -36,7 +36,7 @@
         </p-accordion-header>
       </p-accordion-panel>
     } @else {
-      <p-accordion-panel [value]="item.id">
+      <p-accordion-panel [value]="item.id" [class]="rootResultClass(item)">
         <p-accordion-header>
           <span class="flex items-center gap-2 w-full">
             <p-toggleswitch
@@ -177,7 +177,7 @@
               <ul class="variables-list">
                 @for (variable of item.variables; track variable.id) {
                   <li class="variable">
-                    <span class="variable-name">{{ variable.name }}</span>
+                    <span class="variable-name">{{ variable.id }}</span>
                     <span class="variable-type">: {{ variable.type }}</span>
                     @if (variable.description) {
                       <button

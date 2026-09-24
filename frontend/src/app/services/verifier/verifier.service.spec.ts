@@ -96,7 +96,7 @@ describe("VerifierService", () => {
           { id: 's', label: 's', type: 'text' },
         ], variables: [] },
         { id: 'vars', label: 'Variables', enabled: true, settings: [], variables: [
-          { id: 'x', name: 'x', type: 'int' },
+          { id: 'x', type: 'int' },
         ] },
         functionalVerifier,
       ]);
@@ -315,6 +315,67 @@ describe("VerifierService", () => {
     expect(service.verifiers()[0].settings[0].input).toBe('typed');
   });
 
+  describe("settings stamp", () => {
+    beforeEach(() => {
+      loadCatalog([
+        { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+          { id: 's', label: 's', type: 'text' },
+        ], variables: [] },
+      ]);
+    });
+
+    it("stamps the Override with Date.now() on a setting change and persists it with the settings", () => {
+      const saved = jasmine.createSpy("saveVerifierOverrides");
+      projectServiceStub.saveVerifierOverrides = saved;
+      spyOn(Date, "now").and.returnValue(1727000000000);
+
+      service.updateSetting('v', 's', 'typed');
+
+      expect(service.settingsStamp('v')).toBe(1727000000000);
+      expect(saved).toHaveBeenCalledWith({ v: { settings: { s: 'typed' }, settingsUpdatedAt: 1727000000000 } });
+    });
+
+    it("has no stamp until a setting changes, and the enabled toggle leaves it alone", () => {
+      expect(service.settingsStamp('v')).toBeUndefined();
+      service.setEnabled('v', false);
+      expect(service.settingsStamp('v')).toBeUndefined();
+
+      spyOn(Date, "now").and.returnValue(5);
+      service.updateSetting('v', 's', 'typed');
+      service.setEnabled('v', true);
+
+      expect(service.settingsStamp('v')).toBe(5);
+    });
+  });
+
+  describe("settings stamp over Catalog defaults", () => {
+    it("leaves the stamp alone when a control reports the value the setting already has, the Catalog default included", () => {
+      const saved = jasmine.createSpy("saveVerifierOverrides");
+      projectServiceStub.saveVerifierOverrides = saved;
+      const changed = jasmine.createSpy("overridesChanged");
+      service.overridesChanged.subscribe(changed);
+      loadCatalog([
+        { id: 'w', label: 'W', enabled: true, settings: [
+          { id: 'text', label: 't', type: 'text', default: 'd' },
+          { id: 'flag', label: 'f', type: 'boolean', default: true },
+        ], variables: [] },
+      ]);
+
+      service.updateSetting('w', 'text', 'd');
+      service.updateSetting('w', 'flag', true);
+      expect(service.settingsStamp('w')).toBeUndefined();
+
+      spyOn(Date, "now").and.returnValue(5);
+      service.updateSetting('w', 'text', 'typed');
+      (Date.now as jasmine.Spy).and.returnValue(6);
+      service.updateSetting('w', 'text', 'typed');
+
+      expect(service.settingsStamp('w')).toBe(5);
+      expect(saved).toHaveBeenCalledTimes(1);
+      expect(changed).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("reflects setEnabled in the merged verifier list", () => {
     loadCatalog([
       { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [], variables: [] },
@@ -395,6 +456,42 @@ describe("VerifierService", () => {
 
     expect(service.verifiers()[0].settings[0].input).toBeTrue();
     expect(service.verifiersValid()).toBeTrue();
+  });
+
+  describe("effectiveEnabledNonFunctionalVerifierIds", () => {
+    it("is the enabled non-functional list when functionalOnly is false", () => {
+      loadCatalog([
+        functionalVerifier,
+        { id: 'mock', label: 'Mock', enabled: true, settings: [], variables: [] },
+        { id: 'off', label: 'Off', enabled: false, settings: [], variables: [] },
+      ]);
+
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual(['mock']);
+    });
+
+    it("is empty when functionalOnly is true regardless of what's enabled", () => {
+      loadCatalog([
+        functionalVerifier,
+        { id: 'mock', label: 'Mock', enabled: true, settings: [], variables: [] },
+      ]);
+
+      service.setFunctionalOnly(true);
+
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual([]);
+    });
+
+    it("reacts live to flipping functionalOnly back and forth", () => {
+      loadCatalog([
+        functionalVerifier,
+        { id: 'mock', label: 'Mock', enabled: true, settings: [], variables: [] },
+      ]);
+
+      service.setFunctionalOnly(true);
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual([]);
+
+      service.setFunctionalOnly(false);
+      expect(service.effectiveEnabledNonFunctionalVerifierIds).toEqual(['mock']);
+    });
   });
 
   it("treats an empty optional numeric setting as valid", () => {
