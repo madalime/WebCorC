@@ -38,5 +38,15 @@ additionalProperties:
           - type: string
           - type: boolean
 
+    settingsUpdatedAt:
+      type: integer
+      format: int64
+      description: >-
+        Set by the editor, as epoch milliseconds, whenever one of this verifier's
+        setting values changes; not on the enabled toggle. A verification job
+        copies it onto every entry it writes for this verifier, so a result whose
+        stamp differs from this one ran under other settings and is shown stale.
+        Only ever compared for equality. Absent until a setting is first changed.
+
   required:
     - settings

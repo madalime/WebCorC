@@ -3,7 +3,7 @@ import { IPosition, Position } from "./position";
 import {
   IAbstractStatement,
   IAbstractStatementImpl,
-  IVerifierConditions,
+  IVerifiers,
 } from "./statements/abstract-statement";
 import { IJavaVariable } from "./JavaVariable";
 import { IRenaming } from "./Renaming";
@@ -19,11 +19,10 @@ export interface ICBCFormula {
   preCondition: ICondition;
   postCondition: ICondition;
   /**
-   * Verifier conditions of the root statement. Lives at formula level because the
-   * root statement wrapper is flattened into `preCondition`/`postCondition` on
-   * export — its verifier conditions are handled the same way.
+   * The root statement's per-verifier conditions and results; same shape and rules as
+   * {@link IAbstractStatement.verifiers} (see {@link IVerifierEntry}).
    */
-  verifierConditions?: IVerifierConditions;
+  verifiers?: IVerifiers;
   javaVariables: IJavaVariable[];
   globalConditions: ICondition[];
   renamings: IRenaming[] | null;
@@ -92,7 +91,7 @@ export class CBCFormula implements ICBCFormula {
     public renamings: IRenaming[] | null = null,
     public isProven: boolean = false,
     public position: IPosition = new Position(0, 0),
-    public verifierConditions: IVerifierConditions = {},
+    public verifiers: IVerifiers = {},
   ) {}
 
   /** Serialize with the statement tree last, keeping the scalar fields readable. */
@@ -101,7 +100,7 @@ export class CBCFormula implements ICBCFormula {
       name: this.name,
       preCondition: this.preCondition,
       postCondition: this.postCondition,
-      verifierConditions: this.verifierConditions,
+      verifiers: this.verifiers,
       javaVariables: this.javaVariables,
       globalConditions: this.globalConditions,
       renamings: this.renamings,

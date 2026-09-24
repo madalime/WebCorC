@@ -42,12 +42,12 @@ import { AsyncPipe, NgTemplateOutlet } from "@angular/common";
 import { AiChatService } from "../../../../services/ai-chat/ai-chat.service";
 import { SimpleStatementNode } from "../../../../types/statements/nodes/simple-statement-node";
 import {VerifierService} from "../../../../services/verifier/verifier.service";
-import {hasStatus} from "../../../../services/verifier/verifier-validation";
 import {FUNCTIONAL_VERIFIER_ID, Verifier} from "../../../../types/Verifier";
 import {Accordion, AccordionContent, AccordionHeader, AccordionPanel} from "primeng/accordion";
 import { MatTooltip } from "@angular/material/tooltip";
 import { BehaviorSubject } from "rxjs";
 import { ICondition } from "../../../../types/condition/condition";
+import { verifierResultClass } from "../../../../types/statements/abstract-statement";
 
 /**
  * Component to present the statements.
@@ -178,10 +178,13 @@ export class StatementComponent {
       case "verified-all":
         return "success";
       case "verified-functional":
-        if (!this.verifierService.functionalOnly()) {
-          return "warn";
+        if (
+          this.verifierService.functionalOnly() ||
+          this.verifierService.enabledNonFunctionalVerifierIds.length === 0
+        ) {
+          return "success";
         }
-        return "success";
+        return "warn";
       case "settings-changed":
         return "warn";
       case "failed":
@@ -221,6 +224,8 @@ export class StatementComponent {
       return;
     }
     this.isVerifying.set(true);
+    this.globalSettingsService.isVerifying = true;
+    this.treeService.beginRun();
 
     // Finalize statements first
     this.treeService.finalizeStatements();
@@ -287,8 +292,10 @@ export class StatementComponent {
   /**
    * The verifiers shown as popup accordion panels: enabled ones that either have
    * expandable content (Functional Verifier or a verifier with variables) or that
-   * carry a `status` string to surface in the header. Status-only verifiers render
-   * as a static header (no chevron, no body).
+   * have a status text to surface in the header — the Catalog's placeholder, or,
+   * once reported, this statement's own per-Verifier result (see
+   * {@link verifierStatusText}). Status-only verifiers render as a static header
+   * (no chevron, no body).
    */
   public get items(): Verifier[] {
     return this.verifierService
@@ -297,7 +304,7 @@ export class StatementComponent {
         (verifier) =>
           verifier.enabled &&
           (this.hasBody(verifier) ||
-            hasStatus(verifier)),
+            this.verifierStatusText(verifier) !== undefined),
       );
   }
 
@@ -324,6 +331,24 @@ export class StatementComponent {
   ): void {
     const state = this.popupColumns(verifierId);
     state[column] = !state[column];
+  }
+
+  /**
+   * The status text shown in a verifier's popup panel header: that verifier's own
+   * per-statement result once verification has reported one, falling back to the
+   * Catalog's static placeholder otherwise. Reuses the panel header's existing
+   * status-text slot (see the template's `verifier-status` span) rather than
+   * adding new UI.
+   */
+  public verifierStatusText(verifier: Verifier): string | undefined {
+    const result = this._node.statement.verifiers?.[verifier.id];
+    return result?.status ?? verifier.statusPlaceholder;
+  }
+
+  public panelResultClass(verifier: Verifier): string {
+    return verifierResultClass(
+      this.treeService.verifierResult(this._node.statement, verifier.id),
+    );
   }
 
   /**

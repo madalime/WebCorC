@@ -273,7 +273,7 @@ describe("applyOverrides", () => {
         label: "Allowed",
         enabled: true,
         settings: [],
-        variables: [{ id: "x", name: "x", type: "int" }],
+        variables: [{ id: "x", type: "int" }],
         allowFunctionalVariables: true,
       },
       { id: "unset", label: "Unset", enabled: true, settings: [], variables: [] },

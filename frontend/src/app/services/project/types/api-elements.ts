@@ -97,8 +97,8 @@ export class ApiDiagramFile extends ApiFile {
     }
     formattedContent.preCondition = content.statement.preCondition;
     formattedContent.postCondition = content.statement.postCondition;
-    formattedContent.verifierConditions =
-      content.verifierConditions ?? content.statement.verifierConditions ?? {};
+    formattedContent.verifiers =
+      content.verifiers ?? content.statement.verifiers ?? {};
     if ("position" in content.statement)
       formattedContent.position =
         content.position ?? (content.statement.position as IPosition);
@@ -127,7 +127,7 @@ export class ApiDiagramFile extends ApiFile {
         local.content.renamings,
         local.content.isProven,
         local.content.statement?.position,
-        local.content.statement?.verifierConditions,
+        local.content.statement?.verifiers,
       ),
       local.inodeType,
     );

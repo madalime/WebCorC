@@ -25,6 +25,8 @@ import { NumberInputValidatorDirective } from "../../../services/verifier/number
 import { MatTooltip } from "@angular/material/tooltip";
 import { MatIconButton } from "@angular/material/button";
 import { ErrorStateMatcher } from "@angular/material/core";
+import { TreeService } from "../../../services/tree/tree.service";
+import { verifierResultClass } from "../../../types/statements/abstract-statement";
 
 /**
  * Show a `mat-error` as soon as the control is invalid, without waiting for it to be `touched`
@@ -72,6 +74,7 @@ const immediateErrorStateMatcher: ErrorStateMatcher = {
  */
 export class VerifierManagerComponent {
   private verifierService = inject(VerifierService);
+  private treeService = inject(TreeService);
 
   private _expandedSections: string[] = [];
 
@@ -197,6 +200,13 @@ export class VerifierManagerComponent {
       (verifier?.settings.length ?? 0) > 0 ||
       (verifier?.variables.length ?? 0) > 0
     );
+  }
+
+  /** A Verifier's result on the open diagram's Root, i.e. the project result. */
+  public rootResultClass(item: Verifier): string {
+    const root = this.treeService.rootStatement?.statement;
+    const result = root ? this.treeService.verifierResult(root, item.id) : "none";
+    return verifierResultClass(result, !item.enabled);
   }
 
   /**

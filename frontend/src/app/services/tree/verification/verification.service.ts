@@ -2,12 +2,17 @@ import { Injectable, inject } from "@angular/core";
 import { LocalCBCFormula } from "../../../types/CBCFormula";
 import { ProjectService } from "../../project/project.service";
 import { TreeService } from "../tree.service";
-import { IRootStatement } from "../../../types/statements/root-statement";
 import { ConsoleService } from "../../console/console.service";
-import { IAbstractStatement, NodeState } from "../../../types/statements/abstract-statement";
+import { IAbstractStatement } from "../../../types/statements/abstract-statement";
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { GlobalSettingsService } from "../../global-settings.service";
 import { ConsoleInfoLine, ConsoleLogGroup } from "../../console/log";
+import {
+  DoneMessage,
+  LogMessage,
+  VerificationMessage,
+} from "../../../types/VerificationMessage";
+import { FUNCTIONAL_VERIFIER_ID } from "../../../types/Verifier";
 
 /**
  * Service to distribute the verification result from the http response to the tree service.
@@ -33,32 +38,68 @@ export class VerificationService {
     return group;
   }
 
-  public verifyInfo(group: ConsoleLogGroup, msg: string) {
-    switch (msg) {
-      case "verification started":
-        group.lines.push(new ConsoleInfoLine("Verification started."));
-        this.consoleService.beginLoading("verifying");
+  /**
+   * Handle one message off the job's WS: a log line (attributed to whichever Verifier or
+   * functional verification produced it), a per-Verifier done signal, or the final complete
+   * signal — which carries nothing to show and is handled by the caller (fetching the result).
+   */
+  public verifyInfo(group: ConsoleLogGroup, msg: VerificationMessage) {
+    switch (msg.type) {
+      case "log":
+        this.logMessage(group, msg);
         break;
-      case "verification initialized":
-        group.lines.push(new ConsoleInfoLine("Verification initialized."));
+      case "done":
+        this.doneMessage(group, msg);
         break;
-      case "verification complete":
-      default:
-        group.lines.push(new ConsoleInfoLine(msg));
+      case "complete":
         break;
     }
+  }
+
+  private logMessage(group: ConsoleLogGroup, msg: LogMessage) {
+    if (msg.verifier === FUNCTIONAL_VERIFIER_ID) {
+      switch (msg.message) {
+        case "verification started":
+          group.lines.push(new ConsoleInfoLine("Verification started."));
+          this.consoleService.beginLoading("verifying");
+          return;
+        case "verification initialized":
+          group.lines.push(new ConsoleInfoLine("Verification initialized."));
+          return;
+      }
+    }
+    if (msg.verifier === undefined) {
+      // A line about the job's own orchestration, not any Verifier's output: no [name] prefix.
+      group.lines.push(new ConsoleInfoLine(msg.message));
+      return;
+    }
+    group.lines.push(
+      new ConsoleInfoLine(`[${this.verifierLabel(msg.verifier)}] ${msg.message}`),
+    );
+  }
+
+  private doneMessage(group: ConsoleLogGroup, msg: DoneMessage) {
+    const label = this.verifierLabel(msg.verifier);
+    group.lines.push(
+      new ConsoleInfoLine(
+        `${label} finished: ${msg.proven ? "passed" : "failed"}.`,
+        msg.proven ? "pi pi-check-circle" : "pi pi-times-circle",
+      ),
+    );
+  }
+
+  private verifierLabel(verifierId: string): string {
+    return verifierId === FUNCTIONAL_VERIFIER_ID
+      ? "Functional verification"
+      : verifierId;
   }
 
   public async next(
     group: ConsoleLogGroup,
     formula: LocalCBCFormula,
     urn: string,
-    functionalOnly: boolean,
   ) {
     this.consoleService.finishLoading();
-    const verifiedState: NodeState = functionalOnly
-      ? "verified-functional"
-      : "verified-all";
     if (formula.statement) {
       const currentFormula = await this.projectService.getFileContent(urn);
       const currentStatements = this.treeService.getStatementsFromFormula(
@@ -68,16 +109,10 @@ export class VerificationService {
       // The statements should be in the same order, since the structure should be unchanged.
       currentStatements.forEach((stmt, index) => {
         stmt.isProven = newStatements[index]?.isProven;
-        stmt.nodeState = newStatements[index]?.isProven ? verifiedState : "failed";
+        stmt.nodeState = this.treeService.deriveNodeState(newStatements[index]?.verifiers);
+        stmt.verifiers = newStatements[index]?.verifiers ?? stmt.verifiers;
       });
-      if (
-        (currentFormula as LocalCBCFormula).statement &&
-        formula.statement.type == "ROOT" &&
-        (formula.statement as IRootStatement).statement?.isProven
-      ) {
-        (currentFormula as LocalCBCFormula).statement!.isProven = true;
-        (currentFormula as LocalCBCFormula).statement!.nodeState = verifiedState;
-      }
+      this.treeService.reapplyRunChanges(currentStatements);
       this.projectService.syncLocalFileContent(urn, currentFormula);
     }
     this.globalSettingsService.isVerifying = false;
@@ -111,11 +146,7 @@ export class VerificationService {
     formula: LocalCBCFormula,
     statementNode: AbstractStatementNode,
     urn: string,
-    functionalOnly: boolean,
   ) {
-    const verifiedState: NodeState = functionalOnly
-      ? "verified-functional"
-      : "verified-all";
     this.consoleService.finishLoading();
 
     if (!formula.statement) {
@@ -156,6 +187,7 @@ export class VerificationService {
       subtreeStatements.length,
     );
 
+    const updatedStatements: IAbstractStatement[] = [];
     for (let i = 0; i < minLength; i++) {
       const resultStmt = resultStatements[resultStartIndex + i];
       const subtreeStmt = subtreeStatements[i];
@@ -164,18 +196,13 @@ export class VerificationService {
       const node = subtreeNodes.find((n) => n.statement.id === subtreeStmt.id);
       if (node) {
         node.statement.isProven = resultStmt.isProven || false;
-        node.statement.nodeState = resultStmt.isProven ? verifiedState : "failed";
+        node.statement.nodeState = this.treeService.deriveNodeState(resultStmt.verifiers);
+        node.statement.verifiers = resultStmt.verifiers ?? node.statement.verifiers;
+        updatedStatements.push(node.statement);
       }
     }
 
-    // Update the root statement node if it's a ROOT type
-    if (
-      formula.statement.type === "ROOT" &&
-      (formula.statement as IRootStatement).statement?.isProven
-    ) {
-      statementNode.statement.isProven = true;
-      statementNode.statement.nodeState = verifiedState;
-    }
+    this.treeService.reapplyRunChanges(updatedStatements);
 
     // Refresh nodes to trigger UI update
     this.treeService.refreshNodes();

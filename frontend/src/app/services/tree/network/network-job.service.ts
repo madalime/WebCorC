@@ -12,6 +12,7 @@ import { ConsoleService } from "../../console/console.service";
 import { ProjectService } from "../../project/project.service";
 import { CbcFormulaMapperService } from "../../project/mapper/cbc-formula-mapper.service";
 import { WebSocketService } from "./websocket";
+import { VerificationMessage } from "../../../types/VerificationMessage";
 import { ApiDiagramFile } from "../../project/types/api-elements";
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { TreeService } from "../tree.service";
@@ -91,8 +92,8 @@ export class NetworkJobService {
           environment.apiUrl + NetworkJobService.verifyWebSocketPath + uuid,
         );
         const consoleGroup = this.verificationService.beginVerificationLog();
-        ws.messages$.subscribe((msg: string) => {
-          if (msg === "verification complete") {
+        ws.messages$.subscribe((msg: VerificationMessage) => {
+          if (msg.type === "complete") {
             ws.disconnect();
             this.http
               .get<ICBCFormula>(
@@ -100,7 +101,7 @@ export class NetworkJobService {
               )
               .pipe(map((formula) => this.mapper.importFormula(formula)))
               .subscribe((formula: LocalCBCFormula) => {
-                this.verificationService.next(consoleGroup, formula, urn, functionalOnly);
+                this.verificationService.next(consoleGroup, formula, urn);
                 this.projectService.downloadWorkspace();
               });
           }
@@ -181,8 +182,8 @@ export class NetworkJobService {
           environment.apiUrl + NetworkJobService.verifyWebSocketPath + uuid,
         );
         const consoleGroup = this.verificationService.beginVerificationLog();
-        ws.messages$.subscribe((msg: string) => {
-          if (msg === "verification complete") {
+        ws.messages$.subscribe((msg: VerificationMessage) => {
+          if (msg.type === "complete") {
             ws.disconnect();
             this.http
               .get<ICBCFormula>(
@@ -195,7 +196,6 @@ export class NetworkJobService {
                   formula,
                   statementNode,
                   urn,
-                  functionalOnly,
                 );
                 onComplete();
               });

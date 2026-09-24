@@ -88,3 +88,61 @@ app-skip-refinement {
     var(--p-toggleswitch-handle-disabled-background)
   );
 }
+
+/*
+ * Per-Verifier result on an accordion panel (statement popup, Verifier settings panel): a
+ * border in the statement card colors, grey for no result. The panel is rounded like the
+ * accordion's own outer corners (`content.border.radius`) and clips its square-cornered header
+ * to that rounding. A small gap keeps a panel's border from running into its neighbour's.
+ * `--off` (Verifier switched off now) keeps the color, dimmed.
+ */
+.verifier-result--proven {
+  --verifier-result-color: lightgreen;
+}
+
+.verifier-result--stale {
+  --verifier-result-color: orange;
+}
+
+.verifier-result--failed {
+  --verifier-result-color: lightcoral;
+}
+
+.verifier-result--none {
+  --verifier-result-color: slategray;
+}
+
+.p-accordionpanel:is(
+    .verifier-result--proven,
+    .verifier-result--stale,
+    .verifier-result--failed,
+    .verifier-result--none
+  ) {
+  --verifier-result-border: var(--verifier-result-color);
+  border: 2px solid var(--verifier-result-border);
+  border-radius: var(--p-content-border-radius, 6px);
+  overflow: clip;
+  margin-block: 0.25rem;
+}
+
+.p-accordionpanel:is(
+    .verifier-result--proven,
+    .verifier-result--stale,
+    .verifier-result--failed,
+    .verifier-result--none
+  ):first-child {
+  margin-top: 0;
+}
+
+.p-accordionpanel:is(
+    .verifier-result--proven,
+    .verifier-result--stale,
+    .verifier-result--failed,
+    .verifier-result--none
+  ):last-child {
+  margin-bottom: 0;
+}
+
+.p-accordionpanel.verifier-result--off {
+  --verifier-result-border: color-mix(in srgb, var(--verifier-result-color) 40%, transparent);
+}

@@ -5,62 +5,94 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.kit.cbc.common.corc.FileUtil;
 import edu.kit.cbc.common.corc.cbcmodel.CbCFormula;
 import edu.kit.cbc.common.corc.proof.ProofContext;
+import edu.kit.cbc.editor.verifier.ResolvedVerifier;
+import edu.kit.cbc.editor.verifier.Verifier;
+import edu.kit.cbc.editor.verifier.VerifierCatalog;
+import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import edu.kit.cbc.editor.verifier.VerifierOverride;
+import edu.kit.cbc.editor.verifier.job.NarrowedProgram;
+import edu.kit.cbc.editor.verifier.job.SourceFile;
 import edu.kit.cbc.projects.files.controller.FilesController;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 import lombok.Getter;
 
+/**
+ * One verification job: every catalog Verifier's entry reset first, then functional verification,
+ * then — only on its success, and unless {@code functionalOnly} — the fan-out to the enabled
+ * Verifiers. The final {@code complete} is sent exactly once, last, and is the moment the result
+ * becomes available.
+ *
+ * <p>Messages are emitted from this thread and the fan-out's threads alike, hence the lock; a
+ * listener is invoked under it and must return promptly.
+ */
 public class VerificationJob extends Thread {
 
-    private static final String LOGGER_FORMAT = "%s %s\n";
     private static final String VERIFIERS_FILE_URN = ".internal/verifiers.json";
     private static final ObjectMapper VERIFIERS_MAPPER = new ObjectMapper();
+    private static final String FUNC = VerifierCatalogService.FUNCTIONAL_VERIFIER_ID;
 
-    @Getter private String log;
-    @Getter private boolean hasResult = false;
-    private HashSet<Function<String, Boolean>> listeners;
+    private final Object lock = new Object();
+    private final List<VerificationMessage> messages = new ArrayList<>();
+    private final List<Function<VerificationMessage, Boolean>> listeners = new ArrayList<>();
+    @Getter private volatile boolean hasResult = false;
 
-    private ProofContext.ProofContextBuilder context;
-    private Optional<String> projectId;
-    @Getter private CbCFormula formula;
-    private FilesController filesController;
-    private Runnable onFinished;
+    private final UUID jobId;
+    private final ProofContext.ProofContextBuilder context;
+    private final Optional<String> projectId;
+    private final boolean functionalOnly;
+    @Getter private final CbCFormula formula;
+    private final FilesController filesController;
+    private final VerifierFanOut fanOut;
+    private final CompletionStage<VerifierCatalog> catalog;
+    private final Map<String, VerifierOverride> verifierOverrides;
+    private final Runnable onFinished;
 
     private static final Logger LOGGER = Logger.getGlobal();
 
-    VerificationJob(Optional<String> projectId, boolean functionalOnly, CbCFormula formula, FilesController filesController, Runnable onFinished)
-        throws IOException {
-        log = "";
-        listeners = new HashSet<Function<String, Boolean>>();
+    VerificationJob(
+        UUID jobId,
+        Optional<String> projectId,
+        boolean functionalOnly,
+        CbCFormula formula,
+        FilesController filesController,
+        VerifierFanOut fanOut,
+        CompletionStage<VerifierCatalog> catalog,
+        Runnable onFinished
+    ) throws IOException {
+        this.jobId = jobId;
         this.projectId = projectId;
+        this.functionalOnly = functionalOnly;
         this.formula = formula;
         this.filesController = filesController;
+        this.fanOut = fanOut;
+        this.catalog = catalog;
         this.onFinished = onFinished;
 
         Path proofFolder = Files.createTempDirectory(projectId.isPresent() ? "proof_" + projectId.get() : "proof");
 
+        Map<String, VerifierOverride> overrides = new HashMap<>();
         context = ProofContext.builder()
             .cbCFormula(formula)
             .proofFolder(proofFolder)
             .includeFiles(new ArrayList<>())
             .javaSrcFiles(new ArrayList<>())
             .existingProofFiles(new ArrayList<>())
-            .verifierOverrides(new HashMap<>())
             .logger((msg) -> log(msg));
 
         if (projectId.isPresent()) {
@@ -76,9 +108,11 @@ public class VerificationJob extends Thread {
             context.existingProofFiles(existingKeyFiles);
 
             if (!functionalOnly) {
-                context.verifierOverrides(loadVerifierOverrides(projectId.get(), filesController));
+                overrides = loadVerifierOverrides(projectId.get(), filesController);
             }
         }
+        this.verifierOverrides = overrides;
+        context.verifierOverrides(overrides);
         log("verification initialized");
     }
 
@@ -105,6 +139,13 @@ public class VerificationJob extends Thread {
 
     public void run() {
         log("verification started");
+
+        // One instance per run, created before the functional proof: the reset of every catalog
+        // Verifier's entry happens up front, in both modes, so that no verdict of an earlier run
+        // can survive any outcome of this one.
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        resetVerifierEntries(program);
+
         boolean proven = formula.getStatement().prove(context.build());
         formula.setProven(proven);
 
@@ -149,13 +190,32 @@ public class VerificationJob extends Thread {
             });
         }
 
-        hasResult = true;
-        log("verification complete");
+        log("functional verification complete");
         if (proven) {
             log("all statements were proven successfully!");
         } else {
             log("WebCorC was unable to prove all of your statements. See the log for further information...");
         }
+        emit(VerificationMessage.done(FUNC, proven));
+
+        // The func entry always reflects *this* run's functional result, in both modes and even
+        // on failure -- written now, before the gate below, so a stale proven:true from an
+        // earlier run can never be mistaken for a fresh isProven:false.
+        program.writeFunctionalResult();
+        program.writeFormulaFunctionalResult();
+
+        if (proven && !functionalOnly) {
+            try {
+                callVerifiers(program);
+            } catch (RuntimeException e) {
+                // Whatever went wrong, the job must still complete or the frontend waits forever.
+                LOGGER.log(Level.SEVERE, "Fan-out of job " + jobId + " failed unexpectedly", e);
+                orchestrationLog("calling the Verifiers failed unexpectedly: " + e.getMessage());
+            }
+        }
+
+        hasResult = true;
+        emit(VerificationMessage.complete());
 
         //Keep job output and result available for some time before it is deleted
         try {
@@ -167,42 +227,116 @@ public class VerificationJob extends Thread {
         onFinished.run();
     }
 
-    public void addListener(Function<String, Boolean> listener) {
-        listeners.add(listener);
+    /**
+     * Resets every catalog Verifier's entry, before functional verification and in both modes, so
+     * that nothing of an earlier run can survive this one's outcome. Needs the Catalog even
+     * functional-only (for the ids to mark disabled); a Catalog that cannot be resolved is
+     * reported and the run continues functionally, as it does when the fan-out needs it.
+     */
+    private void resetVerifierEntries(NarrowedProgram program) {
+        try {
+            VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
+            List<ResolvedVerifier> enabled = enabledVerifiers(resolvedCatalog);
+            Set<String> enabledIds = enabled.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
+            List<String> disabledIds = resolvedCatalog.verifiers().stream()
+                .map(Verifier::id)
+                .filter(id -> !FUNC.equals(id))
+                .filter(id -> !enabledIds.contains(id))
+                .toList();
+            program.resetForRun(enabled, disabledIds);
+        } catch (RuntimeException e) {
+            // Without the Catalog there are no ids to reset; the functional run still happens.
+            LOGGER.log(Level.SEVERE, "Resetting the Verifier entries of job " + jobId + " failed", e);
+            orchestrationLog("the Verifier Catalog could not be read; every Verifier entry keeps what the last run left it: "
+                + e.getMessage());
+        }
+    }
+
+    /** The Verifiers that run in this job — none at all functional-only, where no Override is consulted. */
+    private List<ResolvedVerifier> enabledVerifiers(VerifierCatalog resolvedCatalog) {
+        if (functionalOnly) {
+            return List.of();
+        }
+        return ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides);
+    }
+
+    /**
+     * Calls every Verifier the Overrides mark enabled, if any. {@code isProven} is recomputed
+     * ({@link NarrowedProgram#recomputeIsProven}) in a {@code finally}, so no path out of this
+     * method -- happy, early-return, or an unexpected exception -- skips it, using
+     * {@code enabledIds} as far as it got computed before any failure. The entries themselves
+     * were reset before functional verification ({@link #resetVerifierEntries}), not here.
+     */
+    private void callVerifiers(NarrowedProgram program) {
+        Set<String> enabledIds = Set.of();
+        try {
+            VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
+            List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides);
+            enabledIds = verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
+
+            if (verifiers.isEmpty()) {
+                orchestrationLog("no other Verifier is enabled");
+                return;
+            }
+            orchestrationLog("calling " + verifiers.stream().map(ResolvedVerifier::id).collect(Collectors.joining(", ")));
+            fanOut.run(jobId, program, sourceFiles(), verifiers, this::emit);
+        } finally {
+            program.recomputeIsProven(enabledIds);
+        }
+    }
+
+    /**
+     * The same Java sources and KeY includes functional verification works with, read afresh
+     * from the project. Files that cannot be read are reported and left out rather than failing
+     * every Verifier.
+     */
+    private List<SourceFile> sourceFiles() {
+        if (projectId.isEmpty()) {
+            return List.of();
+        }
+        List<SourceFile> files = new ArrayList<>();
+        try {
+            filesController.readFiles(projectId.get(), ".java", "javaSrc").forEach((path, content) -> files.add(new SourceFile(path, content)));
+            filesController.readFiles(projectId.get(), ".key", "include").forEach((path, content) -> files.add(new SourceFile(path, content)));
+        } catch (IOException | RuntimeException e) {
+            LOGGER.warning(String.format("Project %s: files could not be read for the Verifiers: %s", projectId.get(), e.getMessage()));
+            orchestrationLog("the project's files could not be read and are not sent to the Verifiers: " + e.getMessage());
+        }
+        return files;
+    }
+
+    /**
+     * Delivers every message sent so far, then every later one as it is sent — in order, without
+     * duplicates. A listener returning {@code true} (its connection is gone) is dropped.
+     */
+    public void subscribe(Function<VerificationMessage, Boolean> listener) {
+        synchronized (lock) {
+            for (VerificationMessage message : messages) {
+                if (listener.apply(message)) {
+                    return;
+                }
+            }
+            listeners.add(listener);
+        }
     }
 
     private void log(String message) {
-        log += String.format(LOGGER_FORMAT, this.getCurrentTimestamp(), message);
-
-        //Call all listeners. The listener returns true if it detects that its WebSocket connection was closed,
-        //so it will be removed from the listener pool
-        listeners.removeIf(l -> l.apply(message));
+        emit(VerificationMessage.log(FUNC, message));
     }
 
-    private String getCurrentTimestamp() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("'['HH:mm:ss']'");
-        return LocalTime.now().format(formatter);
+    /**
+     * Emits a line about the job's own orchestration (not attributable to any Verifier,
+     * including the Functional Verifier): sent with no {@code verifier} tag, so the frontend
+     * prints it without a {@code [name]} prefix.
+     */
+    private void orchestrationLog(String message) {
+        emit(VerificationMessage.log(null, message));
     }
 
-    private void listDirectory(Path dir) {
-        System.out.println("LISTING DIRECTORY: " + dir);
-        if (!Files.exists(dir) || !Files.isDirectory(dir)) {
-            System.out.println("Error: Path is not a valid directory: " + dir);
-            return;
-        }
-
-        try (Stream<Path> stream = Files.list(dir)) {
-
-            stream.forEach(path -> {
-                String fileName = path.getFileName().toString();
-                if (Files.isDirectory(path)) {
-                    fileName += "/";
-                }
-                System.out.println(fileName);
-            });
-
-        } catch (IOException e) {
-            System.err.println("Failed to read directory: " + e.getMessage());
+    private void emit(VerificationMessage message) {
+        synchronized (lock) {
+            messages.add(message);
+            listeners.removeIf(listener -> listener.apply(message));
         }
     }
 }

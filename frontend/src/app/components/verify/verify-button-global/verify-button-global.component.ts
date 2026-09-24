@@ -13,6 +13,7 @@ import { ProjectService } from "../../../services/project/project.service";
 import { GlobalSettingsService } from "../../../services/global-settings.service";
 import { ConfirmationService, MenuItem, MessageService } from "primeng/api";
 import { SplitButton } from "primeng/splitbutton";
+import { Button } from "primeng/button";
 import { VerifierService } from "../../../services/verifier/verifier.service";
 import { ConsoleService } from "../../../services/console/console.service";
 
@@ -29,7 +30,7 @@ type VerifyState = { id: string; label: Signal<string> };
  */
 @Component({
   selector: "app-verify-button-global",
-  imports: [SplitButton],
+  imports: [SplitButton, Button],
   templateUrl: "./verify-button-global.component.html",
   styleUrl: "./verify-button-global.component.css",
 })
@@ -130,6 +131,7 @@ export class VerifyButtonGlobalComponent {
           });
         },
         reject: () => {
+          this.treeService.beginRun();
           this.globalSettingsService.isVerifying = true;
           this.networkTreeService.verify(
             this.treeService.rootFormula,
@@ -140,6 +142,7 @@ export class VerifyButtonGlobalComponent {
         },
       });
     } else {
+      this.treeService.beginRun();
       this.globalSettingsService.isVerifying = true;
       this.networkTreeService.verify(
         this.treeService.rootFormula,
@@ -194,6 +197,14 @@ export class VerifyButtonGlobalComponent {
       };
     });
   });
+
+  /**
+   * Whether the mode dropdown is offered: only with a non-functional Verifier enabled, since
+   * otherwise both modes run the same job. Hiding it leaves the selected mode untouched.
+   */
+  public readonly showModeDropdown: Signal<boolean> = computed(
+    () => this.verifierService.enabledNonFunctionalVerifierIds.length > 0,
+  );
 
   /**
    * The label shown on the split button itself, reflecting the selected option and, for

@@ -10,14 +10,21 @@ info:
     the base URL a deployment registers it under (see the Verifier Registry),
     appending the paths below.
 
-    This milestone defines one operation, `GET /description`, returning the
-    Verifier's Self-Description. Future milestones append further paths (e.g.
-    a verification operation) to this same document; a Verifier keeps working
-    against new WebCorC versions as long as it implements the paths it knows
-    about. There is no separate API version field in any response — this
+    Besides `GET /description` (the Verifier's Self-Description, fetched
+    once at backend startup), this document defines the three operations
+    that actually run a verification job: starting one, streaming its
+    status, and fetching its result. A Verifier keeps working against new
+    WebCorC versions as long as it implements the paths it knows about.
+    There is no separate API version field in any response — this
     document's `info.version` is the contract version.
 servers:
   - url: https://verifier.example.test
 paths:
   /description:
     $ref: './paths/verifier/description.yml'
+
+  /jobs/{id}:
+    $ref: './paths/verifier/job.yml'
+
+  /jobs/{id}/result:
+    $ref: './paths/verifier/result.yml'

@@ -1,0 +1,15 @@
+type: object
+description: >-
+  Everything is done: functional verification and every Verifier the job
+  called have reported their own done. Sent exactly once, last, on every job
+  — functional-only ones included. This is when the job's result
+  (`GET /editor/jobs/{id}`) becomes available, so it is the signal to close
+  the socket and fetch it.
+properties:
+  type:
+    type: string
+    enum:
+      - complete
+
+required:
+  - type

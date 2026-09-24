@@ -1,12 +1,12 @@
 import { ICompositionStatement } from "../composition-statement";
-import { Condition, ICondition } from "../../condition/condition";
+import { ICondition } from "../../condition/condition";
 import { BehaviorSubject } from "rxjs";
 import { AbstractStatementNode } from "./abstract-statement-node";
 import {
   createEmptyStatementNode,
   statementNodeUtils,
 } from "./statement-node-utils";
-import { IVerifierConditions, StatementType } from "../abstract-statement";
+import { IVerifiers, sparseVerifierEntry, StatementType } from "../abstract-statement";
 
 export class CompositionStatementNode extends AbstractStatementNode {
   public intermediateCondition: BehaviorSubject<ICondition>;
@@ -67,7 +67,7 @@ export class CompositionStatementNode extends AbstractStatementNode {
     return this.slotVerifierCondition(
       this.intermediateCondition,
       verifierId,
-      this.statement.verifierConditions?.[verifierId]?.intermediateCondition,
+      this.statement.verifiers?.[verifierId]?.intermediateCondition,
     );
   }
 
@@ -92,12 +92,11 @@ export class CompositionStatementNode extends AbstractStatementNode {
 
   /**
    * Extends every verifier's entry by its intermediate condition, so a composition
-   * persists all of its verifier conditions in the single `verifierConditions`
-   * record. Verifiers that only carry an intermediate condition get an entry with
-   * empty pre- and postconditions; cleared intermediate conditions are dropped to
-   * keep the entries sparse.
+   * persists all of its verifier conditions in the single `verifiers` record. The
+   * intermediate condition is the third slot the sparse form applies to: present
+   * only when non-empty, and enough on its own to keep an entry alive.
    */
-  protected override finalizeVerifierConditions(): IVerifierConditions {
+  protected override finalizeVerifierConditions(): IVerifiers {
     const conditions = super.finalizeVerifierConditions();
     const intermediateConditions =
       CompositionStatementNode.finalizeSlotConditions(
@@ -109,30 +108,15 @@ export class CompositionStatementNode extends AbstractStatementNode {
       ...Object.keys(intermediateConditions),
     ]);
 
-    const finalized: IVerifierConditions = {};
+    const finalized: IVerifiers = {};
     for (const verifierId of verifierIds) {
-      const conditionSet = conditions[verifierId];
-      const intermediateCondition = intermediateConditions[verifierId];
-      if (!intermediateCondition) {
-        if (
-          conditionSet &&
-          !(
-            conditionSet.preCondition.condition === "" &&
-            conditionSet.postCondition.condition === ""
-          )
-        ) {
-          finalized[verifierId] = {
-            preCondition: conditionSet.preCondition,
-            postCondition: conditionSet.postCondition,
-          };
-        }
-        continue;
+      const sparse = sparseVerifierEntry({
+        ...conditions[verifierId],
+        intermediateCondition: intermediateConditions[verifierId],
+      });
+      if (sparse) {
+        finalized[verifierId] = sparse;
       }
-      finalized[verifierId] = {
-        preCondition: conditionSet?.preCondition ?? new Condition(""),
-        postCondition: conditionSet?.postCondition ?? new Condition(""),
-        intermediateCondition,
-      };
     }
     return finalized;
   }
@@ -144,7 +128,7 @@ export class CompositionStatementNode extends AbstractStatementNode {
   private storedIntermediateConditions(): Record<string, ICondition> {
     const stored: Record<string, ICondition> = {};
     for (const [verifierId, conditionSet] of Object.entries(
-      this.statement.verifierConditions ?? {},
+      this.statement.verifiers ?? {},
     )) {
       if (conditionSet.intermediateCondition) {
         stored[verifierId] = conditionSet.intermediateCondition;

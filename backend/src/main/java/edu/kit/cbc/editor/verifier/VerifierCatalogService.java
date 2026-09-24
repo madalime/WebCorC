@@ -67,6 +67,9 @@ public class VerifierCatalogService {
     /**
      * The Functional Verifier's Self-Description: locked on ({@code enabled: true},
      * {@code toggleable: false}), no settings, no variables, no status placeholder.
+     *
+     * <p>Mirrored by hand in the frontend's {@code VerifierService.FUNCTIONAL_VERIFIER_FALLBACK}
+     * (shown before the Catalog arrives or when its fetch fails); change both together.
      */
     public static final SelfDescription FUNCTIONAL_SELF_DESCRIPTION = new SelfDescription(
         "Functional correctness",
@@ -238,7 +241,7 @@ public class VerifierCatalogService {
                 LOGGER.info(String.format("Verifier '%s' described itself and joins the Verifier Catalog", id));
             } catch (VerifierUnreachableException e) {
                 lockOff(verifiers, unavailable, id, Unavailability.UNREACHABLE, e, entry);
-            } catch (InvalidSelfDescriptionException e) {
+            } catch (InvalidVerifierResponseException e) {
                 lockOff(verifiers, unavailable, id, Unavailability.INVALID_DESCRIPTION, e, entry);
             }
         }
@@ -255,7 +258,7 @@ public class VerifierCatalogService {
         String id,
         VerifierClient client,
         VerifierCatalogConfiguration configuration
-    ) throws VerifierUnreachableException, InvalidSelfDescriptionException {
+    ) throws VerifierUnreachableException, InvalidVerifierResponseException {
         int attempts = configuration.getRetries() + 1;
         for (int attempt = 1; ; attempt++) {
             try {
