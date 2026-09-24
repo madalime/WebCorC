@@ -9,7 +9,7 @@ allOf:
           - COMPOSITION
 
       intermediateCondition:
-        $ref: '../condition.yml'
+        $ref: '../../cbc/condition.yml'
 
       firstStatement:
         $ref: '../statement.yml'
