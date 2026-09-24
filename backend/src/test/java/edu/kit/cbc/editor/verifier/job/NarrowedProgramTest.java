@@ -651,4 +651,119 @@ class NarrowedProgramTest {
         Assertions.assertTrue(enabled.contains("\"settingsUpdatedAt\":1727000000000"), enabled);
         Assertions.assertFalse(disabled.contains("settingsUpdatedAt"), disabled);
     }
+
+    // --- Verifier Condition scope --------------------------------------------------------------
+
+    /** "mock" declares one Variable, "energyBudget"; javaVariables declares "i". */
+    private static final String SCOPE_FORMULA_JSON = """
+        {
+          "name": "Demo", "javaVariables": [{"name": "int i", "kind": "LOCAL"}], "globalConditions": [], "renamings": [], "isProven": false,
+          "verifiers": {"mock": {"preCondition": {"condition": "energyBudget == 0"}}},
+          "statement": {
+            "name": "Comp", "type": "COMPOSITION", "isProven": false,
+            "preCondition": {"condition": "x == 0"}, "postCondition": {"condition": "x == 2"},
+            "verifiers": {
+              "mock": {"postCondition": {"condition": "energyBudget == 1"}, "intermediateCondition": {"condition": "energyBudget <= 1"}}
+            },
+            "firstStatement": {
+              "name": "First", "type": "STATEMENT", "isProven": false, "programStatement": "x = 1;",
+              "preCondition": {"condition": "x == 0"}, "postCondition": {"condition": "x == 1"}
+            },
+            "secondStatement": {
+              "name": "Second", "type": "STATEMENT", "isProven": false, "programStatement": "x = 2;",
+              "preCondition": {"condition": "x == 1"}, "postCondition": {"condition": "x == 2"}
+            }
+          }
+        }
+        """;
+
+    private static CbCFormula scopeFormula() throws Exception {
+        return new ObjectMapper().readValue(SCOPE_FORMULA_JSON, CbCFormula.class);
+    }
+
+    @Test
+    void scopeViolationIsEmptyWhenEveryConditionMockWroteIsInScope() throws Exception {
+        NarrowedProgram program = NarrowedProgram.of(scopeFormula());
+
+        Assertions.assertTrue(program.scopeViolation("mock", List.of("energyBudget"), false).isEmpty());
+    }
+
+    @Test
+    void scopeViolationNamesTheIdentifierAndThatItIsTheRoots() throws Exception {
+        CbCFormula formula = scopeFormula();
+        formula.getVerifiers().put("mock", new VerifierEntry(Condition.fromString("sec == 1"), null, null, null, null, null, null));
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        String violation = program.scopeViolation("mock", List.of("energyBudget"), false).orElseThrow();
+
+        Assertions.assertTrue(violation.contains("'sec'"), violation);
+        Assertions.assertTrue(violation.contains("precondition"), violation);
+        Assertions.assertTrue(violation.contains("the Root"), violation);
+    }
+
+    @Test
+    void scopeViolationNamesTheOffendingStatementAndCoversPrePostAndIntermediate() throws Exception {
+        CbCFormula formula = scopeFormula();
+        CompositionStatement top = (CompositionStatement) formula.getStatement();
+        top.setVerifiers(Map.of("mock",
+            new VerifierEntry(null, null, Condition.fromString("sec == 1"), null, null, null, null)));
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        String violation = program.scopeViolation("mock", List.of("energyBudget"), false).orElseThrow();
+
+        Assertions.assertTrue(violation.contains("'sec'"), violation);
+        Assertions.assertTrue(violation.contains("intermediate condition"), violation);
+        Assertions.assertTrue(violation.contains("statement 1 ('Comp')"), violation);
+    }
+
+    @Test
+    void scopeViolationChecksAStatementsPostconditionToo() throws Exception {
+        CbCFormula formula = scopeFormula();
+        AbstractStatement first = ((CompositionStatement) formula.getStatement()).getFirstStatement();
+        first.setVerifiers(Map.of("mock",
+            new VerifierEntry(null, Condition.fromString("sec == 1"), null, null, null, null, null)));
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        String violation = program.scopeViolation("mock", List.of("energyBudget"), false).orElseThrow();
+
+        Assertions.assertTrue(violation.contains("'sec'"), violation);
+        Assertions.assertTrue(violation.contains("postcondition"), violation);
+        Assertions.assertTrue(violation.contains("statement 2 ('First')"), violation);
+    }
+
+    @Test
+    void theProgramsOwnVariablesAreInScopeOnlyWhenAllowFunctionalVariablesIsTrue() throws Exception {
+        CbCFormula formula = scopeFormula();
+        AbstractStatement first = ((CompositionStatement) formula.getStatement()).getFirstStatement();
+        first.setVerifiers(Map.of("mock",
+            new VerifierEntry(Condition.fromString("i == 0"), null, null, null, null, null, null)));
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        Assertions.assertTrue(program.scopeViolation("mock", List.of("energyBudget"), true).isEmpty(),
+            "'i' is a program variable and the flag is set");
+
+        String violation = program.scopeViolation("mock", List.of("energyBudget"), false).orElseThrow();
+        Assertions.assertTrue(violation.contains("'i'"), violation);
+    }
+
+    @Test
+    void aVerifierWithNoDeclaredVariablesAcceptsLiteralsOnly() throws Exception {
+        CbCFormula formula = scopeFormula();
+        // Isolate to just the one condition under test: the fixture's own Root and Comp
+        // "mock" entries reference "energyBudget", which an empty scope would reject too.
+        formula.getVerifiers().remove("mock");
+        CompositionStatement top = (CompositionStatement) formula.getStatement();
+        top.setVerifiers(null);
+        AbstractStatement first = top.getFirstStatement();
+        first.setVerifiers(Map.of("mock",
+            new VerifierEntry(Condition.fromString("true"), null, null, null, null, null, null)));
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        Assertions.assertTrue(program.scopeViolation("mock", List.of(), false).isEmpty());
+
+        first.setVerifiers(Map.of("mock",
+            new VerifierEntry(Condition.fromString("energyBudget == 0"), null, null, null, null, null, null)));
+
+        Assertions.assertTrue(program.scopeViolation("mock", List.of(), false).isPresent());
+    }
 }

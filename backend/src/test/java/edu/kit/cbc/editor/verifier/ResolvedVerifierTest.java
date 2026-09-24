@@ -35,6 +35,13 @@ class ResolvedVerifierTest {
         return new Verifier(id, id, enabled, toggleable, null, List.of(settings), List.of(), null);
     }
 
+    private static JsonNode variable(String id) {
+        return JsonNode.createObjectNode(Map.of(
+            "id", JsonNode.createStringNode(id),
+            "type", JsonNode.createStringNode("double"),
+            "name", JsonNode.createStringNode(id)));
+    }
+
     private static final Verifier FUNC = VerifierCatalogService.merge(
         VerifierCatalogService.FUNCTIONAL_VERIFIER_ID, VerifierCatalogService.FUNCTIONAL_SELF_DESCRIPTION);
     private static final Verifier MOCK = verifier("mock", true, true, REPORT_TITLE, THRESHOLD, STRATEGY, VERBOSE, COMMENT);
@@ -168,5 +175,27 @@ class ResolvedVerifierTest {
         List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(CATALOG, Map.of("locked", override(null, Map.of())));
 
         Assertions.assertEquals(Map.of(), verifiers.get(1).settings());
+    }
+
+    // --- Verifier Condition scope --------------------------------------------------------------
+
+    @Test
+    void aVerifiersDeclaredVariablesAndAllowFunctionalVariablesAreCarriedIntoTheResolvedVerifier() {
+        Verifier sec = new Verifier("sec", "sec", true, true, null, List.of(),
+            List.of(variable("energyBudget"), variable("energyPrevious")), true);
+        VerifierCatalog catalog = new VerifierCatalog(List.of(FUNC, sec), null);
+
+        ResolvedVerifier resolved = ResolvedVerifier.enabled(catalog, Map.of()).get(0);
+
+        Assertions.assertEquals(List.of("energyBudget", "energyPrevious"), resolved.variableIds());
+        Assertions.assertTrue(resolved.allowFunctionalVariables());
+    }
+
+    @Test
+    void aVerifierWithoutDeclaredVariablesResolvesToAnEmptyScope() {
+        ResolvedVerifier mock = mock(ResolvedVerifier.enabled(CATALOG, Map.of()));
+
+        Assertions.assertEquals(List.of(), mock.variableIds());
+        Assertions.assertFalse(mock.allowFunctionalVariables());
     }
 }

@@ -11,6 +11,7 @@ import io.micronaut.scheduling.TaskExecutors;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -55,6 +56,11 @@ public class VerifierFanOut {
     private void runOne(UUID jobId, NarrowedProgram program, List<SourceFile> files, ResolvedVerifier verifier,
                         Consumer<VerificationMessage> sink) {
         String id = verifier.id();
+        Optional<String> scopeViolation = program.scopeViolation(id, verifier.variableIds(), verifier.allowFunctionalVariables());
+        if (scopeViolation.isPresent()) {
+            fail(program, sink, id, scopeViolation.get());
+            return;
+        }
         String failure = "could not be started";
         StatusMessage.Done done;
         try {

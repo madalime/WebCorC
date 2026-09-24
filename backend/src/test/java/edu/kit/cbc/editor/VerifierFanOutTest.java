@@ -63,8 +63,9 @@ class VerifierFanOutTest {
 
     private static final UUID JOB = UUID.randomUUID();
     private static final List<SourceFile> FILES = List.of(new SourceFile("javaSrc/Demo.java", "class Demo {}"));
-    private static final ResolvedVerifier EEBC = new ResolvedVerifier("eebc", Map.of("threshold", JsonNode.createStringNode("50")), null);
-    private static final ResolvedVerifier SEC = new ResolvedVerifier("sec", Map.of(), null);
+    private static final ResolvedVerifier EEBC = new ResolvedVerifier("eebc", Map.of("threshold", JsonNode.createStringNode("50")), null,
+        List.of("e"), false);
+    private static final ResolvedVerifier SEC = new ResolvedVerifier("sec", Map.of(), null, List.of("x"), false);
     private static final VerifierUnreachableException UNREACHABLE = new VerifierUnreachableException("Connection refused", null);
     private static final InvalidVerifierResponseException INVALID = new InvalidVerifierResponseException("answered 400", null);
     private static final Map<String, StatementResult> ALL_PROVEN = Map.of(
@@ -321,6 +322,34 @@ class VerifierFanOutTest {
         Assertions.assertTrue(secSecond.status().contains("not registered"), secSecond.status());
         Assertions.assertEquals(Boolean.TRUE, formula.getStatement().getVerifiers().get("eebc").proven(),
             "An unrelated Verifier's own result is untouched by sec's unexpected failure");
+    }
+
+    @Test
+    void aVerifierWhoseConditionIsOutOfScopeFailsWithoutBeingCalledWhileAnotherRunsNormally() throws Exception {
+        ResolvedVerifier secOutOfScope = new ResolvedVerifier("sec", Map.of(), null, List.of(), false);
+        FakeVerifierClient client = new FakeVerifierClient().running("eebc", ALL_PROVEN, log("measuring"), done(true));
+        CbCFormula formula = formula();
+
+        run(client, NarrowedProgram.of(formula), secOutOfScope, EEBC);
+
+        Assertions.assertEquals(2, of("sec").size(), of("sec").toString());
+        Assertions.assertEquals(VerificationMessage.LOG, of("sec").get(0).type());
+        Assertions.assertTrue(of("sec").get(0).message().contains("'x'"), of("sec").get(0).message());
+        Assertions.assertEquals(VerificationMessage.done("sec", false), of("sec").get(1));
+        Assertions.assertEquals(List.of("eebc"), client.startedJobs().stream().map(FakeVerifierClient.StartedJob::id).toList(),
+            "sec is never called");
+        Assertions.assertEquals(VerificationMessage.done("eebc", true), of("eebc").get(1));
+        Assertions.assertEquals(Boolean.TRUE, formula.getStatement().getVerifiers().get("eebc").proven(),
+            "An unrelated Verifier's own result is untouched by sec's scope violation");
+
+        CompositionStatement root = (CompositionStatement) formula.getStatement();
+        VerifierEntry secRoot = root.getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secRoot.proven());
+        Assertions.assertTrue(secRoot.status().contains("'x'"), secRoot.status());
+        VerifierEntry secSecond = root.getSecondStatement().getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secSecond.proven(),
+            "Every statement gets the failing Verifier's entry, not just the one with the offending condition");
+        Assertions.assertEquals("safe(x)", secSecond.preCondition().getCondition(), "The authored condition survives the failure marking");
     }
 
     @Test

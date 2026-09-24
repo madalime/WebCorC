@@ -38,9 +38,11 @@ properties:
   variables:
     type: array
     description: >-
-      Domain variables the verifier operates on. Passed through to the
-      verifier backend; the frontend does not interpret them beyond
-      rendering.
+      Domain variables the verifier operates on. The frontend does not
+      interpret them beyond rendering; the backend checks every Verifier
+      Condition written for this verifier against them, by `id` — a
+      condition referencing anything else fails the verifier without
+      calling it (see `allowFunctionalVariables`).
     items:
       $ref: './variable.yml'
 
@@ -51,7 +53,10 @@ properties:
       variables — may be referenced inside this verifier's non-functional
       conditions, alongside its own `variables`. Only meaningful for a
       verifier that declares `variables` at all; defaults to `false` (not
-      allowed) when omitted, so a verifier must opt in explicitly.
+      allowed) when omitted, so a verifier must opt in explicitly. A
+      condition referencing a program variable without this set — or any
+      other identifier outside `variables` and the program's own variables —
+      fails the verifier without calling it.
 
 required:
   - label

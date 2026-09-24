@@ -10,15 +10,20 @@ import edu.kit.cbc.common.corc.cbcmodel.statements.SelectionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SkipStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SmallRepetitionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.Statement;
+import edu.kit.cbc.common.corc.parsing.SemanticChecker;
+import edu.kit.cbc.common.corc.parsing.SemanticException;
 import edu.kit.cbc.editor.verifier.ResolvedVerifier;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Logger;
 
 /**
@@ -140,6 +145,61 @@ public final class NarrowedProgram {
 
     private static JobCondition condition(Condition condition) {
         return condition == null ? null : new JobCondition(condition.getCondition());
+    }
+
+    /**
+     * The first identifier outside {@code verifierId}'s scope that one of its own Verifier
+     * Conditions references, if any: in scope is {@code variableIds}, plus the program's own
+     * variables when {@code allowFunctionalVariables} is {@code true}. Empty when every condition
+     * it wrote stays inside that scope.
+     */
+    public synchronized Optional<String> scopeViolation(
+        String verifierId, Collection<String> variableIds, boolean allowFunctionalVariables
+    ) {
+        Set<String> scope = new HashSet<>(variableIds);
+        if (allowFunctionalVariables) {
+            scope.addAll(SemanticChecker.javaVariableNames(formula));
+        }
+        Optional<String> root = scopeViolation(entry(formula.getVerifiers(), verifierId), scope, "the Root");
+        if (root.isPresent()) {
+            return root;
+        }
+        for (Map.Entry<Long, AbstractStatement> numbered : statementsById.entrySet()) {
+            AbstractStatement statement = numbered.getValue();
+            String where = "statement " + numbered.getKey() + " ('" + statement.getName() + "')";
+            Optional<String> violation = scopeViolation(entry(statement.getVerifiers(), verifierId), scope, where);
+            if (violation.isPresent()) {
+                return violation;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> scopeViolation(VerifierEntry entry, Set<String> scope, String where) {
+        if (entry == null) {
+            return Optional.empty();
+        }
+        Optional<String> pre = scopeViolation(entry.preCondition(), scope, "precondition", where);
+        if (pre.isPresent()) {
+            return pre;
+        }
+        Optional<String> post = scopeViolation(entry.postCondition(), scope, "postcondition", where);
+        if (post.isPresent()) {
+            return post;
+        }
+        return scopeViolation(entry.intermediateCondition(), scope, "intermediate condition", where);
+    }
+
+    private static Optional<String> scopeViolation(Condition condition, Set<String> scope, String which, String where) {
+        if (condition == null) {
+            return Optional.empty();
+        }
+        try {
+            SemanticChecker.checkTree(condition.getParsedCondition(), scope);
+            return Optional.empty();
+        } catch (SemanticException e) {
+            return Optional.of(e.getMessage() + " (" + which + " of " + where + ")");
+        }
     }
 
     /**

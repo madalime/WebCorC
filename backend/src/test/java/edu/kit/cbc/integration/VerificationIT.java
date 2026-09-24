@@ -130,6 +130,35 @@ class VerificationIT {
             "The status text echoes the resolved Settings: the Catalog defaults, with no project Overrides");
     }
 
+    @Test
+    @Order(6)
+    @Timeout(value = 60, unit = TimeUnit.SECONDS)
+    void mockConditionOutOfScopeFailsTheMockAloneWhileFunctionalStillPasses() throws Exception {
+        UUID jobId = submit("fixtures/simple_assignment_mock_condition_out_of_scope.json", false);
+
+        List<JsonNode> messages = messagesUntilComplete(jobId, Duration.ofSeconds(55));
+
+        Assertions.assertEquals(List.of("func", "mock"), verifiers(messages),
+            "The mock is reported on even though it never actually runs: " + messages);
+        Assertions.assertTrue(messages.contains(mapper.readTree("{\"type\": \"done\", \"verifier\": \"func\", \"proven\": true}")),
+            "Functional verification is unaffected by the mock's scope violation: " + messages);
+        List<JsonNode> mock = messages.stream().filter(m -> "mock".equals(m.path("verifier").asText())).toList();
+        Assertions.assertEquals(2, mock.size(), mock.toString());
+        Assertions.assertEquals("log", mock.get(0).path("type").asText(), mock.toString());
+        Assertions.assertTrue(mock.get(0).path("message").asText().contains("'undeclaredVariable'"), mock.get(0).toString());
+        Assertions.assertEquals(mapper.readTree("{\"type\": \"done\", \"verifier\": \"mock\", \"proven\": false}"), mock.get(1));
+
+        JsonNode result = poll(jobId, Duration.ofSeconds(5));
+
+        JsonNode func = result.get("statement").get("verifiers").get("func");
+        Assertions.assertTrue(func.get("proven").asBoolean(), "The Functional Verifier's own verdict is untouched: " + result);
+        JsonNode entry = result.get("statement").get("verifiers").get("mock");
+        Assertions.assertNotNull(entry, "The mock still gets an entry, marking why it never ran: " + result);
+        Assertions.assertFalse(entry.get("proven").asBoolean());
+        Assertions.assertTrue(entry.get("status").asText().contains("'undeclaredVariable'"), entry.toString());
+        Assertions.assertFalse(result.get("isProven").asBoolean(), "mock is enabled and failed, so the program overall is not proven");
+    }
+
     /** The distinct verifier tags in order of first appearance; complete carries none. */
     private static List<String> verifiers(List<JsonNode> messages) {
         return messages.stream().filter(m -> m.has("verifier")).map(m -> m.get("verifier").asText()).distinct().toList();

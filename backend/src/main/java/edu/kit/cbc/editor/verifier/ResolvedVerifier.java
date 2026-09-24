@@ -1,6 +1,7 @@
 package edu.kit.cbc.editor.verifier;
 
 import io.micronaut.json.tree.JsonNode;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,13 +16,24 @@ import java.util.logging.Logger;
  * @param settings the resolved values in declaration order, keyed by Setting id
  * @param settingsUpdatedAt the Override's settings stamp, or {@code null} when it has none;
  *     never sent to the Verifier
+ * @param variableIds the {@code id}s of this Verifier's own declared Variables -- its Verifier
+ *     Conditions' scope, together with {@code allowFunctionalVariables}
+ * @param allowFunctionalVariables whether the program's own variables are in scope too, alongside
+ *     {@code variableIds}
  */
-public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Long settingsUpdatedAt) {
+public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Long settingsUpdatedAt,
+        List<String> variableIds, boolean allowFunctionalVariables) {
 
     private static final Logger LOGGER = Logger.getGlobal();
 
     public ResolvedVerifier {
         settings = Collections.unmodifiableMap(new LinkedHashMap<>(settings));
+        variableIds = variableIds == null ? List.of() : List.copyOf(variableIds);
+    }
+
+    /** No Variables, the program's own variables never in scope. */
+    public ResolvedVerifier(String id, Map<String, JsonNode> settings, Long settingsUpdatedAt) {
+        this(id, settings, settingsUpdatedAt, List.of(), false);
     }
 
     /**
@@ -38,7 +50,20 @@ public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Long s
 
     private static ResolvedVerifier of(Verifier verifier, VerifierOverride override) {
         return new ResolvedVerifier(verifier.id(), resolveSettings(verifier, override),
-            override == null ? null : override.settingsUpdatedAt());
+            override == null ? null : override.settingsUpdatedAt(),
+            variableIds(verifier), Boolean.TRUE.equals(verifier.allowFunctionalVariables()));
+    }
+
+    /** The {@code id} of every Variable the Catalog entry declares, in declaration order. */
+    private static List<String> variableIds(Verifier verifier) {
+        List<String> ids = new ArrayList<>();
+        for (JsonNode variable : verifier.variables()) {
+            JsonNode id = variable.get("id");
+            if (id != null && id.isString()) {
+                ids.add(id.getStringValue());
+            }
+        }
+        return ids;
     }
 
     private static boolean isEnabled(Verifier verifier, VerifierOverride override) {
