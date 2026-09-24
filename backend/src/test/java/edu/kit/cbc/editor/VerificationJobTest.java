@@ -170,9 +170,9 @@ class VerificationJobTest {
     @Test
     void aFunctionalOnlyRunClearsWhatAnEarlierAllRunLeftOnEveryNonFunctionalEntry() throws Exception {
         StubStatement stub = new StubStatement(true);
-        stub.setVerifiers(new HashMap<>(Map.of("mock", new VerifierEntry(null, null, null, true, "2.5 J", null))));
+        stub.setVerifiers(new HashMap<>(Map.of("mock", new VerifierEntry(null, null, null, true, "2.5 J", null, null))));
         CbCFormula formula = new CbCFormula("Demo", stub, List.of(), List.of(), List.of(),
-            new HashMap<>(Map.of("mock", new VerifierEntry(null, null, null, true, "2.5 J", null))), false);
+            new HashMap<>(Map.of("mock", new VerifierEntry(null, null, null, true, "2.5 J", null, null))), false);
         job = new VerificationJob(JOB, Optional.empty(), true, formula, null,
             new VerifierFanOut(new FakeVerifierClient(), Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
         job.subscribe(message -> {
@@ -333,9 +333,9 @@ class VerificationJobTest {
     @Test
     void aStaleFuncEntryFromAnEarlierRunIsOverwrittenNotLeftStaleOnFunctionalFailure() throws Exception {
         StubStatement stub = new StubStatement(false);
-        stub.setVerifiers(new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null, null))));
+        stub.setVerifiers(new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null, null, null))));
         CbCFormula formula = new CbCFormula("Demo", stub, List.of(), List.of(), List.of(),
-            new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null, null))), false);
+            new HashMap<>(Map.of(FUNC, new VerifierEntry(null, null, null, true, null, null, null))), false);
         job = new VerificationJob(JOB, Optional.empty(), false, formula, null,
             new VerifierFanOut(new FakeVerifierClient(), Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
         job.subscribe(message -> {
@@ -383,6 +383,37 @@ class VerificationJobTest {
             "Reset default: the crash happened before mock ever reported anything");
         Assertions.assertFalse(job.getFormula().isProven(),
             "The aggregate is recomputed from the enabled Verifier's (reset) entry, not left at the stale pre-fan-out functional value");
+    }
+
+    @Test
+    void theStampsTheRequestCarriedAreRewrittenFromThisJobsOverridesOnEveryEntry() throws Exception {
+        // No project: no Overrides, so this job's stamp is "none" for every Verifier.
+        StubStatement stub = new StubStatement(true);
+        stub.setVerifiers(new HashMap<>(Map.of(
+            "mock", new VerifierEntry(null, null, null, true, null, null, 5L),
+            "off", new VerifierEntry(null, null, null, true, null, null, 5L))));
+        CbCFormula formula = new CbCFormula("Demo", stub, List.of(), List.of(), List.of(),
+            new HashMap<>(Map.of("mock", new VerifierEntry(null, null, null, true, null, null, 5L))), false);
+        FakeVerifierClient client = new FakeVerifierClient()
+            .running("mock", Map.of("1", new StatementResult(true, null)), new StatusMessage.Done(true, null));
+        job = new VerificationJob(JOB, Optional.empty(), false, formula, null,
+            new VerifierFanOut(client, Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
+        job.subscribe(message -> {
+            messages.add(message);
+            if (VerificationMessage.COMPLETE.equals(message.type())) {
+                completed.countDown();
+            }
+            return false;
+        });
+
+        job.start();
+        awaitComplete();
+
+        Assertions.assertNull(job.getFormula().getStatement().getVerifiers().get("mock").settingsUpdatedAt(),
+            "The enabled Verifier's entry carries this job's stamp, not the one the request sent");
+        Assertions.assertNull(job.getFormula().getVerifiers().get("mock").settingsUpdatedAt(), "The Root too");
+        Assertions.assertNull(job.getFormula().getStatement().getVerifiers().get("off").settingsUpdatedAt(),
+            "A disabled entry carries none");
     }
 
     @Test

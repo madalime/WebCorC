@@ -13,8 +13,10 @@ import java.util.logging.Logger;
  * otherwise have to reconcile itself. See {@link #enabled} for how that resolution is done.
  *
  * @param settings the resolved values in declaration order, keyed by Setting id
+ * @param settingsUpdatedAt the Override's settings stamp, or {@code null} when it has none;
+ *     never sent to the Verifier
  */
-public record ResolvedVerifier(String id, Map<String, JsonNode> settings) {
+public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Long settingsUpdatedAt) {
 
     private static final Logger LOGGER = Logger.getGlobal();
 
@@ -30,8 +32,13 @@ public record ResolvedVerifier(String id, Map<String, JsonNode> settings) {
         return catalog.verifiers().stream()
             .filter(verifier -> !VerifierCatalogService.FUNCTIONAL_VERIFIER_ID.equals(verifier.id()))
             .filter(verifier -> isEnabled(verifier, overrides.get(verifier.id())))
-            .map(verifier -> new ResolvedVerifier(verifier.id(), resolveSettings(verifier, overrides.get(verifier.id()))))
+            .map(verifier -> of(verifier, overrides.get(verifier.id())))
             .toList();
+    }
+
+    private static ResolvedVerifier of(Verifier verifier, VerifierOverride override) {
+        return new ResolvedVerifier(verifier.id(), resolveSettings(verifier, override),
+            override == null ? null : override.settingsUpdatedAt());
     }
 
     private static boolean isEnabled(Verifier verifier, VerifierOverride override) {

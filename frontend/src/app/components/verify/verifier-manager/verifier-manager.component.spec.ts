@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { provideAnimations } from '@angular/platform-browser/animations';
 
 import { environment } from '../../../../environments/environment';
 import { VerifierService } from '../../../services/verifier/verifier.service';
@@ -30,7 +31,7 @@ describe('VerifierManagerComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [VerifierManagerComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideAnimations()],
     })
     .compileComponents();
 
@@ -155,5 +156,81 @@ describe('VerifierManagerComponent', () => {
       expect(resultClasses('Security')).toEqual(['verifier-result--failed']);
       expect(resultClasses('Functional correctness')).toEqual(['verifier-result--proven']);
     });
+  });
+
+  describe('switching a Verifier off and on again through its header toggle', () => {
+    const everyKind: Verifier = {
+      id: 'kinds', label: 'Every kind', enabled: true, toggleable: true,
+      settings: [
+        { id: 'text', label: 'Text', type: 'text', default: 'abc' },
+        { id: 'num', label: 'Num', type: 'text', valueType: 'number', default: '3' },
+        { id: 'sel', label: 'Sel', type: 'select', default: 'b',
+          options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] },
+        { id: 'flag', label: 'Flag', type: 'boolean', default: true },
+      ],
+      variables: [],
+    };
+
+    /** Clicks the header toggle of the Verifier with this label, as the user does. */
+    function clickHeaderToggle(label: string): void {
+      const panels: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('p-accordion-panel'));
+      const panel = panels.find((candidate) => candidate.textContent!.includes(label))!;
+      const toggle: HTMLElement = panel.querySelector('p-accordion-header p-toggleswitch')!;
+      toggle.click();
+      fixture.detectChanges();
+    }
+
+    it('keeps a result stamped with the current settings fresh, with the settings body rendered in between', fakeAsync(() => {
+      httpTesting.expectOne(catalogUrl).flush({
+        verifiers: [
+          { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
+          everyKind,
+        ],
+      });
+      // Keep the override out of sessionStorage, where it would outlive this spec.
+      spyOn(TestBed.inject(ProjectService), 'saveVerifierOverrides');
+      const verifierService = TestBed.inject(VerifierService);
+      fixture.detectChanges();
+
+      // A setting changed earlier, then a run with the Verifier enabled landed under it.
+      verifierService.updateSetting('kinds', 'text', 'xyz');
+      const stamp = verifierService.settingsStamp('kinds');
+      const root = new RootStatement('root', new Condition('true'), new Condition('true'), undefined);
+      root.verifiers = { func: { proven: true }, kinds: { proven: true, settingsUpdatedAt: stamp } };
+      TestBed.inject(TreeService).setFormula(new LocalCBCFormula('f', root), 'urn');
+      fixture.detectChanges();
+      // NgModel writes its value into the toggle a microtask later.
+      tick();
+      fixture.detectChanges();
+      const panelResult = () => {
+        const panels: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('p-accordion-panel'));
+        const panel = panels.find((candidate) => candidate.textContent!.includes('Every kind'))!;
+        return Array.from(panel.classList).filter((cls) => cls.startsWith('verifier-result--'));
+      };
+      expect(panelResult()).toEqual(['verifier-result--proven']);
+
+      // The user has the settings section open, as after changing the setting above.
+      component.updateExpandedSections(['kinds']);
+      fixture.detectChanges();
+      tick(500);
+      fixture.detectChanges();
+
+      const updateSetting = spyOn(verifierService, 'updateSetting').and.callThrough();
+      const enabled = () => verifierService.verifiers().find((verifier) => verifier.id === 'kinds')!.enabled;
+      clickHeaderToggle('Every kind');
+      tick(500);
+      fixture.detectChanges();
+      expect(enabled()).toBe(false);
+      clickHeaderToggle('Every kind');
+      tick(500);
+      fixture.detectChanges();
+      expect(enabled()).toBe(true);
+
+      expect(fixture.nativeElement.querySelectorAll('p-accordion-content input').length).toBeGreaterThan(0);
+      expect(updateSetting).not.toHaveBeenCalled();
+      expect(verifierService.settingsStamp('kinds')).toBe(stamp);
+      expect(panelResult()).toEqual(['verifier-result--proven']);
+      expect(root.nodeState).toBe('verified-all');
+    }));
   });
 });

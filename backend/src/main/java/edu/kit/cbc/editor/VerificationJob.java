@@ -236,13 +236,14 @@ public class VerificationJob extends Thread {
     private void resetVerifierEntries(NarrowedProgram program) {
         try {
             VerifierCatalog resolvedCatalog = catalog.toCompletableFuture().join();
-            Set<String> enabledIds = enabledVerifierIds(resolvedCatalog);
+            List<ResolvedVerifier> enabled = enabledVerifiers(resolvedCatalog);
+            Set<String> enabledIds = enabled.stream().map(ResolvedVerifier::id).collect(Collectors.toSet());
             List<String> disabledIds = resolvedCatalog.verifiers().stream()
                 .map(Verifier::id)
                 .filter(id -> !FUNC.equals(id))
                 .filter(id -> !enabledIds.contains(id))
                 .toList();
-            program.resetForRun(enabledIds, disabledIds);
+            program.resetForRun(enabled, disabledIds);
         } catch (RuntimeException e) {
             // Without the Catalog there are no ids to reset; the functional run still happens.
             LOGGER.log(Level.SEVERE, "Resetting the Verifier entries of job " + jobId + " failed", e);
@@ -251,14 +252,12 @@ public class VerificationJob extends Thread {
         }
     }
 
-    /** The ids that run in this job — none at all functional-only, where no Override is consulted. */
-    private Set<String> enabledVerifierIds(VerifierCatalog resolvedCatalog) {
+    /** The Verifiers that run in this job — none at all functional-only, where no Override is consulted. */
+    private List<ResolvedVerifier> enabledVerifiers(VerifierCatalog resolvedCatalog) {
         if (functionalOnly) {
-            return Set.of();
+            return List.of();
         }
-        return ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides).stream()
-            .map(ResolvedVerifier::id)
-            .collect(Collectors.toSet());
+        return ResolvedVerifier.enabled(resolvedCatalog, verifierOverrides);
     }
 
     /**

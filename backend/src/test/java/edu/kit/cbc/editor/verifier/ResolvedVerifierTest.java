@@ -45,7 +45,7 @@ class ResolvedVerifierTest {
     private static final VerifierCatalog CATALOG = new VerifierCatalog(List.of(FUNC, MOCK, OFF, LOCKED_ON, DEAD), null);
 
     private static VerifierOverride override(Boolean enabled, Map<String, com.fasterxml.jackson.databind.JsonNode> settings) {
-        return new VerifierOverride(enabled, settings);
+        return new VerifierOverride(enabled, settings, null);
     }
 
     private static List<String> ids(List<ResolvedVerifier> verifiers) {
@@ -152,6 +152,15 @@ class ResolvedVerifierTest {
             "A select input must be one of the declared options");
         Assertions.assertEquals(JsonNode.createBooleanNode(true), mock.settings().get("verbose"));
         Assertions.assertFalse(mock.settings().containsKey("unknown"), "Only declared Settings are sent");
+    }
+
+    @Test
+    void theOverridesSettingsStampIsCarriedAlongAndAbsentWithoutOne() {
+        List<ResolvedVerifier> verifiers = ResolvedVerifier.enabled(CATALOG, Map.of(
+            "mock", new VerifierOverride(null, Map.of(), 1727000000000L)));
+
+        Assertions.assertEquals(1727000000000L, mock(verifiers).settingsUpdatedAt());
+        Assertions.assertNull(verifiers.get(1).settingsUpdatedAt(), "No Override: no stamp");
     }
 
     @Test

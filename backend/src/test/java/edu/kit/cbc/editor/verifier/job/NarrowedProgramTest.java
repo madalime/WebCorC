@@ -11,6 +11,7 @@ import edu.kit.cbc.common.corc.cbcmodel.statements.ReturnStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SelectionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SmallRepetitionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.Statement;
+import edu.kit.cbc.editor.verifier.ResolvedVerifier;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import io.micronaut.json.JsonMapper;
 import java.util.HashSet;
@@ -89,6 +90,21 @@ class NarrowedProgramTest {
     /** A condition as the backend prints it. */
     private static JobCondition condition(String content) {
         return new JobCondition(Condition.fromString(content).getCondition());
+    }
+
+    /** Verifiers about to run, none of them with a settings stamp. */
+    private static List<ResolvedVerifier> running(String... ids) {
+        return Stream.of(ids).map(id -> stamped(id, null)).toList();
+    }
+
+    private static ResolvedVerifier stamped(String id, Long settingsUpdatedAt) {
+        return new ResolvedVerifier(id, Map.of(), settingsUpdatedAt);
+    }
+
+    /** "Step", the fixture's statement with no verifiers entry of its own. */
+    private static AbstractStatement step(CbCFormula formula) {
+        return ((SelectionStatement) ((SmallRepetitionStatement)
+            ((CompositionStatement) formula.getStatement()).getSecondStatement()).getLoopStatement()).getCommands().get(0);
     }
 
     @Test
@@ -303,7 +319,7 @@ class NarrowedProgramTest {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
 
-        program.resetForRun(List.of("energy"), List.of("sec"));
+        program.resetForRun(running("energy"), List.of("sec"));
 
         CompositionStatement top = (CompositionStatement) formula.getStatement();
         VerifierEntry energy = top.getVerifiers().get("energy");
@@ -325,7 +341,7 @@ class NarrowedProgramTest {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
 
-        program.resetForRun(List.of("energy"), List.of("sec"));
+        program.resetForRun(running("energy"), List.of("sec"));
 
         VerifierEntry rootEnergy = formula.getVerifiers().get("energy");
         Assertions.assertEquals(Boolean.FALSE, rootEnergy.proven());
@@ -343,11 +359,10 @@ class NarrowedProgramTest {
     void resetForRunCreatesAnEntryWhereNoneExisted() throws Exception {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
-        AbstractStatement step = ((SelectionStatement) ((SmallRepetitionStatement)
-            ((CompositionStatement) formula.getStatement()).getSecondStatement()).getLoopStatement()).getCommands().get(0);
+        AbstractStatement step = step(formula);
         Assertions.assertNull(step.getVerifiers(), "Step has no verifiers entry at all in the fixture");
 
-        program.resetForRun(List.of("sec"), List.of("energy"));
+        program.resetForRun(running("sec"), List.of("energy"));
 
         VerifierEntry stepSec = step.getVerifiers().get("sec");
         Assertions.assertEquals(Boolean.FALSE, stepSec.proven());
@@ -365,10 +380,10 @@ class NarrowedProgramTest {
     void resetForRunClearsAStaleStatusAndAStaleDisabledMarker() throws Exception {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
-        program.resetForRun(List.of(), List.of("energy"));
+        program.resetForRun(running(), List.of("energy"));
         program.markFailed("sec", "did not finish: gave up");
 
-        program.resetForRun(List.of("energy", "sec"), List.of());
+        program.resetForRun(running("energy", "sec"), List.of());
 
         VerifierEntry energy = formula.getStatement().getVerifiers().get("energy");
         Assertions.assertNull(energy.disabled(), "energy is enabled this run: last run's disabled marker is gone");
@@ -382,7 +397,7 @@ class NarrowedProgramTest {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
 
-        program.resetForRun(List.of(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID), List.of(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID));
+        program.resetForRun(running(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID), List.of(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID));
 
         Assertions.assertNull(formula.getStatement().getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID),
             "func is never written by the reset, enabled or disabled");
@@ -436,7 +451,7 @@ class NarrowedProgramTest {
     void writeRootResultWritesThatVerifiersWholeRunVerdictOntoTheRootAlone() throws Exception {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
-        program.resetForRun(List.of("energy", "sec"), List.of());
+        program.resetForRun(running("energy", "sec"), List.of());
 
         program.writeRootResult("energy", true, "3.2 J for the whole run");
 
@@ -478,7 +493,7 @@ class NarrowedProgramTest {
     void theDisabledMarkerIsSerialisedOnlyWhereItIsSet() throws Exception {
         CbCFormula formula = formula();
         NarrowedProgram program = NarrowedProgram.of(formula);
-        program.resetForRun(List.of("energy"), List.of("sec"));
+        program.resetForRun(running("energy"), List.of("sec"));
         ObjectMapper mapper = new ObjectMapper();
 
         String enabled = mapper.writeValueAsString(formula.getVerifiers().get("energy"));
@@ -546,7 +561,7 @@ class NarrowedProgramTest {
         root.getFirstStatement().setProven(true); // "Assign", functionally proven too
 
         program.writeFunctionalResult();
-        program.resetForRun(List.of("energy"), List.of());
+        program.resetForRun(running("energy"), List.of());
         // The Verifier never reports a result for the composite itself (id 1), only for its child (id 2).
         program.merge("energy", Map.of("2", new StatementResult(true, null)));
 
@@ -563,12 +578,77 @@ class NarrowedProgramTest {
         NarrowedProgram program = NarrowedProgram.of(formula);
         formula.getStatement().setProven(true);
         program.writeFunctionalResult();
-        program.resetForRun(List.of("energy"), List.of());
+        program.resetForRun(running("energy"), List.of());
         program.markFailed("energy", "could not be started: Connection refused");
 
         program.recomputeIsProven(List.of("energy"));
 
         Assertions.assertFalse(formula.getStatement().isProven(),
             "func.proven is true but the enabled Verifier's own entry is proven:false");
+    }
+
+    // --- Settings stamp -----------------------------------------------------------------------
+
+    @Test
+    void resetForRunStampsEnabledEntriesOnStatementsAndRootAndRemovesTheStampTheRequestCarriedOnDisabledOnes() throws Exception {
+        CbCFormula formula = formula();
+        // The frontend sends its old entries back: sec's still carries the stamp of an earlier run.
+        formula.getStatement().getVerifiers().put("sec", new VerifierEntry(null, null, null, true, null, null, 5L));
+        formula.getVerifiers().put("sec", new VerifierEntry(null, null, null, true, null, null, 5L));
+        NarrowedProgram program = NarrowedProgram.of(formula);
+
+        program.resetForRun(List.of(stamped("energy", 7L)), List.of("sec"));
+
+        Assertions.assertEquals(7L, formula.getStatement().getVerifiers().get("energy").settingsUpdatedAt());
+        Assertions.assertEquals(7L, step(formula).getVerifiers().get("energy").settingsUpdatedAt(),
+            "Every statement, not just the ones with a condition");
+        Assertions.assertEquals(7L, formula.getVerifiers().get("energy").settingsUpdatedAt(), "The Root too");
+        Assertions.assertNull(formula.getStatement().getVerifiers().get("sec").settingsUpdatedAt(),
+            "A disabled entry never carries a stamp");
+        Assertions.assertNull(formula.getVerifiers().get("sec").settingsUpdatedAt());
+    }
+
+    @Test
+    void mergeWriteRootResultAndMarkFailedStampTheEntriesTheyWrite() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.resetForRun(List.of(stamped("energy", 7L), stamped("sec", 9L)), List.of());
+
+        program.merge("energy", Map.of("5", new StatementResult(true, null)));
+        program.writeRootResult("energy", true, null);
+        program.markFailed("sec", "could not be started: Connection refused");
+
+        Assertions.assertEquals(7L, step(formula).getVerifiers().get("energy").settingsUpdatedAt());
+        Assertions.assertEquals(7L, formula.getVerifiers().get("energy").settingsUpdatedAt());
+        Assertions.assertEquals(9L, step(formula).getVerifiers().get("sec").settingsUpdatedAt(),
+            "A Verifier that failed to start failed under those settings");
+        Assertions.assertEquals(9L, formula.getVerifiers().get("sec").settingsUpdatedAt());
+    }
+
+    @Test
+    void theFunctionalVerifiersEntriesNeverCarryAStamp() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.resetForRun(List.of(stamped(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID, 3L)), List.of());
+
+        program.writeFunctionalResult();
+        program.writeFormulaFunctionalResult();
+
+        Assertions.assertNull(formula.getStatement().getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID).settingsUpdatedAt());
+        Assertions.assertNull(formula.getVerifiers().get(VerifierCatalogService.FUNCTIONAL_VERIFIER_ID).settingsUpdatedAt());
+    }
+
+    @Test
+    void theStampIsSerialisedVerbatimAndOnlyWhereItIsSet() throws Exception {
+        CbCFormula formula = formula();
+        NarrowedProgram program = NarrowedProgram.of(formula);
+        program.resetForRun(List.of(stamped("energy", 1727000000000L)), List.of("sec"));
+        ObjectMapper mapper = new ObjectMapper();
+
+        String enabled = mapper.writeValueAsString(formula.getVerifiers().get("energy"));
+        String disabled = mapper.writeValueAsString(formula.getVerifiers().get("sec"));
+
+        Assertions.assertTrue(enabled.contains("\"settingsUpdatedAt\":1727000000000"), enabled);
+        Assertions.assertFalse(disabled.contains("settingsUpdatedAt"), disabled);
     }
 }

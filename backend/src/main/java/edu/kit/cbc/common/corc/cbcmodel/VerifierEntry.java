@@ -15,6 +15,9 @@ import io.micronaut.serde.annotation.Serdeable;
  * {@code status} is the Verifier's own opaque status text, or the reason it couldn't run at all.
  * On the Root, {@code proven}/{@code status} are the whole-run verdict, not derived from the
  * statements below.
+ *
+ * <p>{@code settingsUpdatedAt} is an opaque stamp, only ever compared for equality. Never on a
+ * {@code disabled} entry or on the Functional Verifier's.
  */
 @Serdeable
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -25,5 +28,6 @@ public record VerifierEntry(
     Condition intermediateCondition,
     Boolean proven,
     String status,
-    Boolean disabled
+    Boolean disabled,
+    Long settingsUpdatedAt
 ) {}

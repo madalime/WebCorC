@@ -306,6 +306,7 @@ export class CbcFormulaMapperService {
         proven: entry.proven,
         status: entry.status,
         disabled: entry.disabled,
+        settingsUpdatedAt: entry.settingsUpdatedAt,
       });
       if (sparse) {
         imported[verifierId] = sparse;

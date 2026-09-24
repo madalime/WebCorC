@@ -63,8 +63,8 @@ class VerifierFanOutTest {
 
     private static final UUID JOB = UUID.randomUUID();
     private static final List<SourceFile> FILES = List.of(new SourceFile("javaSrc/Demo.java", "class Demo {}"));
-    private static final ResolvedVerifier EEBC = new ResolvedVerifier("eebc", Map.of("threshold", JsonNode.createStringNode("50")));
-    private static final ResolvedVerifier SEC = new ResolvedVerifier("sec", Map.of());
+    private static final ResolvedVerifier EEBC = new ResolvedVerifier("eebc", Map.of("threshold", JsonNode.createStringNode("50")), null);
+    private static final ResolvedVerifier SEC = new ResolvedVerifier("sec", Map.of(), null);
     private static final VerifierUnreachableException UNREACHABLE = new VerifierUnreachableException("Connection refused", null);
     private static final InvalidVerifierResponseException INVALID = new InvalidVerifierResponseException("answered 400", null);
     private static final Map<String, StatementResult> ALL_PROVEN = Map.of(

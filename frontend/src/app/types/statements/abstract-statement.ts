@@ -30,7 +30,8 @@ export type StatementType =
  * themselves optional: a Verifier that was never given a condition for this
  * statement still reports a result, producing a result-only entry with neither.
  * `proven`/`status` are that verifier's result for this statement, absent until it
- * has actually reported one.
+ * has actually reported one. `settingsUpdatedAt` is an opaque stamp, only ever compared for
+ * equality; never on a `disabled` entry or on the Functional Verifier's.
  */
 export interface IVerifierEntry {
   preCondition?: ICondition;
@@ -39,6 +40,7 @@ export interface IVerifierEntry {
   proven?: boolean;
   status?: string;
   disabled?: true;
+  settingsUpdatedAt?: number;
 }
 
 /**
@@ -67,6 +69,9 @@ export function sparseVerifierEntry(
   }
   if (entry.disabled !== undefined) {
     sparse.disabled = entry.disabled;
+  }
+  if (entry.settingsUpdatedAt !== undefined) {
+    sparse.settingsUpdatedAt = entry.settingsUpdatedAt;
   }
   return Object.keys(sparse).length === 0 ? undefined : sparse;
 }
@@ -152,17 +157,17 @@ export function nodeStateFor(
 export type VerifierResult = 'proven' | 'failed' | 'stale' | 'none';
 
 /**
- * `isSettingsDirty`: the Verifier had a setting change since its last result landed. A
+ * `isStale`: the result ran under other settings than the Verifier's current ones. A
  * `disabled` entry means the Verifier did not run in the last check, so it has no result.
  */
 export function verifierResultFor(
   entry: IVerifierEntry | undefined,
-  isSettingsDirty: boolean,
+  isStale: boolean,
 ): VerifierResult {
   if (entry?.proven === undefined || entry.disabled) {
     return 'none';
   }
-  if (isSettingsDirty) {
+  if (isStale) {
     return 'stale';
   }
   return entry.proven ? 'proven' : 'failed';

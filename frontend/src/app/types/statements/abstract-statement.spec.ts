@@ -2,6 +2,7 @@ import {
   IVerifierEntry,
   IVerifiers,
   nodeStateFor,
+  sparseVerifierEntry,
   VerifierResult,
   verifierResultFor,
 } from "./abstract-statement";
@@ -24,6 +25,13 @@ describe("verifierResultFor", () => {
       expect(verifierResultFor(entry, dirty)).toBe(expected);
     });
   }
+});
+
+describe("sparseVerifierEntry", () => {
+  it("keeps the settings stamp alongside the result", () => {
+    expect(sparseVerifierEntry({ proven: true, settingsUpdatedAt: 1727000000000, preCondition: { condition: "" } }))
+      .toEqual({ proven: true, settingsUpdatedAt: 1727000000000 });
+  });
 });
 
 describe("nodeStateFor", () => {

@@ -162,12 +162,14 @@ export interface VerifierCatalog {
  * the user reverts to the Catalog value. `enabled` is optional per entry — when absent, the
  * merged view falls back to the Catalog entry's `enabled`. `settings` maps each modified setting's
  * id to its raw input — a string for text/select settings, a real boolean for boolean
- * settings.
+ * settings. `settingsUpdatedAt` (epoch ms) is an opaque stamp, only ever compared for
+ * equality; absent until a setting is first changed.
  */
 export type VerifierOverrides = Record<
   string,
   {
     enabled?: boolean;
     settings: Record<string, string | boolean>;
+    settingsUpdatedAt?: number;
   }
 >;

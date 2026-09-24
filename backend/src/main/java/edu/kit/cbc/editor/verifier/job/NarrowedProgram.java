@@ -10,9 +10,11 @@ import edu.kit.cbc.common.corc.cbcmodel.statements.SelectionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SkipStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.SmallRepetitionStatement;
 import edu.kit.cbc.common.corc.cbcmodel.statements.Statement;
+import edu.kit.cbc.editor.verifier.ResolvedVerifier;
 import edu.kit.cbc.editor.verifier.VerifierCatalogService;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +44,8 @@ public final class NarrowedProgram {
     private final CbCFormula formula;
     private final Map<Long, AbstractStatement> statementsById = new LinkedHashMap<>();
     private final Map<AbstractStatement, Long> idsByStatement = new IdentityHashMap<>();
+    /** Each enabled Verifier's settings stamp, as {@link #resetForRun} was given it; values may be null. */
+    private final Map<String, Long> settingsStamps = new HashMap<>();
 
     private NarrowedProgram(CbCFormula formula) {
         this.formula = formula;
@@ -165,12 +169,17 @@ public final class NarrowedProgram {
      * at the start of every run, before functional verification, so that no verdict of an earlier
      * run survives whatever this one does. The Functional Verifier is never touched even if its
      * id is passed in: {@link #writeFunctionalResult} is its only writer.
+     *
+     * <p>Also records each enabled Verifier's settings stamp: every entry written for it from
+     * here on carries that stamp, a disabled entry none.
      */
-    public synchronized void resetForRun(Collection<String> enabledVerifierIds, Collection<String> disabledVerifierIds) {
-        for (String id : enabledVerifierIds) {
-            markRootAndEveryStatement(id, false, null, null);
+    public synchronized void resetForRun(Collection<ResolvedVerifier> enabledVerifiers, Collection<String> disabledVerifierIds) {
+        for (ResolvedVerifier verifier : enabledVerifiers) {
+            settingsStamps.put(verifier.id(), verifier.settingsUpdatedAt());
+            markRootAndEveryStatement(verifier.id(), false, null, null);
         }
         for (String id : disabledVerifierIds) {
+            settingsStamps.remove(id);
             markRootAndEveryStatement(id, false, null, true);
         }
     }
@@ -263,18 +272,26 @@ public final class NarrowedProgram {
         return entry != null && Boolean.TRUE.equals(entry.proven());
     }
 
-    private static void setEntry(AbstractStatement statement, String verifierId, Boolean proven, String status, Boolean disabled) {
+    private void setEntry(AbstractStatement statement, String verifierId, Boolean proven, String status, Boolean disabled) {
         Map<String, VerifierEntry> verifiers = statement.getVerifiers();
         if (verifiers == null) {
             verifiers = new LinkedHashMap<>();
             statement.setVerifiers(verifiers);
         }
-        verifiers.put(verifierId, withResult(verifiers.get(verifierId), proven, status, disabled));
+        verifiers.put(verifierId, withResult(verifiers.get(verifierId), proven, status, disabled, stampFor(verifierId, disabled)));
     }
 
     private void setRootEntry(String verifierId, Boolean proven, String status, Boolean disabled) {
         Map<String, VerifierEntry> verifiers = rootVerifiers();
-        verifiers.put(verifierId, withResult(verifiers.get(verifierId), proven, status, disabled));
+        verifiers.put(verifierId, withResult(verifiers.get(verifierId), proven, status, disabled, stampFor(verifierId, disabled)));
+    }
+
+    /** No stamp on a disabled entry (no result to be stale) or on the Functional Verifier's (no settings). */
+    private Long stampFor(String verifierId, Boolean disabled) {
+        if (FUNC.equals(verifierId) || Boolean.TRUE.equals(disabled)) {
+            return null;
+        }
+        return settingsStamps.get(verifierId);
     }
 
     /** The Root's {@code verifiers} map, created on the formula if it had none yet. */
@@ -287,14 +304,16 @@ public final class NarrowedProgram {
         return verifiers;
     }
 
-    private static VerifierEntry withResult(VerifierEntry existing, Boolean proven, String status, Boolean disabled) {
+    private static VerifierEntry withResult(VerifierEntry existing, Boolean proven, String status, Boolean disabled,
+                                            Long settingsUpdatedAt) {
         return new VerifierEntry(
             existing == null ? null : existing.preCondition(),
             existing == null ? null : existing.postCondition(),
             existing == null ? null : existing.intermediateCondition(),
             proven,
             status,
-            disabled);
+            disabled,
+            settingsUpdatedAt);
     }
 
     private AbstractStatement statementOf(String id) {

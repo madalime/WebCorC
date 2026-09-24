@@ -222,6 +222,39 @@ describe('CbcFormulaMapperService', () => {
       expect(inner.verifiers?.['mock']).toEqual({ proven: false, disabled: true });
     });
 
+    it('the settings stamp survives import on the Root and on statements, and export', () => {
+      const formula: ICBCFormula = {
+        name: 'f',
+        preCondition: { condition: 'true' },
+        postCondition: { condition: 'true' },
+        javaVariables: [],
+        globalConditions: [],
+        renamings: [],
+        isProven: false,
+        verifiers: { mock: { proven: true, settingsUpdatedAt: 7 } },
+        statement: {
+          id: '1',
+          name: 's',
+          type: 'STATEMENT',
+          preCondition: { condition: 'true' },
+          postCondition: { condition: 'true' },
+          isProven: false,
+          nodeState: 'unverified',
+          programStatement: 'x = 1;',
+          verifiers: { mock: { proven: false, settingsUpdatedAt: 7 } },
+        } as unknown as IStatement,
+      };
+
+      const imported = service.importFormula(formula);
+      const root = imported.statement as RootStatement;
+      const inner = root.statement as IStatement;
+      expect(root.verifiers['mock']).toEqual({ proven: true, settingsUpdatedAt: 7 });
+      expect(inner.verifiers?.['mock']).toEqual({ proven: false, settingsUpdatedAt: 7 });
+
+      const exported = service.exportFormula(imported) as unknown as ICBCFormula;
+      expect(exported.verifiers?.['mock']).toEqual({ proven: true, settingsUpdatedAt: 7 });
+    });
+
     it('importFormula sets rootStatement.isProven from formula.isProven in both branches', () => {
       // 1. Wrapped branch (formula.statement is not RootStatement)
       const formula1: ICBCFormula = {

@@ -150,22 +150,6 @@ describe("TreeService", () => {
       expect(untouched.nodeState).toBe("verified-all");
     });
 
-    it("a setting changed during a run downgrades a verified-all result to settings-changed", () => {
-      loadCatalog([functionalVerifier, mockVerifier(true)]);
-      buildRootNode("verified-all", { func: { proven: true }, mock: { proven: true } });
-      const globalSettingsService = TestBed.inject(GlobalSettingsService);
-      globalSettingsService.isVerifying = true;
-      service.beginRun();
-      verifierService.updateSetting("mock", "threshold", "5");
-
-      const resultStatement = {
-        id: "x", isProven: true, nodeState: "verified-all", verifiers: {},
-      } as unknown as IAbstractStatement;
-      service.reapplyRunChanges([resultStatement]);
-
-      expect(resultStatement.nodeState).toBe("settings-changed");
-    });
-
     it("does not mark ids edited outside of a run", () => {
       loadCatalog([functionalVerifier]);
       const root = buildRootNode("verified-all", { func: { proven: true } });
@@ -216,7 +200,13 @@ describe("TreeService", () => {
     });
   });
 
-  describe("settings-dirty overlay survives disable/re-enable (Fix B regression)", () => {
+  describe("settings stamp: stale is derived from the entries and the current Overrides", () => {
+    /** Overrides as a project load would bring them, with `mock` last changed at `stamp`. */
+    function loadOverridesWithStamp(stamp: number): void {
+      projectServiceStub.getVerifierOverrides = () => ({ mock: { settings: {}, settingsUpdatedAt: stamp } });
+      (projectServiceStub.verifierOverridesLoaded as Subject<void>).next();
+    }
+
     it("verified-all -> setting changed -> settings-changed -> disable -> verified-functional -> re-enable -> settings-changed (not verified-all)", () => {
       loadCatalog([functionalVerifier, mockVerifier(true)]);
       const root = buildRootNode("verified-all", {
@@ -234,28 +224,60 @@ describe("TreeService", () => {
       expect(root.nodeState).toBe("settings-changed");
     });
 
-    it("a fresh result landing clears the dirty marker, so a later unrelated toggle no longer forces settings-changed", () => {
+    it("a diagram whose entries carry an older stamp shows the Verifier stale when loaded, card included", () => {
       loadCatalog([functionalVerifier, mockVerifier(true)]);
+      loadOverridesWithStamp(7);
+
       const root = buildRootNode("verified-all", {
         func: { proven: true },
-        mock: { proven: true },
+        mock: { proven: true, settingsUpdatedAt: 5 },
       });
 
-      verifierService.updateSetting("mock", "threshold", "5");
+      expect(service.verifierResult(root, "mock")).toBe("stale");
       expect(root.nodeState).toBe("settings-changed");
+    });
 
-      // A fresh verify-all result lands for "mock"; reapplyRunChanges clears both the
-      // editedDuringRun and settingValueChangedDuringRun markers afterward, extended to this set.
-      root.verifiers = { func: { proven: true }, mock: { proven: true } };
-      root.nodeState = "verified-all";
-      service.reapplyRunChanges([root]);
+    it("an entry without a stamp is stale once the Overrides carry one, and fresh while neither does", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      const root = buildRootNode("verified-all", { func: { proven: true }, mock: { proven: false } });
+      expect(service.verifierResult(root, "mock")).toBe("failed");
+      expect(root.nodeState).toBe("failed-non-functional");
+
+      loadOverridesWithStamp(7);
+      TestBed.tick();
+
+      expect(service.verifierResult(root, "mock")).toBe("stale");
+      expect(root.nodeState).toBe("settings-changed");
+    });
+
+    it("a result carrying the current stamp is fresh, and disable -> re-enable without a setting change keeps it fresh", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      loadOverridesWithStamp(7);
+      const root = buildRootNode("verified-all", {
+        func: { proven: true },
+        mock: { proven: true, settingsUpdatedAt: 7 },
+      });
       expect(root.nodeState).toBe("verified-all");
 
-      // An unrelated toggle on the same Verifier no longer resurrects settings-changed.
       verifierService.setEnabled("mock", false);
       expect(root.nodeState).toBe("verified-functional");
       verifierService.setEnabled("mock", true);
+
       expect(root.nodeState).toBe("verified-all");
+      expect(service.verifierResult(root, "mock")).toBe("proven");
+    });
+
+    it("derives a landing result's card state through the stamp comparison", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      loadOverridesWithStamp(7);
+      buildRootNode("verified-all", { func: { proven: true } });
+
+      expect(service.deriveNodeState({ func: { proven: true }, mock: { proven: true, settingsUpdatedAt: 7 } }))
+        .toBe("verified-all");
+      expect(service.deriveNodeState({ func: { proven: true }, mock: { proven: true, settingsUpdatedAt: 5 } }))
+        .toBe("settings-changed");
+      expect(service.deriveNodeState({ func: { proven: true }, mock: { proven: false, settingsUpdatedAt: 5 } }))
+        .toBe("settings-changed");
     });
   });
 
@@ -305,6 +327,19 @@ describe("TreeService", () => {
       expect(composition.verifiers).toEqual({ func: { proven: true }, mock: { proven: true } });
       expect(composition.nodeState).toBe("verified-all");
       expect(second.nodeState).toBe("verified-all");
+    });
+
+    it("an edit removes the settings stamp together with the result", () => {
+      loadCatalog([functionalVerifier, mockVerifier(true)]);
+      const condition = new Condition("x > 0");
+      const root = buildRootNode("verified-all", {
+        func: { proven: true },
+        mock: { preCondition: condition, proven: true, settingsUpdatedAt: 7 },
+      });
+
+      service.markWholeTreeUnverified();
+
+      expect(root.verifiers).toEqual({ mock: { preCondition: condition } });
     });
 
     it("a Verifier toggle or a mode switch after an edit doesn't bring the old green back", () => {
@@ -360,7 +395,7 @@ describe("TreeService", () => {
       expect(root.nodeState).toBe("failed-non-functional");
     });
 
-    it("the per-Verifier query reflects the dirty set only for the changed Verifier, and the Functional Verifier is never stale", () => {
+    it("the per-Verifier query shows only the changed Verifier stale, and the Functional Verifier never", () => {
       loadCatalog([functionalVerifier, mockVerifier(true), otherVerifier]);
       const root = buildRootNode("verified-all", {
         func: { proven: true },

@@ -19,9 +19,13 @@ import java.util.Map;
  * <p>{@code settings} maps a setting id to its raw input — a string for text and select
  * settings, a real boolean for boolean ones — kept as {@link JsonNode} so it round-trips
  * losslessly.
+ *
+ * <p>{@code settingsUpdatedAt} is an opaque stamp, only ever compared for equality;
+ * {@code null} when the settings were never changed.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record VerifierOverride(
     Boolean enabled,
-    Map<String, JsonNode> settings
+    Map<String, JsonNode> settings,
+    Long settingsUpdatedAt
 ) {}

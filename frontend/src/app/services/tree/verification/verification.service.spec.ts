@@ -1,13 +1,21 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { Subject } from 'rxjs';
 
 import { VerificationService } from './verification.service';
 import { ConsoleLogGroup, ConsoleInfoLine } from '../../console/log';
-import { FUNCTIONAL_VERIFIER_ID } from '../../../types/Verifier';
+import { FUNCTIONAL_VERIFIER_ID, Verifier } from '../../../types/Verifier';
 import { TreeService } from '../tree.service';
 import { ProjectService } from '../../project/project.service';
 import { VerifierService } from '../../verifier/verifier.service';
-import { IAbstractStatement } from '../../../types/statements/abstract-statement';
+import { IAbstractStatement, IVerifiers, nodeStateFor } from '../../../types/statements/abstract-statement';
 import { LocalCBCFormula } from '../../../types/CBCFormula';
+import { environment } from '../../../../environments/environment';
+import { Condition } from '../../../types/condition/condition';
+import { Statement } from '../../../types/statements/simple-statement';
+import { CompositionStatement } from '../../../types/statements/composition-statement';
+import { RootStatement } from '../../../types/statements/root-statement';
 
 describe('VerificationService', () => {
   let service: VerificationService;
@@ -74,27 +82,25 @@ describe('VerificationService', () => {
   describe('next() per-Verifier result propagation', () => {
     let treeServiceSpy: jasmine.SpyObj<TreeService>;
     let projectServiceSpy: jasmine.SpyObj<ProjectService>;
-    let verifierServiceSpy: jasmine.SpyObj<VerifierService>;
 
     beforeEach(() => {
       treeServiceSpy = jasmine.createSpyObj('TreeService', [
         'getStatementsFromFormula',
         'reapplyRunChanges',
+        'deriveNodeState',
       ]);
+      // No settings stamps in play here: the plain derivation over the one enabled Verifier.
+      treeServiceSpy.deriveNodeState.and.callFake((verifiers) => nodeStateFor(verifiers, ['mock']));
       projectServiceSpy = jasmine.createSpyObj('ProjectService', [
         'getFileContent',
         'syncLocalFileContent',
       ]);
-      verifierServiceSpy = jasmine.createSpyObj('VerifierService', [], {
-        effectiveEnabledNonFunctionalVerifierIds: ['mock'],
-      });
 
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
           { provide: TreeService, useValue: treeServiceSpy },
           { provide: ProjectService, useValue: projectServiceSpy },
-          { provide: VerifierService, useValue: verifierServiceSpy },
         ],
       });
       service = TestBed.inject(VerificationService);
@@ -292,44 +298,121 @@ describe('VerificationService', () => {
       expect(currentStatement.isProven).toBe(false);
     });
 
-    it('a setting value changed during the run turns a verified-all result into settings-changed', async () => {
-      treeServiceSpy.reapplyRunChanges.and.callFake((statements: IAbstractStatement[]) => {
-        for (const statement of statements) {
-          if (statement.nodeState === 'verified-all') {
-            statement.nodeState = 'settings-changed';
-          }
-        }
+  });
+
+  describe('settings stamp on a landing result (real TreeService)', () => {
+    const catalogUrl = environment.apiUrl + '/editor/verifiers';
+    const functionalVerifier: Verifier = {
+      id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [],
+    };
+    const mockVerifier: Verifier = {
+      id: 'mock', label: 'Mock', enabled: true, toggleable: true,
+      settings: [{ id: 'threshold', label: 'Threshold', type: 'text' }],
+      variables: [],
+    };
+    const c = () => new Condition('true');
+
+    let treeService: TreeService;
+    let verifierService: VerifierService;
+    let now: jasmine.Spy<() => number>;
+
+    /** root -> comp -> (first, second), every entry a proven result carrying `stamp`. */
+    function tree(stamp?: number) {
+      const entries = (): IVerifiers => ({
+        func: { proven: true },
+        mock: stamp === undefined ? { proven: true } : { proven: true, settingsUpdatedAt: stamp },
       });
+      const first = new Statement('first', c(), c(), 'x = 1;');
+      first.verifiers = entries();
+      const second = new Statement('second', c(), c(), 'x = 2;');
+      second.verifiers = entries();
+      const comp = new CompositionStatement('comp', c(), c(), new Condition('mid'), first, second);
+      comp.verifiers = entries();
+      const root = new RootStatement('root', c(), c(), comp);
+      root.verifiers = entries();
+      return { root, comp, first, second };
+    }
 
-      const currentStatement = {
-        id: '1',
-        isProven: false,
-        nodeState: 'unverified',
-        verifiers: {},
-      } as unknown as IAbstractStatement;
-      const resultStatement = {
-        id: '1',
-        isProven: true,
-        verifiers: { [FUNCTIONAL_VERIFIER_ID]: { proven: true }, mock: { proven: true } },
-      } as unknown as IAbstractStatement;
+    function load() {
+      const loaded = tree();
+      treeService.setFormula(new LocalCBCFormula('f', loaded.root), 'urn');
+      return loaded;
+    }
 
-      const currentFormula = { statement: { type: 'STATEMENT' } } as unknown as LocalCBCFormula;
-      projectServiceSpy.getFileContent.and.resolveTo(currentFormula);
-      treeServiceSpy.getStatementsFromFormula.and.returnValues(
-        [currentStatement],
-        [resultStatement],
+    function changeSettingAt(stamp: number) {
+      now.and.returnValue(stamp);
+      verifierService.updateSetting('mock', 'threshold', String(stamp));
+      // Statement ids are derived from Date.now() too.
+      now.and.callThrough();
+    }
+
+    beforeEach(() => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          {
+            provide: ProjectService,
+            useValue: {
+              getVerifierOverrides: () => null,
+              saveVerifierOverrides: () => undefined,
+              verifierOverridesLoaded: new Subject<void>(),
+              getFileContent: () => Promise.resolve(treeService.rootFormula),
+              syncLocalFileContent: () => undefined,
+            },
+          },
+        ],
+      });
+      verifierService = TestBed.inject(VerifierService);
+      TestBed.inject(HttpTestingController).expectOne(catalogUrl).flush({ verifiers: [functionalVerifier, mockVerifier] });
+      treeService = TestBed.inject(TreeService);
+      service = TestBed.inject(VerificationService);
+      now = spyOn(Date, 'now').and.callThrough();
+    });
+
+    it('a subtree verify refreshes only the subtree: the Root, the ancestors and statements outside stay stale', async () => {
+      const { root, comp, first, second } = load();
+      changeSettingAt(7);
+
+      const result = tree(7).second;
+      await service.nextStatement(
+        new ConsoleLogGroup(),
+        new LocalCBCFormula('second', new RootStatement('second', c(), c(), result)),
+        treeService.findStatementNodeById(second.id)!,
+        'urn',
       );
 
-      const group = new ConsoleLogGroup();
-      const formula = {
-        statement: { type: 'STATEMENT' },
-        isProven: true,
-        name: 'f',
-      } as unknown as LocalCBCFormula;
+      expect(treeService.verifierResult(second, 'mock')).toBe('proven');
+      expect(second.nodeState).toBe('verified-all');
+      for (const outside of [root, comp, first]) {
+        expect(treeService.verifierResult(outside, 'mock')).withContext(outside.name).toBe('stale');
+        expect(outside.nodeState).withContext(outside.name).toBe('settings-changed');
+      }
+    });
 
-      await service.next(group, formula, 'urn');
+    it('a whole-tree verify makes the whole diagram fresh', async () => {
+      const { root, comp, first, second } = load();
+      changeSettingAt(7);
 
-      expect(currentStatement.nodeState).toBe('settings-changed');
+      await service.next(new ConsoleLogGroup(), new LocalCBCFormula('f', tree(7).root), 'urn');
+
+      for (const statement of [root, comp, first, second]) {
+        expect(treeService.verifierResult(statement, 'mock')).withContext(statement.name).toBe('proven');
+        expect(statement.nodeState).withContext(statement.name).toBe('verified-all');
+      }
+    });
+
+    it('a result stamped with the settings the run started under shows stale after a mid-run change', async () => {
+      const { root, second } = load();
+      changeSettingAt(7);
+      changeSettingAt(8);
+
+      await service.next(new ConsoleLogGroup(), new LocalCBCFormula('f', tree(7).root), 'urn');
+
+      expect(treeService.verifierResult(root, 'mock')).toBe('stale');
+      expect(treeService.verifierResult(second, 'mock')).toBe('stale');
+      expect(second.nodeState).toBe('settings-changed');
     });
   });
 });

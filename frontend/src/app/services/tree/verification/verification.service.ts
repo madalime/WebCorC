@@ -3,7 +3,7 @@ import { LocalCBCFormula } from "../../../types/CBCFormula";
 import { ProjectService } from "../../project/project.service";
 import { TreeService } from "../tree.service";
 import { ConsoleService } from "../../console/console.service";
-import { IAbstractStatement, nodeStateFor } from "../../../types/statements/abstract-statement";
+import { IAbstractStatement } from "../../../types/statements/abstract-statement";
 import { AbstractStatementNode } from "../../../types/statements/nodes/abstract-statement-node";
 import { GlobalSettingsService } from "../../global-settings.service";
 import { ConsoleInfoLine, ConsoleLogGroup } from "../../console/log";
@@ -13,7 +13,6 @@ import {
   VerificationMessage,
 } from "../../../types/VerificationMessage";
 import { FUNCTIONAL_VERIFIER_ID } from "../../../types/Verifier";
-import {VerifierService} from "../../verifier/verifier.service";
 
 /**
  * Service to distribute the verification result from the http response to the tree service.
@@ -27,7 +26,6 @@ export class VerificationService {
   private treeService = inject(TreeService);
   private consoleService = inject(ConsoleService);
   private globalSettingsService = inject(GlobalSettingsService);
-  private verifierService = inject(VerifierService)
 
   /** Inserted by Angular inject() migration for backwards compatibility */
   constructor(...args: unknown[]);
@@ -102,7 +100,6 @@ export class VerificationService {
     urn: string,
   ) {
     this.consoleService.finishLoading();
-    const enabledVerifiers = this.verifierService.effectiveEnabledNonFunctionalVerifierIds;
     if (formula.statement) {
       const currentFormula = await this.projectService.getFileContent(urn);
       const currentStatements = this.treeService.getStatementsFromFormula(
@@ -112,7 +109,7 @@ export class VerificationService {
       // The statements should be in the same order, since the structure should be unchanged.
       currentStatements.forEach((stmt, index) => {
         stmt.isProven = newStatements[index]?.isProven;
-        stmt.nodeState = nodeStateFor(newStatements[index]?.verifiers, enabledVerifiers);
+        stmt.nodeState = this.treeService.deriveNodeState(newStatements[index]?.verifiers);
         stmt.verifiers = newStatements[index]?.verifiers ?? stmt.verifiers;
       });
       this.treeService.reapplyRunChanges(currentStatements);
@@ -151,7 +148,6 @@ export class VerificationService {
     urn: string,
   ) {
     this.consoleService.finishLoading();
-    const enabledVerifiers = this.verifierService.effectiveEnabledNonFunctionalVerifierIds;
 
     if (!formula.statement) {
       group.lines.push(
@@ -200,7 +196,7 @@ export class VerificationService {
       const node = subtreeNodes.find((n) => n.statement.id === subtreeStmt.id);
       if (node) {
         node.statement.isProven = resultStmt.isProven || false;
-        node.statement.nodeState = nodeStateFor(resultStmt.verifiers, enabledVerifiers);
+        node.statement.nodeState = this.treeService.deriveNodeState(resultStmt.verifiers);
         node.statement.verifiers = resultStmt.verifiers ?? node.statement.verifiers;
         updatedStatements.push(node.statement);
       }

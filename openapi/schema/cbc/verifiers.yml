@@ -8,7 +8,7 @@ description: >
   functional verification has completed.
   An entry the user authored carries the conditions; one a run created (every catalog
   Verifier gets an entry, whether or not a condition was written for it) carries only
-  proven/status/disabled, with no conditions at all.
+  proven/status/disabled/settingsUpdatedAt, with no conditions at all.
   The formula carries the same map, with the same shape and the same rules, for the
   program's root: there a non-functional Verifier's proven and status are the ones
   from that Verifier's own done message, its verdict for the whole run, rather than a
@@ -54,3 +54,14 @@ additionalProperties:
         every non-functional Verifier). Such an entry is `proven: false` and has no
         `status`. Absent otherwise.
       type: boolean
+
+    settingsUpdatedAt:
+      description: >
+        The Verifier Overrides' `settingsUpdatedAt` of this Verifier that the run
+        which wrote this entry used, copied verbatim by the backend. The editor shows
+        the result stale when it differs from the current Overrides' value; the two
+        are only ever compared for equality. Absent when the Overrides carry none,
+        on a `disabled` entry and on the Functional Verifier's entry. Removed with
+        `proven`/`status` when a statement edit clears the results.
+      type: integer
+      format: int64

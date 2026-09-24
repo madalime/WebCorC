@@ -186,13 +186,21 @@ export class VerifierService {
   /**
    * Routes setting-input updates through the service so every consumer (side menu, bottom
    * menu) observes the same value. `input` is a string for text/select settings, a boolean
-   * for boolean settings.
+   * for boolean settings. Stamps the Override, which makes every earlier result of this
+   * Verifier stale; a no-op when `input` is the setting's current value (Catalog default
+   * included), so a control re-reporting its value cannot stale anything.
    */
   public updateSetting(
     verifierId: string,
     settingId: string,
     input: string | boolean,
   ): void {
+    const current = this.verifiers()
+      .find((verifier) => verifier.id === verifierId)
+      ?.settings.find((setting) => setting.id === settingId)?.input;
+    if (current === input) {
+      return;
+    }
     this._overrides.update((overrides) => {
       const existing = overrides[verifierId] ?? { settings: {} };
       return {
@@ -200,11 +208,17 @@ export class VerifierService {
         [verifierId]: {
           ...existing,
           settings: { ...existing.settings, [settingId]: input },
+          settingsUpdatedAt: Date.now(),
         },
       };
     });
     this.persist();
     this._overridesChanged.next({ kind: "setting", id: verifierId });
+  }
+
+  /** The current settings stamp of a Verifier's Override; `undefined` while its settings were never changed. */
+  public settingsStamp(verifierId: string): number | undefined {
+    return this._overrides()[verifierId]?.settingsUpdatedAt;
   }
 
   /** Fires after a user-driven override change (setEnabled/updateSetting) — not on initial hydration, so consumers can tell the two apart. */
