@@ -14,13 +14,18 @@ describe("parseVerificationMessage", () => {
 
   it("parses a done envelope", () => {
     const parsed = parseVerificationMessage(
-      '{"type":"done","verifier":"mock","proven":true}',
+      '{"type":"done","verifier":"mock","proven":true,"durationMs":850}',
     );
-    expect(parsed).toEqual({ type: "done", verifier: "mock", proven: true });
+    expect(parsed).toEqual({
+      type: "done",
+      verifier: "mock",
+      proven: true,
+      durationMs: 850,
+    });
   });
 
   it("parses a complete envelope", () => {
-    const parsed = parseVerificationMessage('{"type":"complete"}');
-    expect(parsed).toEqual({ type: "complete" });
+    const parsed = parseVerificationMessage('{"type":"complete","durationMs":4200}');
+    expect(parsed).toEqual({ type: "complete", durationMs: 4200 });
   });
 });

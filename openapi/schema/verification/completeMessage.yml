@@ -11,5 +11,13 @@ properties:
     enum:
       - complete
 
+  durationMs:
+    type: integer
+    minimum: 0
+    description: >-
+      Time from the start of the job's run until complete was sent, covering
+      functional verification and every other Verifier.
+
 required:
   - type
+  - durationMs

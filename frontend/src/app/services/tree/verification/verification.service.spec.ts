@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 
-import { VerificationService } from './verification.service';
+import { VerificationService, formatVerifierDuration } from './verification.service';
 import { ConsoleLogGroup, ConsoleInfoLine } from '../../console/log';
 import { FUNCTIONAL_VERIFIER_ID, Verifier } from '../../../types/Verifier';
 import { TreeService } from '../tree.service';
@@ -16,6 +16,7 @@ import { Condition } from '../../../types/condition/condition';
 import { Statement } from '../../../types/statements/simple-statement';
 import { CompositionStatement } from '../../../types/statements/composition-statement';
 import { RootStatement } from '../../../types/statements/root-statement';
+import { AbstractStatementNode } from '../../../types/statements/nodes/abstract-statement-node';
 
 describe('VerificationService', () => {
   let service: VerificationService;
@@ -64,18 +65,43 @@ describe('VerificationService', () => {
       expect(line.message).not.toContain('[');
     });
 
-    it('surfaces a per-Verifier done signal, pass or fail, before the final complete', () => {
+    it('surfaces a per-Verifier done signal, pass or fail, with its duration, before the final complete', () => {
       const group = new ConsoleLogGroup();
-      service.verifyInfo(group, { type: 'done', verifier: 'mock', proven: false });
+      service.verifyInfo(group, { type: 'done', verifier: 'mock', proven: false, durationMs: 4200 });
       const line = group.lines[0] as ConsoleInfoLine;
       expect(line.message).toContain('mock');
       expect(line.message.toLowerCase()).toContain('fail');
+      expect(line.message).toContain('4.2 s');
     });
 
     it('does not add a console line for the terminal complete signal itself', () => {
       const group = new ConsoleLogGroup();
-      service.verifyInfo(group, { type: 'complete' });
+      service.verifyInfo(group, { type: 'complete', durationMs: 4200 });
       expect(group.lines.length).toBe(0);
+    });
+  });
+
+  describe('formatVerifierDuration', () => {
+    it('under a second: whole milliseconds', () => {
+      expect(formatVerifierDuration(999)).toBe('999 ms');
+    });
+
+    it('at one second: one decimal of seconds', () => {
+      expect(formatVerifierDuration(1000)).toBe('1.0 s');
+    });
+
+    it('just under a minute: one decimal of seconds', () => {
+      expect(formatVerifierDuration(59900)).toBe('59.9 s');
+    });
+
+    it('at one minute: whole minutes and seconds', () => {
+      expect(formatVerifierDuration(60000)).toBe('1 m 0 s');
+    });
+
+    it('formats the ticket examples', () => {
+      expect(formatVerifierDuration(850)).toBe('850 ms');
+      expect(formatVerifierDuration(4200)).toBe('4.2 s');
+      expect(formatVerifierDuration(72000)).toBe('1 m 12 s');
     });
   });
 
@@ -413,6 +439,310 @@ describe('VerificationService', () => {
       expect(treeService.verifierResult(root, 'mock')).toBe('stale');
       expect(treeService.verifierResult(second, 'mock')).toBe('stale');
       expect(second.nodeState).toBe('settings-changed');
+    });
+  });
+
+  describe('the run overview pushed by next()/nextStatement()', () => {
+    let treeServiceSpy: jasmine.SpyObj<TreeService>;
+    let projectServiceSpy: jasmine.SpyObj<ProjectService>;
+
+    function formulaWithVerifiers(verifiers: IVerifiers, isProven: boolean): LocalCBCFormula {
+      return {
+        statement: { type: 'ROOT', verifiers },
+        isProven,
+        name: 'f',
+      } as unknown as LocalCBCFormula;
+    }
+
+    function messagesOf(group: ConsoleLogGroup): string[] {
+      return group.lines.map((line) => (line as ConsoleInfoLine).message);
+    }
+
+    beforeEach(() => {
+      treeServiceSpy = jasmine.createSpyObj('TreeService', [
+        'getStatementsFromFormula',
+        'reapplyRunChanges',
+        'deriveNodeState',
+        'collectSubtreeNodes',
+        'refreshNodes',
+      ]);
+      treeServiceSpy.getStatementsFromFormula.and.returnValue([]);
+      treeServiceSpy.collectSubtreeNodes.and.returnValue([]);
+      projectServiceSpy = jasmine.createSpyObj('ProjectService', ['getFileContent', 'syncLocalFileContent']);
+      projectServiceSpy.getFileContent.and.resolveTo({ statement: { type: 'STATEMENT' } } as unknown as LocalCBCFormula);
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: TreeService, useValue: treeServiceSpy },
+          { provide: ProjectService, useValue: projectServiceSpy },
+        ],
+      });
+      service = TestBed.inject(VerificationService);
+    });
+
+    it('all passed (3/3): success header and only the success count line', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'a', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'b', proven: true, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        { func: { proven: true }, a: { proven: true }, b: { proven: true } },
+        true,
+      );
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('SUCCESS');
+      expect(messages).toContain('3/3 verifiers successful');
+      expect(messages.some((m) => m.includes('failed'))).toBeFalse();
+      expect(messages.some((m) => m.includes('did not run'))).toBeFalse();
+    });
+
+    it('one failed (2/3): failure header, one failed line, no did-not-run line', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'a', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'b', proven: false, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        { func: { proven: true }, a: { proven: true }, b: { proven: false } },
+        false,
+      );
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('FAIL');
+      expect(messages).toContain('1 verifier failed');
+      expect(messages.some((m) => m.includes('did not run'))).toBeFalse();
+    });
+
+    it('Catalog func/mock/dead, mock and dead disabled, func passed: 1/3, 2 did not run, verified line even though x < y', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: FUNCTIONAL_VERIFIER_ID, proven: true, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        {
+          [FUNCTIONAL_VERIFIER_ID]: { proven: true },
+          mock: { proven: false, disabled: true },
+          dead: { proven: false, disabled: true },
+        },
+        true,
+      );
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('SUCCESS');
+      expect(messages.some((m) => m.includes('is verified'))).toBeTrue();
+      expect(messages).toContain('1/3 verifiers successful');
+      expect(messages).toContain('2 verifiers did not run');
+      expect(messages.some((m) => m.includes('failed'))).toBeFalse();
+    });
+
+    it('Catalog func/mock/dead, all three enabled and passed: 3/3, no did-not-run line', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: FUNCTIONAL_VERIFIER_ID, proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'mock', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'dead', proven: true, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        {
+          [FUNCTIONAL_VERIFIER_ID]: { proven: true },
+          mock: { proven: true },
+          dead: { proven: true },
+        },
+        true,
+      );
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('SUCCESS');
+      expect(messages).toContain('3/3 verifiers successful');
+      expect(messages.some((m) => m.includes('did not run'))).toBeFalse();
+    });
+
+    it('mock enabled and failed, dead disabled, func passed, isProven false: 1/3, 1 failed, 1 did not run', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: FUNCTIONAL_VERIFIER_ID, proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'mock', proven: false, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        {
+          [FUNCTIONAL_VERIFIER_ID]: { proven: true },
+          mock: { proven: false },
+          dead: { proven: false, disabled: true },
+        },
+        false,
+      );
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('FAIL');
+      expect(messages).toContain('1/3 verifiers successful');
+      expect(messages).toContain('1 verifier failed');
+      expect(messages).toContain('1 verifier did not run');
+    });
+
+    it('func failed, mock enabled (never ran), dead disabled: 0/3, 1 failed (func only), 2 did not run, functional-failure line', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: FUNCTIONAL_VERIFIER_ID, proven: false, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        {
+          [FUNCTIONAL_VERIFIER_ID]: { proven: false },
+          mock: { proven: false },
+          dead: { proven: false, disabled: true },
+        },
+        false,
+      );
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('FAIL');
+      expect(messages).toContain('0/3 verifiers successful');
+      expect(messages).toContain('1 verifier failed');
+      expect(messages).toContain('2 verifiers did not run');
+      expect(messages).toContain('No other Verifiers ran because functional verification failed.');
+    });
+
+    it('functional-only (only func non-disabled, passed): 1/2 verifiers successful, 1 did not run', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: FUNCTIONAL_VERIFIER_ID, proven: true, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        {
+          [FUNCTIONAL_VERIFIER_ID]: { proven: true },
+          other: { proven: false, disabled: true },
+        },
+        true,
+      );
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('SUCCESS');
+      expect(messages).toContain('1/2 verifiers successful');
+      expect(messages).toContain('1 verifier did not run');
+      expect(messages.some((m) => m.includes('failed'))).toBeFalse();
+    });
+
+    it('nextStatement pushes the same overview as next()', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'a', proven: true, durationMs: 10 });
+
+      const formula = formulaWithVerifiers({ func: { proven: true }, a: { proven: true } }, true);
+      const statementNode = {
+        statement: { name: 'stmt', type: 'STATEMENT' },
+        children: [],
+      } as unknown as AbstractStatementNode;
+
+      await service.nextStatement(group, formula, statementNode, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('SUCCESS');
+      expect(messages).toContain('2/2 verifiers successful');
+    });
+
+    it('nextStatement pushes the same overview from a Catalog with a disabled entry', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: FUNCTIONAL_VERIFIER_ID, proven: true, durationMs: 10 });
+
+      const formula = formulaWithVerifiers(
+        {
+          [FUNCTIONAL_VERIFIER_ID]: { proven: true },
+          mock: { proven: false, disabled: true },
+          dead: { proven: false, disabled: true },
+        },
+        true,
+      );
+      const statementNode = {
+        statement: { name: 'stmt', type: 'STATEMENT' },
+        children: [],
+      } as unknown as AbstractStatementNode;
+
+      await service.nextStatement(group, formula, statementNode, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('SUCCESS');
+      expect(messages).toContain('1/3 verifiers successful');
+      expect(messages).toContain('2 verifiers did not run');
+    });
+
+    it('after a "the Verifier Catalog could not be read" line: only the closing line, verdict from formula.isProven, no counts', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
+      service.verifyInfo(group, {
+        type: 'log',
+        message: 'the Verifier Catalog could not be read; every Verifier entry keeps what the last run left it: boom',
+      });
+
+      const formula = formulaWithVerifiers({ func: { proven: true } }, true);
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(group.status).toBe('SUCCESS');
+      expect(messages.some((m) => /verifiers successful/.test(m))).toBeFalse();
+      expect(messages.some((m) => m.includes('did not run'))).toBeFalse();
+      expect(messages.some((m) => m.includes('functional verification failed'))).toBeFalse();
+    });
+
+    it('pushes "Total time: …" as the overview\'s last line, after the counts', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'done', verifier: 'a', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'complete', durationMs: 4200 });
+
+      const formula = formulaWithVerifiers({ func: { proven: true }, a: { proven: true } }, true);
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(messages).toContain('2/2 verifiers successful');
+      expect(messages[messages.length - 1]).toBe('Total time: 4.2 s');
+    });
+
+    it('nextStatement pushes the same "Total time: …" last line', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
+      service.verifyInfo(group, { type: 'complete', durationMs: 850 });
+
+      const formula = formulaWithVerifiers({ func: { proven: true } }, true);
+      const statementNode = {
+        statement: { name: 'stmt', type: 'STATEMENT' },
+        children: [],
+      } as unknown as AbstractStatementNode;
+
+      await service.nextStatement(group, formula, statementNode, 'urn');
+
+      const messages = messagesOf(group);
+      expect(messages[messages.length - 1]).toBe('Total time: 850 ms');
+    });
+
+    it('after a Catalog-unreadable line: the closing line is followed directly by "Total time: …", still no count lines', async () => {
+      const group = service.beginVerificationLog();
+      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
+      service.verifyInfo(group, {
+        type: 'log',
+        message: 'the Verifier Catalog could not be read; every Verifier entry keeps what the last run left it: boom',
+      });
+      service.verifyInfo(group, { type: 'complete', durationMs: 1200 });
+
+      const formula = formulaWithVerifiers({ func: { proven: true } }, true);
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(messages.some((m) => /verifiers successful/.test(m))).toBeFalse();
+      expect(messages[messages.length - 1]).toBe('Total time: 1.2 s');
+    });
+
+    it('with no duration recorded for the group (next called without beginVerificationLog), pushes no total-time line', async () => {
+      const group = new ConsoleLogGroup();
+      const formula = formulaWithVerifiers({ func: { proven: true } }, true);
+
+      await service.next(group, formula, 'urn');
+
+      const messages = messagesOf(group);
+      expect(messages.some((m) => m.startsWith('Total time'))).toBeFalse();
     });
   });
 });

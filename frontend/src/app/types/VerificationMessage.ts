@@ -21,8 +21,12 @@ export interface DoneMessage {
   type: "done";
   verifier: string;
   proven: boolean;
+  /** Wall-clock run time of that Verifier (or functional verification), in milliseconds. */
+  durationMs: number;
 }
 
 export interface CompleteMessage {
   type: "complete";
+  /** Wall-clock time from the start of the job's run until complete was sent, in milliseconds. */
+  durationMs: number;
 }

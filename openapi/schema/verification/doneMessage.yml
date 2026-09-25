@@ -25,7 +25,17 @@ properties:
       failed, including a run the Verifier itself called proven but whose
       result could not be fetched.
 
+  durationMs:
+    type: integer
+    minimum: 0
+    description: >-
+      Wall-clock time from the start of that Verifier's run until its done
+      was sent, including a failed run up to the point where it failed; for
+      func, from the start of the job's run until functional verification's
+      done.
+
 required:
   - type
   - verifier
   - proven
+  - durationMs

@@ -47,6 +47,14 @@ public class VerificationJob extends Thread {
     private static final ObjectMapper VERIFIERS_MAPPER = new ObjectMapper();
     private static final String FUNC = VerifierCatalogService.FUNCTIONAL_VERIFIER_ID;
 
+    /**
+     * Prefix of the orchestration log line emitted when the Catalog could not be read, so no
+     * count overview can be trusted. Mirrored on the frontend as
+     * {@code VerificationService.CATALOG_UNREADABLE_PREFIX} (verification.service.ts), which
+     * matches on it to suppress the overview; keep both in step.
+     */
+    static final String CATALOG_UNREADABLE_LOG_PREFIX = "the Verifier Catalog could not be read";
+
     private final Object lock = new Object();
     private final List<VerificationMessage> messages = new ArrayList<>();
     private final List<Function<VerificationMessage, Boolean>> listeners = new ArrayList<>();
@@ -138,6 +146,7 @@ public class VerificationJob extends Thread {
     }
 
     public void run() {
+        long start = System.nanoTime();
         log("verification started");
 
         // One instance per run, created before the functional proof: the reset of every catalog
@@ -196,7 +205,7 @@ public class VerificationJob extends Thread {
         } else {
             log("WebCorC was unable to prove all of your statements. See the log for further information...");
         }
-        emit(VerificationMessage.done(FUNC, proven));
+        emit(VerificationMessage.done(FUNC, proven, elapsedMs(start)));
 
         // The func entry always reflects *this* run's functional result, in both modes and even
         // on failure -- written now, before the gate below, so a stale proven:true from an
@@ -215,7 +224,7 @@ public class VerificationJob extends Thread {
         }
 
         hasResult = true;
-        emit(VerificationMessage.complete());
+        emit(VerificationMessage.complete(elapsedMs(start)));
 
         //Keep job output and result available for some time before it is deleted
         try {
@@ -247,7 +256,7 @@ public class VerificationJob extends Thread {
         } catch (RuntimeException e) {
             // Without the Catalog there are no ids to reset; the functional run still happens.
             LOGGER.log(Level.SEVERE, "Resetting the Verifier entries of job " + jobId + " failed", e);
-            orchestrationLog("the Verifier Catalog could not be read; every Verifier entry keeps what the last run left it: "
+            orchestrationLog(CATALOG_UNREADABLE_LOG_PREFIX + "; every Verifier entry keeps what the last run left it: "
                 + e.getMessage());
         }
     }
@@ -338,5 +347,10 @@ public class VerificationJob extends Thread {
             messages.add(message);
             listeners.removeIf(listener -> listener.apply(message));
         }
+    }
+
+    /** Wall-clock time since {@code start} ({@link System#nanoTime()}), in whole milliseconds. */
+    private static long elapsedMs(long start) {
+        return (System.nanoTime() - start) / 1_000_000;
     }
 }

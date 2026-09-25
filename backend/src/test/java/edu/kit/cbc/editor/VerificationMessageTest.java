@@ -24,14 +24,15 @@ class VerificationMessageTest {
     }
 
     @Test
-    void doneCarriesItsVerifierAndAggregateVerdict() throws Exception {
-        Assertions.assertEquals(JSON.readValue("{\"type\": \"done\", \"verifier\": \"eebc\", \"proven\": false}", JsonNode.class),
-            written(VerificationMessage.done("eebc", false)));
+    void doneCarriesItsVerifierAggregateVerdictAndDuration() throws Exception {
+        Assertions.assertEquals(
+            JSON.readValue("{\"type\": \"done\", \"verifier\": \"eebc\", \"proven\": false, \"durationMs\": 150}", JsonNode.class),
+            written(VerificationMessage.done("eebc", false, 150)));
     }
 
     @Test
-    void completeCarriesNothingElse() throws Exception {
-        Assertions.assertEquals(JSON.readValue("{\"type\": \"complete\"}", JsonNode.class),
-            written(VerificationMessage.complete()));
+    void completeCarriesOnlyItsDuration() throws Exception {
+        Assertions.assertEquals(JSON.readValue("{\"type\": \"complete\", \"durationMs\": 2000}", JsonNode.class),
+            written(VerificationMessage.complete(2000)));
     }
 }

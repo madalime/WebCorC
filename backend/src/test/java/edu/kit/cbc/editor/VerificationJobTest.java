@@ -50,13 +50,19 @@ class VerificationJobTest {
         new Verifier(FUNC, "Functional correctness", true, false, null, List.of(), List.of(), null),
         new Verifier("off", "Off", false, true, null, List.of(), List.of(), null)), null);
 
-    /** Stands in for a KeY-proven leaf statement: a fixed verdict, one log line. */
+    /** Stands in for a KeY-proven leaf statement: a fixed verdict, one log line, an optional sleep to give its run a measurable duration. */
     private static final class StubStatement extends Statement {
 
         private final boolean verdict;
+        private final long sleepMs;
 
         StubStatement(boolean verdict) {
+            this(verdict, 0);
+        }
+
+        StubStatement(boolean verdict, long sleepMs) {
             this.verdict = verdict;
+            this.sleepMs = sleepMs;
             setName("Stub");
             setType(StatementType.STATEMENT);
             setPreCondition(Condition.fromString("x == 0"));
@@ -65,6 +71,13 @@ class VerificationJobTest {
 
         @Override
         public boolean prove(ProofContext proofContext) {
+            if (sleepMs > 0) {
+                try {
+                    Thread.sleep(sleepMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             proofContext.getLogger().accept("proving " + getName());
             setProven(verdict);
             return verdict;
@@ -117,11 +130,37 @@ class VerificationJobTest {
     }
 
     private List<VerificationMessage> of(String verifier) {
-        return messages.stream().filter(message -> verifier.equals(message.verifier())).toList();
+        return messages.stream()
+            .filter(message -> verifier.equals(message.verifier()))
+            .map(VerificationJobTest::withoutDuration)
+            .toList();
     }
 
     private List<String> types() {
         return messages.stream().map(VerificationMessage::type).toList();
+    }
+
+    /**
+     * An expected {@code done} for equality checks: {@code durationMs} is real elapsed time, so
+     * {@link #withoutDuration} strips it from what actually arrived before comparing.
+     */
+    private static VerificationMessage doneIgnoringDuration(String verifier, boolean proven) {
+        return new VerificationMessage(VerificationMessage.DONE, verifier, null, proven, null);
+    }
+
+    /** An expected {@code complete} for equality checks, {@code durationMs} stripped like {@link #doneIgnoringDuration}. */
+    private static VerificationMessage completeIgnoringDuration() {
+        return new VerificationMessage(VerificationMessage.COMPLETE, null, null, null, null);
+    }
+
+    private static VerificationMessage withoutDuration(VerificationMessage message) {
+        return VerificationMessage.DONE.equals(message.type()) || VerificationMessage.COMPLETE.equals(message.type())
+            ? new VerificationMessage(message.type(), message.verifier(), message.message(), message.proven(), null)
+            : message;
+    }
+
+    private static List<VerificationMessage> withoutDuration(List<VerificationMessage> messages) {
+        return messages.stream().map(VerificationJobTest::withoutDuration).toList();
     }
 
     @Test
@@ -135,7 +174,7 @@ class VerificationJobTest {
             "What the constructor logged is delivered on subscribe");
         Assertions.assertTrue(messages.contains(VerificationMessage.log(FUNC, "proving Stub")), "Functional log lines are tagged func");
         List<VerificationMessage> tail = messages.subList(messages.size() - 2, messages.size());
-        Assertions.assertEquals(List.of(VerificationMessage.done(FUNC, true), VerificationMessage.complete()), tail);
+        Assertions.assertEquals(List.of(doneIgnoringDuration(FUNC, true), completeIgnoringDuration()), withoutDuration(tail));
         Assertions.assertEquals(List.of(FUNC), messages.stream().map(VerificationMessage::verifier)
             .filter(v -> v != null).distinct().toList(), "Nothing but the Functional Verifier spoke");
         Assertions.assertTrue(client.startedJobs().isEmpty());
@@ -146,6 +185,10 @@ class VerificationJobTest {
         Assertions.assertNull(funcEntry.status(), "func never carries a status");
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getVerifiers().get(FUNC).proven(),
             "The Root's own verifiers map also gets a func entry");
+        VerificationMessage funcDone = messages.stream()
+            .filter(m -> FUNC.equals(m.verifier()) && VerificationMessage.DONE.equals(m.type())).findFirst().orElseThrow();
+        Assertions.assertNotNull(funcDone.durationMs());
+        Assertions.assertTrue(funcDone.durationMs() >= 0, funcDone.toString());
     }
 
     @Test
@@ -204,7 +247,7 @@ class VerificationJobTest {
         awaitComplete();
 
         List<VerificationMessage> tail = messages.subList(messages.size() - 2, messages.size());
-        Assertions.assertEquals(List.of(VerificationMessage.done(FUNC, false), VerificationMessage.complete()), tail);
+        Assertions.assertEquals(List.of(doneIgnoringDuration(FUNC, false), completeIgnoringDuration()), withoutDuration(tail));
         Assertions.assertTrue(client.startedJobs().isEmpty(), "No Verifier runs against a program that failed functionally");
         Assertions.assertTrue(of("mock").isEmpty());
         Assertions.assertFalse(job.getFormula().isProven());
@@ -220,6 +263,10 @@ class VerificationJobTest {
         Assertions.assertEquals(Boolean.FALSE, job.getFormula().getVerifiers().get("mock").proven(), "The Root too");
         Assertions.assertEquals(Boolean.TRUE, job.getFormula().getVerifiers().get("off").disabled(),
             "And the Verifier that was not enabled is marked as not run");
+        VerificationMessage funcDone = messages.stream()
+            .filter(m -> FUNC.equals(m.verifier()) && VerificationMessage.DONE.equals(m.type())).findFirst().orElseThrow();
+        Assertions.assertNotNull(funcDone.durationMs(), "Even a failing functional run reports how long it took");
+        Assertions.assertTrue(funcDone.durationMs() >= 0, funcDone.toString());
     }
 
     @Test
@@ -239,7 +286,7 @@ class VerificationJobTest {
         Assertions.assertEquals(List.of(VerificationMessage.log("mock", "checking")), of("mock"));
         Assertions.assertTrue(messages.contains(VerificationMessage.log(null, "calling mock")),
             "The orchestration line naming which Verifiers are called carries no verifier tag");
-        Assertions.assertTrue(messages.contains(VerificationMessage.done(FUNC, true)), "Functional's own done came first");
+        Assertions.assertTrue(withoutDuration(messages).contains(doneIgnoringDuration(FUNC, true)), "Functional's own done came first");
         Assertions.assertFalse(job.isHasResult(), "No result while a Verifier is still running");
         Assertions.assertFalse(types().contains(VerificationMessage.COMPLETE));
 
@@ -247,8 +294,8 @@ class VerificationJobTest {
         awaitComplete();
 
         Assertions.assertEquals(1, types().stream().filter(VerificationMessage.COMPLETE::equals).count(), "Complete exactly once");
-        Assertions.assertEquals(VerificationMessage.complete(), messages.get(messages.size() - 1));
-        Assertions.assertEquals(VerificationMessage.done("mock", true), messages.get(messages.size() - 2));
+        Assertions.assertEquals(completeIgnoringDuration(), withoutDuration(messages.get(messages.size() - 1)));
+        Assertions.assertEquals(doneIgnoringDuration("mock", true), withoutDuration(messages.get(messages.size() - 2)));
         Assertions.assertEquals(List.of("mock"), client.startedJobs().stream().map(FakeVerifierClient.StartedJob::id).toList(),
             "Only the enabled Verifier is called; func is built in and 'off' is disabled");
         Assertions.assertEquals(List.of(), client.startedJobs().get(0).request().files(), "No project: no files, still attached");
@@ -414,6 +461,81 @@ class VerificationJobTest {
         Assertions.assertNull(job.getFormula().getVerifiers().get("mock").settingsUpdatedAt(), "The Root too");
         Assertions.assertNull(job.getFormula().getStatement().getVerifiers().get("off").settingsUpdatedAt(),
             "A disabled entry carries none");
+    }
+
+    @Test
+    void funcsDurationMeasuresAtLeastTheTimeItsProveActuallyTook() throws Exception {
+        long sleepMs = 50;
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true, sleepMs), List.of(), List.of(), List.of(), null, false);
+        job = new VerificationJob(JOB, Optional.empty(), true, formula, null,
+            new VerifierFanOut(new FakeVerifierClient(), Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
+        job.subscribe(message -> {
+            messages.add(message);
+            if (VerificationMessage.COMPLETE.equals(message.type())) {
+                completed.countDown();
+            }
+            return false;
+        });
+
+        job.start();
+        awaitComplete();
+
+        VerificationMessage funcDone = messages.stream()
+            .filter(m -> FUNC.equals(m.verifier()) && VerificationMessage.DONE.equals(m.type())).findFirst().orElseThrow();
+        Assertions.assertTrue(funcDone.durationMs() >= sleepMs,
+            "Expected at least " + sleepMs + "ms since prove() slept that long, was " + funcDone.durationMs());
+    }
+
+    @Test
+    void completesDurationIsAtLeastFuncsDoneDuration() throws Exception {
+        long sleepMs = 50;
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true, sleepMs), List.of(), List.of(), List.of(), null, false);
+        job = new VerificationJob(JOB, Optional.empty(), true, formula, null,
+            new VerifierFanOut(new FakeVerifierClient(), Runnable::run), CompletableFuture.completedFuture(CATALOG), () -> { });
+        job.subscribe(message -> {
+            messages.add(message);
+            if (VerificationMessage.COMPLETE.equals(message.type())) {
+                completed.countDown();
+            }
+            return false;
+        });
+
+        job.start();
+        awaitComplete();
+
+        VerificationMessage funcDone = messages.stream()
+            .filter(m -> FUNC.equals(m.verifier()) && VerificationMessage.DONE.equals(m.type())).findFirst().orElseThrow();
+        VerificationMessage complete = messages.stream()
+            .filter(m -> VerificationMessage.COMPLETE.equals(m.type())).findFirst().orElseThrow();
+        Assertions.assertNotNull(complete.durationMs());
+        Assertions.assertTrue(complete.durationMs() >= funcDone.durationMs(),
+            "complete is emitted after func's done, on the same clock, so it can only be later: func="
+                + funcDone.durationMs() + " complete=" + complete.durationMs());
+    }
+
+    @Test
+    void aCatalogThatCannotBeResolvedLogsTheSharedUnreadablePrefix() throws Exception {
+        CompletableFuture<VerifierCatalog> brokenCatalog = new CompletableFuture<>();
+        brokenCatalog.completeExceptionally(new RuntimeException("catalog service down"));
+        CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false);
+        job = new VerificationJob(JOB, Optional.empty(), true, formula, null,
+            new VerifierFanOut(new FakeVerifierClient(), Runnable::run), brokenCatalog, () -> { });
+        job.subscribe(message -> {
+            messages.add(message);
+            if (VerificationMessage.COMPLETE.equals(message.type())) {
+                completed.countDown();
+            }
+            return false;
+        });
+
+        job.start();
+        awaitComplete();
+
+        Assertions.assertTrue(
+            messages.stream().anyMatch(m -> m.verifier() == null && m.message() != null
+                && m.message().startsWith(VerificationJob.CATALOG_UNREADABLE_LOG_PREFIX)),
+            "The frontend (VerificationService.CATALOG_UNREADABLE_PREFIX) matches on exactly this prefix to suppress the overview: "
+                + messages);
     }
 
     @Test

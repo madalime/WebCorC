@@ -2,6 +2,7 @@ package edu.kit.cbc.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micronaut.context.annotation.Property;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
@@ -91,10 +92,11 @@ class VerificationIT {
         List<JsonNode> messages = messagesUntilComplete(jobId, Duration.ofSeconds(55));
 
         Assertions.assertEquals(List.of("func"), verifiers(messages), "Only functional verification spoke: " + messages);
-        Assertions.assertTrue(messages.contains(mapper.readTree("{\"type\": \"done\", \"verifier\": \"func\", \"proven\": true}")),
+        Assertions.assertTrue(withoutDuration(messages).contains(mapper.readTree("{\"type\": \"done\", \"verifier\": \"func\", \"proven\": true}")),
             messages.toString());
         Assertions.assertEquals(1, messages.stream().filter(m -> "complete".equals(m.path("type").asText())).count());
         Assertions.assertEquals("complete", messages.get(messages.size() - 1).path("type").asText(), "Complete comes last");
+        assertDurationsOnDoneAndComplete(messages);
         Assertions.assertTrue(poll(jobId, Duration.ofSeconds(5)).get("isProven").asBoolean());
     }
 
@@ -107,7 +109,7 @@ class VerificationIT {
         List<JsonNode> messages = messagesUntilComplete(jobId, Duration.ofSeconds(55));
 
         Assertions.assertEquals(List.of("func", "mock"), verifiers(messages), "Functional first, then the mock: " + messages);
-        int functionalDone = messages.indexOf(mapper.readTree("{\"type\": \"done\", \"verifier\": \"func\", \"proven\": true}"));
+        int functionalDone = withoutDuration(messages).indexOf(mapper.readTree("{\"type\": \"done\", \"verifier\": \"func\", \"proven\": true}"));
         Assertions.assertTrue(functionalDone >= 0, "Functional verification reports its own done: " + messages);
         List<JsonNode> mock = messages.stream().filter(m -> "mock".equals(m.path("verifier").asText())).toList();
         Assertions.assertTrue(messages.indexOf(mock.get(0)) > functionalDone, "The mock is called only after functional success");
@@ -116,9 +118,10 @@ class VerificationIT {
             expected.add(mapper.readTree("{\"type\": \"log\", \"verifier\": \"mock\", \"message\": \"" + line + "\"}"));
         }
         expected.add(mapper.readTree("{\"type\": \"done\", \"verifier\": \"mock\", \"proven\": true}"));
-        Assertions.assertEquals(expected, mock, "The mock's fixed script, each message tagged with its id");
+        Assertions.assertEquals(expected, withoutDuration(mock), "The mock's fixed script, each message tagged with its id");
         Assertions.assertEquals(1, messages.stream().filter(m -> "complete".equals(m.path("type").asText())).count());
         Assertions.assertEquals("complete", messages.get(messages.size() - 1).path("type").asText(), "Complete comes last");
+        assertDurationsOnDoneAndComplete(messages);
 
         JsonNode result = poll(jobId, Duration.ofSeconds(5));
 
@@ -140,13 +143,14 @@ class VerificationIT {
 
         Assertions.assertEquals(List.of("func", "mock"), verifiers(messages),
             "The mock is reported on even though it never actually runs: " + messages);
-        Assertions.assertTrue(messages.contains(mapper.readTree("{\"type\": \"done\", \"verifier\": \"func\", \"proven\": true}")),
+        Assertions.assertTrue(withoutDuration(messages).contains(mapper.readTree("{\"type\": \"done\", \"verifier\": \"func\", \"proven\": true}")),
             "Functional verification is unaffected by the mock's scope violation: " + messages);
         List<JsonNode> mock = messages.stream().filter(m -> "mock".equals(m.path("verifier").asText())).toList();
         Assertions.assertEquals(2, mock.size(), mock.toString());
         Assertions.assertEquals("log", mock.get(0).path("type").asText(), mock.toString());
         Assertions.assertTrue(mock.get(0).path("message").asText().contains("'undeclaredVariable'"), mock.get(0).toString());
-        Assertions.assertEquals(mapper.readTree("{\"type\": \"done\", \"verifier\": \"mock\", \"proven\": false}"), mock.get(1));
+        Assertions.assertEquals(mapper.readTree("{\"type\": \"done\", \"verifier\": \"mock\", \"proven\": false}"), withoutDuration(mock.get(1)));
+        assertDurationsOnDoneAndComplete(messages);
 
         JsonNode result = poll(jobId, Duration.ofSeconds(5));
 
@@ -162,6 +166,32 @@ class VerificationIT {
     /** The distinct verifier tags in order of first appearance; complete carries none. */
     private static List<String> verifiers(List<JsonNode> messages) {
         return messages.stream().filter(m -> m.has("verifier")).map(m -> m.get("verifier").asText()).distinct().toList();
+    }
+
+    /** {@code durationMs} is real elapsed time, so strip it before an exact-equality comparison. */
+    private static JsonNode withoutDuration(JsonNode message) {
+        if (!message.has("durationMs")) {
+            return message;
+        }
+        ObjectNode copy = message.deepCopy();
+        copy.remove("durationMs");
+        return copy;
+    }
+
+    private static List<JsonNode> withoutDuration(List<JsonNode> messages) {
+        return messages.stream().map(VerificationIT::withoutDuration).toList();
+    }
+
+    /** Every {@code done} and the {@code complete} message carries how long its run took. */
+    private static void assertDurationsOnDoneAndComplete(List<JsonNode> messages) {
+        for (JsonNode message : messages) {
+            String type = message.path("type").asText();
+            if ("done".equals(type) || "complete".equals(type)) {
+                Assertions.assertTrue(message.has("durationMs") && message.get("durationMs").isIntegralNumber(),
+                    "durationMs is an integer: " + message);
+                Assertions.assertTrue(message.get("durationMs").asLong() >= 0, message.toString());
+            }
+        }
     }
 
     private UUID submit(String fixturePath, boolean functionalOnly) throws IOException {

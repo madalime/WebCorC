@@ -56,9 +56,10 @@ public class VerifierFanOut {
     private void runOne(UUID jobId, NarrowedProgram program, List<SourceFile> files, ResolvedVerifier verifier,
                         Consumer<VerificationMessage> sink) {
         String id = verifier.id();
+        long start = System.nanoTime();
         Optional<String> scopeViolation = program.scopeViolation(id, verifier.variableIds(), verifier.allowFunctionalVariables());
         if (scopeViolation.isPresent()) {
-            fail(program, sink, id, scopeViolation.get());
+            fail(program, sink, id, scopeViolation.get(), start);
             return;
         }
         String failure = "could not be started";
@@ -70,21 +71,26 @@ public class VerifierFanOut {
             failure = "finished, but its result could not be fetched";
             program.merge(id, client.fetchResult(id, jobId));
         } catch (VerifierClientException e) {
-            fail(program, sink, id, failure + ": " + e.getMessage());
+            fail(program, sink, id, failure + ": " + e.getMessage(), start);
             return;
         } catch (RuntimeException e) {
             // A bug, not the Verifier's fault: reported like a failure so the job still completes.
             LOGGER.log(Level.SEVERE, "Verification run of Verifier '" + id + "' failed unexpectedly", e);
-            fail(program, sink, id, "failed unexpectedly: " + e.getMessage());
+            fail(program, sink, id, "failed unexpectedly: " + e.getMessage(), start);
             return;
         }
         program.writeRootResult(id, done.proven(), done.status());
-        sink.accept(VerificationMessage.done(id, done.proven()));
+        sink.accept(VerificationMessage.done(id, done.proven(), elapsedMs(start)));
     }
 
-    private static void fail(NarrowedProgram program, Consumer<VerificationMessage> sink, String id, String reason) {
+    private static void fail(NarrowedProgram program, Consumer<VerificationMessage> sink, String id, String reason, long start) {
         sink.accept(VerificationMessage.log(id, "Verifier '" + id + "' " + reason));
         program.markFailed(id, reason);
-        sink.accept(VerificationMessage.done(id, false));
+        sink.accept(VerificationMessage.done(id, false, elapsedMs(start)));
+    }
+
+    /** Wall-clock time since {@code start} ({@link System#nanoTime()}), in whole milliseconds. */
+    private static long elapsedMs(long start) {
+        return (System.nanoTime() - start) / 1_000_000;
     }
 }
