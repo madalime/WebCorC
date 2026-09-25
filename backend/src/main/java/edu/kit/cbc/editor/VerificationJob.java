@@ -146,7 +146,7 @@ public class VerificationJob extends Thread {
     }
 
     public void run() {
-        long start = System.nanoTime();
+        final long start = System.nanoTime();
         log("verification started");
 
         // One instance per run, created before the functional proof: the reset of every catalog
