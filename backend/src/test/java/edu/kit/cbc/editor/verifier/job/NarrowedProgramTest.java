@@ -25,8 +25,9 @@ import org.junit.jupiter.api.Test;
 /**
  * The narrowed program a Verifier receives, built from the job's formula: every statement gets
  * a stable id, the receiving Verifier's own Verifier Conditions are swapped into the primary
- * condition fields (absent where none is written), the program's code (program text, guards) is
- * carried unchanged while its functional specification is left out, and a Verifier's flat
+ * condition fields (absent where none is written), the program's code (program text, guards) and
+ * its loops' invariants and variants are carried unchanged while the rest of its functional
+ * specification is left out, and a Verifier's flat
  * result merges back into the same statements by those ids.
  */
 class NarrowedProgramTest {
@@ -117,6 +118,7 @@ class NarrowedProgramTest {
             condition("energy == 0"), condition("energy <= budget"), condition("energy <= 1"),
             JobStatement.statement(2, "Assign", condition("energy == 0"), condition("energy <= 1"), "x = 1;"),
             JobStatement.repetition(3, "Loop", null, null, condition("x < 10"),
+                condition("x <= 10"), condition("10 - x"),
                 JobStatement.selection(4, "Branch", null, null,
                     List.of(condition("x < 5"), condition("x >= 5")),
                     List.of(
@@ -159,7 +161,7 @@ class NarrowedProgramTest {
     }
 
     @Test
-    void theJobCarriesOnlyCodeLevelInputInTheModelsShape() throws Exception {
+    void theJobCarriesTheProgramInTheModelsShape() throws Exception {
         NarrowedProgram program = NarrowedProgram.of(formula());
 
         String json = JsonMapper.createDefault().writeValueAsString(program.forVerifier("maint"));
@@ -171,11 +173,13 @@ class NarrowedProgramTest {
         Assertions.assertEquals(Set.of("id", "name", "type", "firstStatement", "secondStatement"), fieldNames(comp), json);
         Assertions.assertEquals("COMPOSITION", comp.get("type").asText());
         JsonNode loop = comp.get("secondStatement");
-        Assertions.assertEquals(Set.of("id", "name", "type", "guard", "loopStatement"), fieldNames(loop),
-            "No invariant or variant: " + json);
+        Assertions.assertEquals(Set.of("id", "name", "type", "guard", "invariant", "variant", "loopStatement"),
+            fieldNames(loop), json);
         Assertions.assertEquals("REPETITION", loop.get("type").asText());
         Assertions.assertEquals(new ObjectMapper().createObjectNode().put("condition", condition("x < 10").condition()),
             loop.get("guard"), "A guard is the model's {condition}");
+        Assertions.assertEquals(new ObjectMapper().createObjectNode().put("condition", "x <= 10"), loop.get("invariant"), json);
+        Assertions.assertEquals(new ObjectMapper().createObjectNode().put("condition", "10 - x"), loop.get("variant"), json);
         JsonNode branch = loop.get("loopStatement");
         Assertions.assertEquals(Set.of("id", "name", "type", "guards", "commands"), fieldNames(branch), json);
         Assertions.assertEquals("SELECTION", branch.get("type").asText());
@@ -220,6 +224,10 @@ class NarrowedProgramTest {
         Assertions.assertEquals(2, root.firstStatement().id());
         Assertions.assertEquals(condition("x < 10"), root.secondStatement().guard(),
             "The program's own control flow is the same for every Verifier");
+        Assertions.assertEquals(condition("x <= 10"), root.secondStatement().invariant(),
+            "The loop's own invariant is the same for every Verifier");
+        Assertions.assertEquals(condition("10 - x"), root.secondStatement().variant(),
+            "The loop's own variant is the same for every Verifier");
         Assertions.assertEquals(List.of(condition("x < 5"), condition("x >= 5")),
             root.secondStatement().loopStatement().guards());
         Assertions.assertEquals(List.of("int x", "int total"), bare.javaVariables());

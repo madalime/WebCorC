@@ -31,6 +31,8 @@ public record JobStatement(
     List<JobCondition> guards,
     List<JobStatement> commands,
     JobCondition guard,
+    JobCondition invariant,
+    JobCondition variant,
     JobStatement loopStatement
 ) {
 
@@ -44,12 +46,12 @@ public record JobStatement(
         long id, String name, JobCondition preCondition, JobCondition postCondition, String programStatement
     ) {
         return new JobStatement(id, name, STATEMENT, preCondition, postCondition, programStatement,
-            null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, null, null);
     }
 
     public static JobStatement skip(long id, String name, JobCondition preCondition, JobCondition postCondition) {
         return new JobStatement(id, name, SKIP, preCondition, postCondition, null,
-            null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, null, null);
     }
 
     public static JobStatement composition(
@@ -57,7 +59,7 @@ public record JobStatement(
         JobCondition intermediateCondition, JobStatement firstStatement, JobStatement secondStatement
     ) {
         return new JobStatement(id, name, COMPOSITION, preCondition, postCondition, null,
-            intermediateCondition, firstStatement, secondStatement, null, null, null, null);
+            intermediateCondition, firstStatement, secondStatement, null, null, null, null, null, null);
     }
 
     /** {@code guards} and {@code commands} pair up by index. */
@@ -66,14 +68,14 @@ public record JobStatement(
         List<JobCondition> guards, List<JobStatement> commands
     ) {
         return new JobStatement(id, name, SELECTION, preCondition, postCondition, null,
-            null, null, null, List.copyOf(guards), List.copyOf(commands), null, null);
+            null, null, null, List.copyOf(guards), List.copyOf(commands), null, null, null, null);
     }
 
     public static JobStatement repetition(
         long id, String name, JobCondition preCondition, JobCondition postCondition,
-        JobCondition guard, JobStatement loopStatement
+        JobCondition guard, JobCondition invariant, JobCondition variant, JobStatement loopStatement
     ) {
         return new JobStatement(id, name, REPETITION, preCondition, postCondition, null,
-            null, null, null, null, null, guard, loopStatement);
+            null, null, null, null, null, guard, invariant, variant, loopStatement);
     }
 }

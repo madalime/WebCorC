@@ -86,8 +86,8 @@ public final class NarrowedProgram {
 
     /**
      * The program with {@code verifierId}'s own Verifier Conditions in the primary condition
-     * fields. Code-level input only: functional verification has already proven the functional
-     * conditions by the time any Verifier runs.
+     * fields. Of the functional specification only the loops' invariants and variants go along:
+     * functional verification has already proven the rest by the time any Verifier runs.
      */
     public synchronized JobProgram forVerifier(String verifierId) {
         VerifierEntry root = entry(formula.getVerifiers(), verifierId);
@@ -131,6 +131,8 @@ public final class NarrowedProgram {
             }
             case SmallRepetitionStatement repetition -> JobStatement.repetition(id, name, pre, post,
                 condition(repetition.getGuard()),
+                condition(repetition.getInvariant()),
+                condition(repetition.getVariant()),
                 narrow(repetition.getLoopStatement(), verifierId));
             // ReturnStatement: a backend-only stub the editor cannot create, and one functional
             // verification throws on, so no Verifier is ever started for a program containing one.

@@ -54,6 +54,8 @@ class HttpVerifierClientJobTest {
               "secondStatement": {
                 "id": 2, "name": "loop", "type": "REPETITION",
                 "guard": {"condition": "x > 0"},
+                "invariant": {"condition": "x >= 0"},
+                "variant": {"condition": "x"},
                 "loopStatement": {
                   "id": 3, "name": "branch", "type": "SELECTION",
                   "guards": [{"condition": "x > 1"}, {"condition": "x <= 1"}],
@@ -118,7 +120,7 @@ class HttpVerifierClientJobTest {
     private static StartJobRequest startRequest() {
         JobStatement statement = JobStatement.composition(0, "root", null, null, condition("mid"),
             JobStatement.statement(1, "s1", null, null, "x = 1;"),
-            JobStatement.repetition(2, "loop", null, null, condition("x > 0"),
+            JobStatement.repetition(2, "loop", null, null, condition("x > 0"), condition("x >= 0"), condition("x"),
                 JobStatement.selection(3, "branch", null, null, List.of(condition("x > 1"), condition("x <= 1")), List.of(
                     JobStatement.statement(4, "s4", condition("pre4"), null, "x = x - 1;"),
                     JobStatement.skip(5, "s5", null, null)))));
