@@ -17,7 +17,7 @@
       "id": "emptyTextSetting",
       "type": "text",
       "valueType": "string",
-      "label": "Text setting (no default, no description)"
+      "label": "Text setting (no default, no desc.)"
     },
     {
       "id": "boundedNumberSetting",
