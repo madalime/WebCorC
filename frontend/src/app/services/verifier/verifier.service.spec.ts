@@ -503,4 +503,44 @@ describe("VerifierService", () => {
 
     expect(service.verifiersValid()).toBeTrue();
   });
+
+  it("is invalid for every input that violates the strict decimal grammar", () => {
+    loadCatalog([
+      { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+        { id: 'n', label: 'n', type: 'text', valueType: 'number' },
+      ], variables: [] },
+    ]);
+
+    for (const input of ['1e3', ' 5', '5 ', '.5', '5.', '0x10', '+5', '  ']) {
+      service.updateSetting('v', 'n', input);
+      expect(service.verifiersValid()).withContext(input).toBeFalse();
+    }
+  });
+
+  it("is valid for negative, zero, and decimal inputs that match the strict grammar", () => {
+    loadCatalog([
+      { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+        { id: 'n', label: 'n', type: 'text', valueType: 'number', step: 0.25, range: { min: -100, max: 100 } },
+      ], variables: [] },
+    ]);
+
+    for (const input of ['-12', '0', '3.25']) {
+      service.updateSetting('v', 'n', input);
+      expect(service.verifiersValid()).withContext(input).toBeTrue();
+    }
+  });
+
+  it("blocks the run gate for a whitespace-only optional numeric setting, unlike an empty one", () => {
+    loadCatalog([
+      { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+        { id: 'n', label: 'n', type: 'text', valueType: 'number' },
+      ], variables: [] },
+    ]);
+
+    service.updateSetting('v', 'n', '  ');
+    expect(service.verifiersValid()).toBeFalse();
+
+    service.updateSetting('v', 'n', '');
+    expect(service.verifiersValid()).toBeTrue();
+  });
 });

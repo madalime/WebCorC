@@ -1,7 +1,7 @@
 import { Directive, Input } from "@angular/core";
 import { AbstractControl, NG_VALIDATORS, ValidationErrors, Validator } from "@angular/forms";
 import { VerifierSetting } from "../../types/Verifier";
-import { numberInputError } from "./verifier-validation";
+import { isNumberSettingEmpty, numberInputError } from "./verifier-validation";
 
 /**
  * Validates a numeric verifier setting rendered as `<input type="text">` rather than
@@ -21,13 +21,13 @@ export class NumberInputValidatorDirective implements Validator {
   public setting!: Extract<VerifierSetting, { valueType: "number" }>;
 
   /**
-   * Empty values pass (emptiness and `required` are handled elsewhere); otherwise the
-   * {@link numberInputError} key, if any, is surfaced as the control error so `mat-error`
-   * can react to it.
+   * Empty values pass (`required` is handled elsewhere, and emptiness per
+   * {@link isNumberSettingEmpty}); otherwise the {@link numberInputError} key, if any, is
+   * surfaced as the control error so `mat-error` can react to it.
    */
   public validate(control: AbstractControl): ValidationErrors | null {
     const value = control.value;
-    if (value === null || value === undefined || String(value).trim().length === 0) {
+    if (value === null || value === undefined || isNumberSettingEmpty(String(value))) {
       return null;
     }
     const error = numberInputError(this.setting, String(value));

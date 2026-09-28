@@ -21,22 +21,41 @@ export function matchesStep(value: number, step: number, base: number): boolean 
 }
 
 /**
- * Validates a non-empty numeric input string against a number setting's constraints (finite,
- * inclusive range, step grid); returns the machine-readable error key, or `null` when valid.
- * Shared by the service gate and the step validator directive, so both agree on what "valid"
- * means.
+ * Strict decimal grammar a number Setting's input must match, mirroring the backend's
+ * `NumberRule` (`-?\d+(\.\d+)?`) so a value the UI accepts is never rejected server-side.
+ * Deliberately stricter than JS `Number()`, which also accepts exponents (`"1e3"`), leading/
+ * trailing whitespace (`" 5 "`), a bare fraction (`".5"`), a trailing dot (`"5."`), an explicit
+ * `"+"` sign and hex literals (`"0x10"`).
+ */
+const NUMBER_GRAMMAR = /^-?\d+(\.\d+)?$/;
+
+/**
+ * Whether `input` is an empty number-Setting value. Unlike text/string Settings (trim-based,
+ * see {@link isSettingValid}), only `""` counts as empty here — a whitespace-only input instead
+ * falls through to {@link numberInputError}, which reports it as a `'number'` error. Shared by
+ * the service gate and the step validator directive, so both agree on what "empty" means.
+ */
+export function isNumberSettingEmpty(input: string): boolean {
+  return input.length === 0;
+}
+
+/**
+ * Validates a numeric input string against a number setting's constraints (grammar, inclusive
+ * range, step grid); returns the machine-readable error key, or `null` when valid. Shared by
+ * the service gate and the step validator directive, so both agree on what "valid" means.
  *
- * Emptiness and `required` are intentionally not handled here: empty optional inputs are
- * valid and are filtered out by the caller, with `required` enforced separately.
+ * `required` and emptiness are intentionally not handled here (see {@link isNumberSettingEmpty}
+ * and the caller): empty optional inputs are valid and are filtered out by the caller, so a
+ * whitespace-only input reaches this function and fails the grammar check below.
  */
 export function numberInputError(
   setting: Extract<VerifierSetting, { valueType: 'number' }>,
   input: string,
 ): 'number' | 'min' | 'max' | 'step' | null {
-  const value = Number(input);
-  if (input.trim().length === 0 || !Number.isFinite(value)) {
+  if (!NUMBER_GRAMMAR.test(input)) {
     return 'number';
   }
+  const value = Number(input);
   const min = setting.range?.min;
   const max = setting.range?.max;
   if (min !== undefined && value < min) {
@@ -83,13 +102,15 @@ export function isSettingValid(setting: VerifierSetting): boolean {
     return true;
   }
   const input = setting.input ?? '';
-  if (setting.required && input.trim().length === 0) {
+  const isNumber = setting.type === 'text' && setting.valueType === 'number';
+  const empty = isNumber ? isNumberSettingEmpty(input) : input.trim().length === 0;
+  if (setting.required && empty) {
     return false;
   }
-  if (input.trim().length === 0) {
+  if (empty) {
     return true;
   }
-  if (setting.type === 'text' && setting.valueType === 'number') {
+  if (isNumber) {
     return numberInputError(setting, input) === null;
   }
   return true;
