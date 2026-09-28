@@ -27,6 +27,11 @@ import java.util.logging.Logger;
  * per-statement result is merged into the formula and its {@code done}'s own verdict written onto
  * the Root, so a Verifier that said proven but whose result is lost counts as failed. No timeout
  * on a stream that never sends done.
+ *
+ * <p>A Verifier whose {@link ResolvedVerifier#settingsViolation()} is present -- one of its
+ * declared Settings carries an Override value that breaks that Setting's own constraints -- fails
+ * this same way before ever being called, exactly like a scope violation: the client's
+ * {@code startJob} is never reached.
  */
 @Singleton
 public class VerifierFanOut {
@@ -57,6 +62,10 @@ public class VerifierFanOut {
                         Consumer<VerificationMessage> sink) {
         String id = verifier.id();
         long start = System.nanoTime();
+        if (verifier.settingsViolation().isPresent()) {
+            fail(program, sink, id, verifier.settingsViolation().get(), start);
+            return;
+        }
         Optional<String> scopeViolation = program.scopeViolation(id, verifier.variableIds(), verifier.allowFunctionalVariables());
         if (scopeViolation.isPresent()) {
             fail(program, sink, id, scopeViolation.get(), start);

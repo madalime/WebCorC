@@ -17,6 +17,7 @@ import io.micronaut.json.tree.JsonNode;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -383,6 +384,30 @@ class VerifierFanOutTest {
         Assertions.assertEquals(Boolean.FALSE, secSecond.proven(),
             "Every statement gets the failing Verifier's entry, not just the one with the offending condition");
         Assertions.assertEquals("safe(x)", secSecond.preCondition().getCondition(), "The authored condition survives the failure marking");
+        assertDoneDurationsAreNonNegative();
+    }
+
+    @Test
+    void aVerifierWithASettingsViolationFailsWithoutBeingCalledWhileAnotherRunsNormally() throws Exception {
+        String reason = "was not started: setting 'threshold' has the invalid value '150' (above its maximum 100)";
+        ResolvedVerifier secInvalidSettings = new ResolvedVerifier("sec", Map.of(), Optional.of(reason), null, List.of(), false);
+        FakeVerifierClient client = new FakeVerifierClient().running("eebc", ALL_PROVEN, log("measuring"), done(true));
+        CbCFormula formula = formula();
+
+        run(client, NarrowedProgram.of(formula), secInvalidSettings, EEBC);
+
+        Assertions.assertEquals(2, of("sec").size(), of("sec").toString());
+        Assertions.assertEquals(VerificationMessage.LOG, of("sec").get(0).type());
+        Assertions.assertTrue(of("sec").get(0).message().contains(reason), of("sec").get(0).message());
+        Assertions.assertEquals(doneIgnoringDuration("sec", false), of("sec").get(1));
+        Assertions.assertEquals(List.of("eebc"), client.startedJobs().stream().map(FakeVerifierClient.StartedJob::id).toList(),
+            "sec is never called");
+        Assertions.assertEquals(doneIgnoringDuration("eebc", true), of("eebc").get(1));
+
+        CompositionStatement root = (CompositionStatement) formula.getStatement();
+        VerifierEntry secRoot = root.getVerifiers().get("sec");
+        Assertions.assertEquals(Boolean.FALSE, secRoot.proven());
+        Assertions.assertEquals(reason, secRoot.status());
         assertDoneDurationsAreNonNegative();
     }
 

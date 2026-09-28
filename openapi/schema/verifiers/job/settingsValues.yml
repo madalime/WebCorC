@@ -5,7 +5,10 @@ description: >-
   one concrete value per Setting — the Catalog default already overlaid with
   the project's persisted Overrides — never the raw sparse Overrides. A
   Verifier enabled with no Overrides at all still receives every one of its
-  Settings here, at its declared default.
+  Settings here, at its declared default. A Verifier is never started with a
+  value that breaks its own Setting's constraints (wrong type, an unknown
+  select option, a required value left empty, an out-of-range or off-grid
+  number); such a Verifier is skipped and reported as failed instead.
 additionalProperties:
   description: >-
     The Setting's current value: a string for text, number and select
