@@ -32,13 +32,14 @@ properties:
   required:
     type: boolean
     description: >-
-      Whether the setting must be filled in. When `true`, `default` must be provided.
+      Whether the setting must be filled in. When `true`, a non-empty `default` must be
+      provided.
 
   default:
     type: string
     description: >-
-      Value used to preinitialize the setting. Mandatory when `required` is `true`,
-      optional otherwise.
+      Value used to preinitialize the setting. `""` means no default, which does not satisfy
+      `required: true`. Mandatory when `required` is `true`, optional otherwise.
 
 required:
   - id

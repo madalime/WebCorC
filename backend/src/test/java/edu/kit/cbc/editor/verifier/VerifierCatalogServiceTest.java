@@ -890,7 +890,8 @@ class VerifierCatalogServiceTest {
     private static final VerifierSetting VERBOSE = new VerifierSetting("verbose", "boolean", null, "Verbose", null,
         null, JsonNode.createBooleanNode(false), null, null, null);
     private static final VerifierSetting STRATEGY = new VerifierSetting("strategy", "select", null, "Strategy", null,
-        null, JsonNode.createStringNode("a"), null, null, ONE_OPTION);
+        null, JsonNode.createStringNode("a"), null, null,
+        List.of(new VerifierSetting.Option("a", "A"), new VerifierSetting.Option("b", "B")));
 
     /** Builds the Catalog for one Verifier {@code mock} declaring {@code settings}, under the given per-setting policy. */
     private VerifierCatalog policed(Map<String, Map<String, Object>> settingPolicy, VerifierSetting... settings) {
@@ -1011,6 +1012,69 @@ class VerifierCatalogServiceTest {
 
         Assertions.assertEquals("1 verifier unavailable: mock (invalid description)", catalog.message());
         assertLockedOff(entry(catalog, "mock"));
+    }
+
+    // --- Registry policy: overrides must also fit the setting's range, step and options -------
+
+    private static final VerifierSetting BOUNDED = new VerifierSetting("bounded", "text", "number", "Bounded", null,
+        true, JsonNode.createStringNode("50"), new BigDecimal("0.5"),
+        new VerifierSetting.Range(BigDecimal.ZERO, new BigDecimal("100")), null);
+
+    @Test
+    void outOfRangeOverrideIsIgnoredInFavourOfTheVerifiersDefault() {
+        VerifierCatalog catalog = policed(Map.of("bounded", Map.of("default", "500")), BOUNDED);
+
+        Assertions.assertEquals(JsonNode.createStringNode("50"), defaultOf(catalog, "bounded"));
+        Assertions.assertNull(catalog.message(), "A bad override is a warning, not an unavailability");
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'bounded'") && warning.contains("above its maximum 100")
+            && warning.contains("ignored"), warning);
+    }
+
+    @Test
+    void emptyOverrideOnARequiredSettingIsIgnoredInFavourOfTheVerifiersDefault() {
+        VerifierCatalog catalog = policed(Map.of("bounded", Map.of("default", "")), BOUNDED);
+
+        Assertions.assertEquals(JsonNode.createStringNode("50"), defaultOf(catalog, "bounded"));
+        Assertions.assertNull(catalog.message());
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'bounded'") && warning.contains("required")
+            && warning.contains("ignored"), warning);
+    }
+
+    @Test
+    void notAnOptionOverrideIsIgnoredInFavourOfTheVerifiersDefault() {
+        VerifierCatalog catalog = policed(Map.of("strategy", Map.of("default", "c")), STRATEGY);
+
+        Assertions.assertEquals(JsonNode.createStringNode("a"), defaultOf(catalog, "strategy"));
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'strategy'") && warning.contains("not one of its options")
+            && warning.contains("ignored"), warning);
+    }
+
+    @Test
+    void inRangeOverrideRescuesAnOutOfRangeOwnDefault() {
+        VerifierSetting bounded = BOUNDED.withDefault(JsonNode.createStringNode("500"));
+
+        VerifierCatalog catalog = policed(Map.of("bounded", Map.of("default", "75")), bounded);
+
+        Assertions.assertNull(catalog.message(), "Not locked off: the Registry override stands in for the flawed default");
+        Assertions.assertEquals(JsonNode.createStringNode("75"), defaultOf(catalog, "bounded"));
+        String warning = warningAbout("mock");
+        Assertions.assertTrue(warning.contains("'bounded'") && warning.contains("above its maximum 100")
+            && warning.contains("override"), warning);
+    }
+
+    @Test
+    void overrideCannotRescueABrokenStep() {
+        VerifierSetting bounded = new VerifierSetting("bounded", "text", "number", "Bounded", null,
+            true, JsonNode.createStringNode("50"), BigDecimal.ZERO, null, null);
+
+        VerifierCatalog catalog = policed(Map.of("bounded", Map.of("default", "75")), bounded);
+
+        Assertions.assertEquals("1 verifier unavailable: mock (invalid description)", catalog.message());
+        assertLockedOff(entry(catalog, "mock"));
+        Assertions.assertTrue(warningAbout("mock").contains("step 0"), warningAbout("mock"));
     }
 
     @Test

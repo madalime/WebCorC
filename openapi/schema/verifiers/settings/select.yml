@@ -24,7 +24,7 @@ properties:
 
   options:
     type: array
-    description: Predefined options rendered in the dropdown.
+    description: Predefined options rendered in the dropdown; no two share an `id`.
     items:
       type: object
       description: One option; a closed object.
@@ -45,13 +45,15 @@ properties:
   required:
     type: boolean
     description: >-
-      Whether the setting must be filled in. When `true`, `default` must be provided.
+      Whether the setting must be filled in. When `true`, a non-empty `default` must be
+      provided.
 
   default:
     type: string
     description: >-
-      Id of the option used to preselect the dropdown. Mandatory when `required` is
-      `true`, optional otherwise.
+      Id of the option used to preselect the dropdown; must be one of the `options`' ids.
+      `""` means no default, which does not satisfy `required: true`. Mandatory when
+      `required` is `true`, optional otherwise.
 
 required:
   - id

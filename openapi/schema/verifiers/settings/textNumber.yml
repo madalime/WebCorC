@@ -32,24 +32,29 @@ properties:
   required:
     type: boolean
     description: >-
-      Whether the setting must be filled in. When `true`, `default` must be provided.
+      Whether the setting must be filled in. When `true`, a non-empty `default` must be
+      provided.
 
   default:
     type: string
     description: >-
-      Value used to preinitialize the setting, as a canonical `.`-separated decimal string.
-      Mandatory when `required` is `true`, optional otherwise.
+      Value used to preinitialize the setting, as a canonical `.`-separated decimal string in
+      the strict grammar `-?\d+(\.\d+)?` (no whitespace, exponent, leading `+`, or leading or
+      trailing `.`), within `range` and on the `step` grid. `""` means no default, which does
+      not satisfy `required: true`. Mandatory when `required` is `true`, optional otherwise.
 
   step:
     type: number
     description: >-
-      Precision grid for the value. An omitted step means `1` (integers only).
-      The grid is measured relative to `range.min` (or `0` when no min is given),
+      Precision grid for the value, greater than `0`. An omitted step means `1` (integers
+      only). The grid is measured relative to `range.min` (or `0` when no min is given),
       matching native input[type=number] semantics.
 
   range:
     type: object
-    description: Inclusive bounds for the value; each bound is optional. A closed object.
+    description: >-
+      Inclusive bounds for the value; each bound is optional, and `min` is below `max` when
+      both are given. A closed object.
     properties:
       min:
         type: number

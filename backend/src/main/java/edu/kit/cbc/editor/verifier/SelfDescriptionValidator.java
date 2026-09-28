@@ -36,10 +36,16 @@ import java.util.regex.Pattern;
  *       text/number, {@code options} only on a select; one violation names them all. Only
  *       properties <em>some</em> kind declares can be caught here — a property no kind
  *       declares is dropped on deserialization (see {@link VerifierSetting});</li>
- *   <li>{@code required: true} implies a {@code default};</li>
- *   <li>a select setting declares at least one option;</li>
+ *   <li>{@code required: true} implies a non-empty {@code default} — {@code ""} means "no
+ *       default";</li>
+ *   <li>a text/number setting's {@code step}, when present, is greater than 0, and its
+ *       {@code range.min} is below its {@code range.max} when both are present;</li>
+ *   <li>a select setting declares at least one option, and no option id twice;</li>
  *   <li>a boolean setting declares a boolean {@code default};</li>
- *   <li>a text or select setting's {@code default}, when present, is a string;</li>
+ *   <li>a text or select setting's {@code default}, when present, is a string; when also
+ *       non-empty, a text/number one passes the {@link NumberRule} and a select one is the id of
+ *       one of its options — checked only against a {@code step}, {@code range} or option list
+ *       that is not itself broken, which is reported on its own instead;</li>
  *   <li>setting ids are unique, and no two hyphenate to the same key — a Registry policy
  *       addresses a setting id in hyphenated form when Micronaut bound it that way (see
  *       {@link VerifierRegistryEntry#getSettings()}), so two ids it could not tell apart would
@@ -55,8 +61,9 @@ import java.util.regex.Pattern;
  * <p>The default rules are reconciled with the Verifier Registry's {@code settings.<id>.default}
  * overrides, since the override — not the Verifier's own default — is what the Catalog ends up
  * serving: a flawed own default is downgraded from violation to a returned warning when a
- * well-typed override covers it, and the override is held to the very same
- * {@link #defaultViolation type rule} (the Catalog ignores one that fails it).
+ * fitting override covers it, and the override is held to the very same
+ * {@link #defaultViolation default rules} (the Catalog ignores one that fails them). No override
+ * covers a broken {@code step}, {@code range} or option list.
  */
 public final class SelfDescriptionValidator {
 
@@ -65,9 +72,9 @@ public final class SelfDescriptionValidator {
     /**
      * Validates a Self-Description, taking into account the Verifier Registry's
      * {@code settings.<id>.default} overrides that will be applied over it: a setting whose own
-     * default breaks a rule (missing though required, or of the wrong type) is not a violation
-     * when {@code overrides} supplies a default for it that passes the same
-     * {@link #defaultViolation rule} — the override is what the Catalog will serve. Such a
+     * default breaks a rule (missing though required, of the wrong type, outside its range, …) is
+     * not a violation when {@code overrides} supplies a default for it that passes the same
+     * {@link #defaultViolation rules} — the override is what the Catalog will serve. Such a
      * covered flaw is returned instead of thrown, for the caller to warn about.
      *
      * @param id the Registry id of the Verifier that sent it, for the message
@@ -214,39 +221,91 @@ public final class SelfDescriptionValidator {
             violations.add(kind.wording + " " + name + " declares " + String.join(", ", foreign)
                 + ", which a " + kind.wording + " setting does not have");
         }
-        JsonNode defaultValue = setting.defaultValue();
-        if (Boolean.TRUE.equals(setting.required()) && defaultValue == null) {
-            violations.add(name + " is required but declares no default");
+        if (kind == SettingKind.TEXT_NUMBER) {
+            if (!NumberRule.stepIsValid(setting.step())) {
+                violations.add(name + " declares step " + setting.step().toPlainString()
+                    + ", which is not greater than 0");
+            }
+            if (!NumberRule.rangeIsValid(setting.range())) {
+                violations.add(name + " declares a range whose min " + setting.range().min().toPlainString()
+                    + " is not below its max " + setting.range().max().toPlainString());
+            }
         }
-        if (kind == SettingKind.SELECT && (setting.options() == null || setting.options().isEmpty())) {
-            violations.add("select " + name + " declares no options");
+        if (kind == SettingKind.SELECT) {
+            if (setting.options() == null || setting.options().isEmpty()) {
+                violations.add("select " + name + " declares no options");
+            } else {
+                violations.addAll(duplicateOptionViolations(name, setting.options()));
+            }
+        }
+        JsonNode defaultValue = setting.defaultValue();
+        boolean noDefault = defaultValue == null || (kind != SettingKind.BOOLEAN && isEmptyString(defaultValue));
+        boolean requiredWithoutDefault = Boolean.TRUE.equals(setting.required()) && noDefault;
+        if (requiredWithoutDefault) {
+            violations.add(name + " is required but declares no default");
         }
         if (kind == SettingKind.BOOLEAN && defaultValue == null) {
             violations.add("boolean " + name + " declares no boolean default");
-        } else if (defaultValue != null) {
+        } else if (defaultValue != null && !requiredWithoutDefault) {
             defaultViolation(setting, defaultValue)
                 .ifPresent(reason -> violations.add(name + " declares a default that is " + reason));
         }
         return violations;
     }
 
+    /** One violation per option id a select declares more than once, in declaration order. */
+    private static List<String> duplicateOptionViolations(String name, List<VerifierSetting.Option> options) {
+        Set<String> seen = new HashSet<>();
+        Set<String> reported = new HashSet<>();
+        List<String> violations = new ArrayList<>();
+        for (VerifierSetting.Option option : options) {
+            if (!seen.add(option.id()) && reported.add(option.id())) {
+                violations.add("select " + name + " declares option id '" + option.id() + "' more than once");
+            }
+        }
+        return violations;
+    }
+
+    private static boolean isEmptyString(JsonNode value) {
+        return value != null && value.isString() && value.getStringValue().isEmpty();
+    }
+
     /**
-     * The one rule a setting's kind puts on the type of a {@code default} — a boolean for a
-     * boolean setting, a string for a text (string or number valued) or select setting, as
-     * {@code settings/boolean.yml} and the three string-valued kind files declare it — applied to
-     * {@code candidate}. The Verifier's own default and a Verifier Registry
-     * {@code settings.<id>.default} override are held to the same rule.
+     * The rules a setting puts on a {@code default}, applied to {@code candidate}: a boolean for a
+     * boolean setting; a string for a text (string or number valued) or select setting, where
+     * {@code ""} means "no default" and is fine unless the setting is required; a non-empty
+     * text/number default passes the {@link NumberRule}, and a non-empty select default is the id
+     * of one of its options. The Verifier's own default and a Verifier Registry
+     * {@code settings.<id>.default} override are held to the same rules.
      *
      * @param setting a setting of a known kind
      * @param candidate a present default value for it
-     * @return why {@code candidate} is unusable as the setting's default ({@code "not a
-     *     boolean"}, {@code "not a string"}), or empty when it fits
+     * @return why {@code candidate} is unusable as the setting's default (e.g. {@code "not a
+     *     string"}, {@code "above its maximum 100"}, {@code "not one of its options"}), or empty
+     *     when it fits
      */
     static Optional<String> defaultViolation(VerifierSetting setting, JsonNode candidate) {
-        if (SettingKind.of(setting) == SettingKind.BOOLEAN) {
+        SettingKind kind = SettingKind.of(setting);
+        if (kind == SettingKind.BOOLEAN) {
             return candidate.isBoolean() ? Optional.empty() : Optional.of("not a boolean");
         }
-        return candidate.isString() ? Optional.empty() : Optional.of("not a string");
+        if (!candidate.isString()) {
+            return Optional.of("not a string");
+        }
+        String value = candidate.getStringValue();
+        if (value.isEmpty()) {
+            return Boolean.TRUE.equals(setting.required())
+                ? Optional.of("empty, though the setting is required")
+                : Optional.empty();
+        }
+        if (kind == SettingKind.TEXT_NUMBER) {
+            return NumberRule.violation(setting, value);
+        }
+        if (kind == SettingKind.SELECT && setting.options() != null && !setting.options().isEmpty()) {
+            boolean isOption = setting.options().stream().anyMatch(option -> value.equals(option.id()));
+            return isOption ? Optional.empty() : Optional.of("not one of its options");
+        }
+        return Optional.empty();
     }
 
     /**

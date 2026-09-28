@@ -49,10 +49,10 @@ import java.util.stream.Collectors;
  * <p>Once a Self-Description is validated, the Registry entry's policy is applied over it —
  * {@code label}, {@code enabled}, {@code toggleable} and any {@code settings.<id>.default} — by
  * {@link #applyPolicy(Verifier, VerifierRegistryEntry)}. A policy naming a setting id the
- * Verifier does not declare, or a default of the wrong type for the setting's kind, is logged as
- * a warning and otherwise ignored; conversely, a well-typed policy default stands in for a
- * Verifier's own default that is missing or of the wrong type, with a warning instead of the
- * lock-off the validator would otherwise cause. A locked-off entry
+ * Verifier does not declare, or a default that does not fit the setting (its type, range, step
+ * or options), is logged as a warning and otherwise ignored; conversely, a fitting policy default
+ * stands in for a Verifier's own default that is missing or does not fit, with a warning instead
+ * of the lock-off the validator would otherwise cause. A locked-off entry
  * only takes the policy's {@code label} (over the {@code "<id> (offline)"} fallback); its
  * {@code enabled}/{@code toggleable} stay locked regardless of policy, and it has no settings to
  * override — a {@code settings} policy on it cannot be checked against the Verifier's declared
@@ -172,10 +172,11 @@ public class VerifierCatalogService {
     /**
      * Replaces the {@code default} of every setting {@code policy} names one for; a policy
      * {@code settings.<id>.default} for a setting id the Verifier does not declare is logged as a
-     * warning and ignored, and so is one whose value does not fit the setting's kind (per
-     * {@link SelfDescriptionValidator#defaultViolation}, the same rule the Verifier's own default
+     * warning and ignored, and so is one whose value does not fit the setting (per
+     * {@link SelfDescriptionValidator#defaultViolation}, the same rules the Verifier's own default
      * had to pass — e.g. an unquoted {@code default: 75} on a text setting, which the Registry
-     * binds as a number) — the Verifier's own default is then kept. "Declares" is checked in
+     * binds as a number, or a value outside the setting's range) — the Verifier's own default is
+     * then kept. "Declares" is checked in
      * hyphenated form (see {@link VerifierRegistryEntry#getSettings()}), since Micronaut may have
      * hyphenated the policy's own camelCase setting id.
      */
@@ -202,7 +203,7 @@ public class VerifierCatalogService {
             .toList();
     }
 
-    /** Whether a policy default fits the setting's kind; logs the warning when it does not. */
+    /** Whether a policy default fits the setting; logs the warning when it does not. */
     private static boolean fitsSetting(String id, VerifierSetting setting, JsonNode override) {
         Optional<String> violation = SelfDescriptionValidator.defaultViolation(setting, override);
         violation.ifPresent(reason -> LOGGER.warning(String.format(

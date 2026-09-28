@@ -26,15 +26,21 @@
 #   settings.<id>.default  — overrides one Setting's default value, addressed by the Setting's
 #                             own id (see the Verifier's Self-Description, e.g. `GET
 #                             <url>/description`, for the ids it declares). The value is checked
-#                             against the Setting's type at startup, by the same rule as the
+#                             against the Setting at startup, by the same rules as the
 #                             Verifier's own default: a text (string or number) or select Setting
 #                             takes a string — quote it, `default: "75"`, since an unquoted `75`
-#                             is a number — and a boolean Setting takes `true`/`false`. A
-#                             wrong-typed override is logged as a warning and ignored, the
-#                             Verifier's own default staying in force; a well-typed override
-#                             also stands in, with a warning, for a Verifier's own default that
-#                             is missing or wrong-typed, which would otherwise lock the Verifier
-#                             off as invalid.
+#                             is a number — and a boolean Setting takes `true`/`false`. The
+#                             override must also fit the Setting's range, step and options: a
+#                             number Setting's value is a plain decimal (`"0.5"`, not `".5"` or
+#                             `"5e-1"`) within its range and on its step grid, and a select
+#                             Setting's value is one of its option ids. `""` means no default,
+#                             which a required Setting does not accept. An override that does
+#                             not fit is logged as a warning and ignored, the Verifier's own
+#                             default staying in force; a fitting override also stands in, with
+#                             a warning, for a Verifier's own default that is missing or does not
+#                             fit, which would otherwise lock the Verifier off as invalid. No
+#                             override makes good a broken step, range or option list of the
+#                             Setting itself.
 #
 # A field the Registry does not recognise here (a typo in one of the names above) fails the
 # backend at startup rather than being silently ignored.
