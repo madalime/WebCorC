@@ -111,8 +111,8 @@ class VerifierCatalogIT {
 
         JsonNode settings = mock.get("settings");
         Assertions.assertEquals(List.of("textSetting", "emptyTextSetting", "boundedNumberSetting",
-                "lowerBoundedNumberSetting", "selectSetting", "booleanSetting"), ids(settings),
-            "All four kinds of settings, addressable by id");
+                "lowerBoundedNumberSetting", "selectSetting", "optionalSelectSetting", "booleanSetting"),
+            ids(settings), "All four kinds of settings, addressable by id");
         settings.forEach(setting -> Assertions.assertFalse(setting.has("input"),
             "A Catalog setting carries no input: " + setting));
 
@@ -153,7 +153,13 @@ class VerifierCatalogIT {
         Assertions.assertEquals("Option A", select.get("options").get(0).get("label").asText());
         Assertions.assertEquals("optionA", select.get("default").asText());
 
-        JsonNode bool = settings.get(5);
+        JsonNode optionalSelect = settings.get(5);
+        Assertions.assertEquals("select", optionalSelect.get("type").asText());
+        Assertions.assertEquals(List.of("optionX", "optionY"), ids(optionalSelect.get("options")));
+        Assertions.assertFalse(optionalSelect.get("required").asBoolean());
+        Assertions.assertFalse(optionalSelect.has("default"), "Optional select may declare no default");
+
+        JsonNode bool = settings.get(6);
         Assertions.assertEquals("boolean", bool.get("type").asText());
         Assertions.assertTrue(bool.get("default").isBoolean(), "Boolean settings carry a real boolean default");
         Assertions.assertFalse(bool.get("default").asBoolean());

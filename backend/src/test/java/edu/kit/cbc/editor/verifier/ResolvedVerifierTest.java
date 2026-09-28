@@ -244,15 +244,26 @@ class ResolvedVerifierTest {
     }
 
     @Test
-    void anOptionalSelectsEmptyValueIsNotAnOptionYetSoItIsAViolationToo() {
+    void anOptionalSelectsEmptyValueIsLegalAndResolvesToEmptyEvenWithADefault() {
         VerifierOverride override = override(null, Map.of("mode", JACKSON.textNode("")));
 
         ResolvedVerifier mock = mock(ResolvedVerifier.enabled(CATALOG, Map.of("mock", override)));
 
         Assertions.assertEquals(JsonNode.createStringNode(""), mock.settings().get("mode"),
-            "The user's value is kept, not the default");
+            "\"\" clears an optional select back to no value, not its default \"fast\"");
+        Assertions.assertTrue(mock.settingsViolation().isEmpty(),
+            "An optional select's \"\" is a legal value, not a violation");
+    }
+
+    @Test
+    void aRequiredSelectsEmptyValueIsStillARequiredButEmptyViolation() {
+        VerifierOverride override = override(null, Map.of("strategy", JACKSON.textNode("")));
+
+        ResolvedVerifier mock = mock(ResolvedVerifier.enabled(CATALOG, Map.of("mock", override)));
+
+        Assertions.assertEquals(JsonNode.createStringNode(""), mock.settings().get("strategy"));
         Assertions.assertTrue(mock.settingsViolation().orElseThrow()
-            .contains("setting 'mode' has the invalid value '' (not one of its options)"));
+            .contains("setting 'strategy' has the invalid value '' (required but empty)"));
     }
 
     @Test

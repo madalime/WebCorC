@@ -2,6 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideAnimations } from '@angular/platform-browser/animations';
+import { HarnessLoader, parallel } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { MatSelectHarness } from '@angular/material/select/testing';
 
 import { environment } from '../../../../environments/environment';
 import { VerifierService } from '../../../services/verifier/verifier.service';
@@ -261,6 +264,77 @@ describe('VerifierManagerComponent', () => {
       expect(panelResult()).toEqual(['verifier-result--proven']);
       expect(root.nodeState).toBe('verified-all');
     }));
+  });
+
+  describe('an optional select Setting can be cleared back to no value', () => {
+    const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
+    const func: Verifier = {
+      id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [],
+    };
+    const optionalCatalog: Verifier[] = [
+      func,
+      {
+        id: 'v', label: 'V', enabled: true, toggleable: true,
+        // A default so the select starts on a real option, not already on "None".
+        settings: [{ id: 'mode', label: 'Mode', type: 'select', required: false, default: 'a', options }],
+        variables: [],
+      },
+    ];
+    const requiredCatalog: Verifier[] = [
+      func,
+      {
+        id: 'v', label: 'V', enabled: true, toggleable: true,
+        settings: [{ id: 'mode', label: 'Mode', type: 'select', required: true, default: 'a', options }],
+        variables: [],
+      },
+    ];
+
+    let loader: HarnessLoader;
+
+    beforeEach(() => {
+      loader = TestbedHarnessEnvironment.loader(fixture);
+    });
+
+    it('renders a None option first for an optional select', async () => {
+      httpTesting.expectOne(catalogUrl).flush({ verifiers: optionalCatalog });
+      component.updateExpandedSections(['v']);
+      fixture.detectChanges();
+
+      const select = await loader.getHarness(MatSelectHarness);
+      await select.open();
+      const selectOptions = await select.getOptions();
+      const labels = await parallel(() => selectOptions.map((option) => option.getText()));
+
+      expect(labels[0]).toBe('None');
+    });
+
+    it('renders no None option for a required select', async () => {
+      httpTesting.expectOne(catalogUrl).flush({ verifiers: requiredCatalog });
+      component.updateExpandedSections(['v']);
+      fixture.detectChanges();
+
+      const select = await loader.getHarness(MatSelectHarness);
+      await select.open();
+      const selectOptions = await select.getOptions();
+      const labels = await parallel(() => selectOptions.map((option) => option.getText()));
+
+      expect(labels).not.toContain('None');
+    });
+
+    it('selecting None calls updateSetting with ""', async () => {
+      httpTesting.expectOne(catalogUrl).flush({ verifiers: optionalCatalog });
+      const verifierService = TestBed.inject(VerifierService);
+      // Keep the override out of sessionStorage, where it would outlive this spec.
+      spyOn(TestBed.inject(ProjectService), 'saveVerifierOverrides');
+      const updateSetting = spyOn(verifierService, 'updateSetting').and.callThrough();
+      component.updateExpandedSections(['v']);
+      fixture.detectChanges();
+
+      const select = await loader.getHarness(MatSelectHarness);
+      await select.clickOptions({ text: 'None' });
+
+      expect(updateSetting).toHaveBeenCalledWith('v', 'mode', '');
+    });
   });
 
   describe("a Verifier's Variables list", () => {

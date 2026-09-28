@@ -66,6 +66,15 @@ function resolveStringInput(
   }
   if (
     setting.type === "select" &&
+    overrideInput === "" &&
+    setting.required !== true
+  ) {
+    // "" clears an optional select back to no value; it is legal even with a default, and
+    // does not fall back to it. Distinct from an unknown option, handled below.
+    return overrideInput;
+  }
+  if (
+    setting.type === "select" &&
     !setting.options.some((option) => option.id === overrideInput)
   ) {
     console.debug(

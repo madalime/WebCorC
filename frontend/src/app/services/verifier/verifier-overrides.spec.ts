@@ -107,6 +107,66 @@ describe("applyOverrides", () => {
     expect(message).toContain("a");
   });
 
+  it("resolves an optional select's \"\" override to \"\" even when it has a default", () => {
+    const base: Verifier[] = [
+      {
+        id: "v",
+        label: "V",
+        enabled: true,
+        statusPlaceholder: "",
+        settings: [
+          {
+            id: "sel",
+            label: "sel",
+            type: "select",
+            required: false,
+            default: "a",
+            options: [
+              { id: "a", label: "A" },
+              { id: "b", label: "B" },
+            ],
+          },
+        ],
+        variables: [],
+      },
+    ];
+    const overrides: VerifierOverrides = { v: { settings: { sel: "" } } };
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].settings[0].input).toBe("");
+  });
+
+  it("falls back to the default when a required select's override is \"\"", () => {
+    const base: Verifier[] = [
+      {
+        id: "v",
+        label: "V",
+        enabled: true,
+        statusPlaceholder: "",
+        settings: [
+          {
+            id: "sel",
+            label: "sel",
+            type: "select",
+            required: true,
+            default: "a",
+            options: [
+              { id: "a", label: "A" },
+              { id: "b", label: "B" },
+            ],
+          },
+        ],
+        variables: [],
+      },
+    ];
+    const overrides: VerifierOverrides = { v: { settings: { sel: "" } } };
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].settings[0].input).toBe("a");
+  });
+
   it("seeds a boolean setting from its default and applies a boolean override verbatim", () => {
     const base: Verifier[] = [
       {

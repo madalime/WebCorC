@@ -53,7 +53,8 @@ properties:
     description: >-
       Id of the option used to preselect the dropdown; must be one of the `options`' ids.
       `""` means no default, which does not satisfy `required: true`. Mandatory when
-      `required` is `true`, optional otherwise.
+      `required` is `true`, optional otherwise. On an optional select, the user can clear the
+      dropdown back to `""` even when a default is set; that sends `""`, not the default.
 
 required:
   - id

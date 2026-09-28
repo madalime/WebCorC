@@ -68,6 +68,23 @@
       "default": "optionA"
     },
     {
+      "id": "optionalSelectSetting",
+      "type": "select",
+      "label": "Select setting (optional)",
+      "description": "A dropdown of predefined options that may be cleared back to no value. Optional: the Verifier then receives an empty string.",
+      "options": [
+        {
+          "id": "optionX",
+          "label": "Option X"
+        },
+        {
+          "id": "optionY",
+          "label": "Option Y"
+        }
+      ],
+      "required": false
+    },
+    {
       "id": "booleanSetting",
       "type": "boolean",
       "label": "Boolean setting",

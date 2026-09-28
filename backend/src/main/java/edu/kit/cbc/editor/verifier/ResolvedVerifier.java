@@ -133,8 +133,10 @@ public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Option
         String value = input.textValue();
         boolean required = Boolean.TRUE.equals(setting.required());
         if ("select".equals(setting.type())) {
-            if (value.isEmpty() && required) {
-                return Optional.of("required but empty");
+            if (value.isEmpty()) {
+                // "" is a legal value of an optional select (clears it back to no value); a
+                // required select's "" is required-but-empty, never "not one of its options".
+                return required ? Optional.of("required but empty") : Optional.empty();
             }
             return isOption(setting, value) ? Optional.empty() : Optional.of("not one of its options");
         }
