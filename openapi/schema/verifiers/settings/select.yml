@@ -2,8 +2,8 @@ type: object
 description: >-
   VerifierSelectSetting — a setting rendered as a dropdown of predefined options. A closed
   object: it accepts exactly the properties listed here and nothing else. `id`, `label` and
-  `description` are common to every setting kind; `input`, `required` and `default` are the
-  string value carrier shared with the text settings, holding the chosen option's `id`.
+  `description` are common to every setting kind; `required` and `default` are the string
+  value carrier shared with the text settings, holding the chosen option's `id`.
 properties:
   id:
     type: string
@@ -42,12 +42,6 @@ properties:
         - label
       additionalProperties: false
 
-  input:
-    type: string
-    description: >-
-      Current, persisted value of the setting — the id of the chosen option. Seeded from
-      `default` on load.
-
   required:
     type: boolean
     description: >-
@@ -56,7 +50,7 @@ properties:
   default:
     type: string
     description: >-
-      Id of the option used to preinitialize the dropdown. Mandatory when `required` is
+      Id of the option used to preselect the dropdown. Mandatory when `required` is
       `true`, optional otherwise.
 
 required:

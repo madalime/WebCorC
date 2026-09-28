@@ -129,7 +129,10 @@ class VerificationIT {
         JsonNode entry = result.get("statement").get("verifiers").get("mock");
         Assertions.assertNotNull(entry, "The mock's result is merged into the statement's verifiers entry: " + result);
         Assertions.assertTrue(entry.get("proven").asBoolean());
-        Assertions.assertEquals("Mock verification passed (strategy=strict, threshold=50)", entry.get("status").asText(),
+        Assertions.assertEquals(
+            "Mock verification passed (booleanSetting=false, boundedNumberSetting=50, emptyTextSetting=, "
+                + "lowerBoundedNumberSetting=10, selectSetting=optionA, textSetting=Example text)",
+            entry.get("status").asText(),
             "The status text echoes the resolved Settings: the Catalog defaults, with no project Overrides");
     }
 

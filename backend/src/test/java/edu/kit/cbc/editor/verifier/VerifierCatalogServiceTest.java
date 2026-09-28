@@ -197,15 +197,15 @@ class VerifierCatalogServiceTest {
     @Test
     void mergeCarriesEveryFieldOfTheSelfDescription() {
         VerifierSetting text = new VerifierSetting("reportTitle", "text", "string", "Report title", "Title of the report",
-            false, JsonNode.createStringNode("Mock verification"), null, null, null, null);
+            false, JsonNode.createStringNode("Mock verification"), null, null, null);
         VerifierSetting number = new VerifierSetting("threshold", "text", "number", "Threshold", null,
-            true, JsonNode.createStringNode("50"), null, new BigDecimal("0.5"),
+            true, JsonNode.createStringNode("50"), new BigDecimal("0.5"),
             new VerifierSetting.Range(BigDecimal.ZERO, new BigDecimal("100")), null);
         VerifierSetting select = new VerifierSetting("strategy", "select", null, "Strategy", null,
-            true, JsonNode.createStringNode("strict"), null, null, null,
+            true, JsonNode.createStringNode("strict"), null, null,
             List.of(new VerifierSetting.Option("strict", "Strict"), new VerifierSetting.Option("lenient", "Lenient")));
         VerifierSetting bool = new VerifierSetting("verbose", "boolean", null, "Verbose output", null,
-            null, JsonNode.createBooleanNode(true), null, null, null, null);
+            null, JsonNode.createBooleanNode(true), null, null, null);
         JsonNode variable = JsonNode.createObjectNode(Map.of(
             "id", JsonNode.createStringNode("energyBudget"),
             "type", JsonNode.createStringNode("double")));
@@ -427,13 +427,13 @@ class VerifierCatalogServiceTest {
     // --- Validator: one rule per test, each with its own logged reason ------------------------
 
     private static VerifierSetting text(String id, Boolean required, JsonNode defaultValue) {
-        return new VerifierSetting(id, "text", "string", id, null, required, defaultValue, null, null, null, null);
+        return new VerifierSetting(id, "text", "string", id, null, required, defaultValue, null, null, null);
     }
 
     /** A setting {@code s} of the given kind, labelled, with no other fields set. */
     private static VerifierSetting setting(String type, String valueType, JsonNode defaultValue,
                                            List<VerifierSetting.Option> options) {
-        return new VerifierSetting("s", type, valueType, "s", null, null, defaultValue, null, null, null, options);
+        return new VerifierSetting("s", type, valueType, "s", null, null, defaultValue, null, null, options);
     }
 
     private static final List<VerifierSetting.Option> ONE_OPTION = List.of(new VerifierSetting.Option("a", "A"));
@@ -470,7 +470,7 @@ class VerifierCatalogServiceTest {
 
     @Test
     void rejectsASettingWithoutLabel() {
-        VerifierSetting unlabelled = new VerifierSetting("s", "text", null, null, null, null, null, null, null, null, null);
+        VerifierSetting unlabelled = new VerifierSetting("s", "text", null, null, null, null, null, null, null, null);
 
         String reason = lockedOffReason(describing(unlabelled));
 
@@ -506,7 +506,7 @@ class VerifierCatalogServiceTest {
     @Test
     void rejectsRequiredOnABooleanSetting() {
         VerifierSetting flagged = new VerifierSetting("s", "boolean", null, "s", null, false,
-            JsonNode.createBooleanNode(true), null, null, null, null);
+            JsonNode.createBooleanNode(true), null, null, null);
 
         String reason = lockedOffReason(describing(flagged));
 
@@ -522,7 +522,7 @@ class VerifierCatalogServiceTest {
 
     @Test
     void rejectsStepOnATextStringSetting() {
-        VerifierSetting stepped = new VerifierSetting("s", "text", "string", "s", null, null, null, null,
+        VerifierSetting stepped = new VerifierSetting("s", "text", "string", "s", null, null, null,
             new BigDecimal("0.5"), null, null);
 
         String reason = lockedOffReason(describing(stepped));
@@ -532,7 +532,7 @@ class VerifierCatalogServiceTest {
 
     @Test
     void rejectsRangeOnASelectSetting() {
-        VerifierSetting ranged = new VerifierSetting("s", "select", null, "s", null, null, null, null, null,
+        VerifierSetting ranged = new VerifierSetting("s", "select", null, "s", null, null, null, null,
             SOME_RANGE, ONE_OPTION);
 
         String reason = lockedOffReason(describing(ranged));
@@ -551,7 +551,7 @@ class VerifierCatalogServiceTest {
     @Test
     void namesEveryForeignPropertyOfASettingAtOnce() {
         VerifierSetting overloaded = new VerifierSetting("s", "boolean", null, "s", null, true,
-            JsonNode.createBooleanNode(true), null, BigDecimal.ONE, SOME_RANGE, ONE_OPTION);
+            JsonNode.createBooleanNode(true), BigDecimal.ONE, SOME_RANGE, ONE_OPTION);
 
         String reason = lockedOffReason(describing(overloaded));
 
@@ -765,9 +765,9 @@ class VerifierCatalogServiceTest {
     @Test
     void policyOverridesASettingDefaultById() {
         VerifierSetting threshold = new VerifierSetting("threshold", "text", "number", "Threshold", null,
-            true, JsonNode.createStringNode("50"), null, null, null, null);
+            true, JsonNode.createStringNode("50"), null, null, null);
         VerifierSetting untouched = new VerifierSetting("verbose", "boolean", null, "Verbose", null,
-            null, JsonNode.createBooleanNode(false), null, null, null, null);
+            null, JsonNode.createBooleanNode(false), null, null, null);
         SelfDescription description = new SelfDescription(
             "Mock", true, null, null, List.of(threshold, untouched), List.of(), null);
         FakeVerifierClient client = new FakeVerifierClient().describing("mock", description);
@@ -799,11 +799,11 @@ class VerifierCatalogServiceTest {
     // --- Registry policy: setting-default overrides are checked against the setting's kind ----
 
     private static final VerifierSetting THRESHOLD = new VerifierSetting("threshold", "text", "number", "Threshold",
-        null, true, JsonNode.createStringNode("50"), null, null, null, null);
+        null, true, JsonNode.createStringNode("50"), null, null, null);
     private static final VerifierSetting VERBOSE = new VerifierSetting("verbose", "boolean", null, "Verbose", null,
-        null, JsonNode.createBooleanNode(false), null, null, null, null);
+        null, JsonNode.createBooleanNode(false), null, null, null);
     private static final VerifierSetting STRATEGY = new VerifierSetting("strategy", "select", null, "Strategy", null,
-        null, JsonNode.createStringNode("a"), null, null, null, ONE_OPTION);
+        null, JsonNode.createStringNode("a"), null, null, ONE_OPTION);
 
     /** Builds the Catalog for one Verifier {@code mock} declaring {@code settings}, under the given per-setting policy. */
     private VerifierCatalog policed(Map<String, Map<String, Object>> settingPolicy, VerifierSetting... settings) {

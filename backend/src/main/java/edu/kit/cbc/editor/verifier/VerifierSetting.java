@@ -28,10 +28,10 @@ import java.util.List;
  * {@code default} by id, and the user's {@link VerifierOverride} inputs are keyed by it. The
  * Verifier remains the sole authority on which settings exist and what they mean.
  *
- * <p>{@code default} and {@code input} are polymorphic on the wire — a string for text and
- * select settings, a real boolean for boolean ones — and are therefore kept as
- * {@link JsonNode}. {@code default} is renamed because it is a Java keyword. Numbers are
- * {@link BigDecimal} so that {@code 0} and {@code 0.5} re-serialize exactly as declared.
+ * <p>{@code default} is polymorphic on the wire — a string for text and select settings, a
+ * real boolean for boolean ones — and is therefore kept as {@link JsonNode}. It is renamed
+ * because it is a Java keyword. Numbers are {@link BigDecimal} so that {@code 0} and
+ * {@code 0.5} re-serialize exactly as declared.
  *
  * @param id stable key of the setting
  * @param type {@code text}, {@code select} or {@code boolean}
@@ -40,7 +40,6 @@ import java.util.List;
  * @param description optional longer description
  * @param required for string-valued settings: whether it must be filled in; implies a default
  * @param defaultValue value used to preinitialize the input ({@code default} on the wire)
- * @param input current value; the Catalog normally carries none, the frontend seeds it
  * @param step for numeric settings: precision grid, {@code 1} when omitted
  * @param range for numeric settings: inclusive bounds, each optional
  * @param options for select settings: the predefined options
@@ -56,7 +55,6 @@ public record VerifierSetting(
     String description,
     Boolean required,
     @JsonProperty("default") JsonNode defaultValue,
-    JsonNode input,
     BigDecimal step,
     Range range,
     List<Option> options
@@ -68,7 +66,7 @@ public record VerifierSetting(
      */
     public VerifierSetting withDefault(JsonNode defaultValue) {
         return new VerifierSetting(id, type, valueType, label, description, required, defaultValue,
-            input, step, range, options);
+            step, range, options);
     }
 
     /** Inclusive bounds of a numeric setting; each bound is optional. */

@@ -2,9 +2,9 @@ type: object
 description: >-
   VerifierTextNumberSetting — a numeric text setting. A closed object: it accepts exactly the
   properties listed here and nothing else. `id`, `label` and `description` are common to every
-  setting kind; `input`, `required` and `default` are the string value carrier shared with the
+  setting kind; `required` and `default` are the string value carrier shared with the
   text/string and select settings — a numeric setting still stores its value as a canonical
-  `.`-separated decimal string, so invalid input survives to be flagged rather than silently
+  `.`-separated decimal string, so an invalid value survives to be flagged rather than silently
   swallowed. `step` and `range` exist on this kind only.
 properties:
   id:
@@ -29,12 +29,6 @@ properties:
     enum:
       - number
 
-  input:
-    type: string
-    description: >-
-      Current, persisted value of the setting. Seeded from `default` on load. Always a
-      string — the value as a canonical `.`-separated decimal string.
-
   required:
     type: boolean
     description: >-
@@ -43,7 +37,7 @@ properties:
   default:
     type: string
     description: >-
-      Value used to preinitialize the input, as a canonical `.`-separated decimal string.
+      Value used to preinitialize the setting, as a canonical `.`-separated decimal string.
       Mandatory when `required` is `true`, optional otherwise.
 
   step:

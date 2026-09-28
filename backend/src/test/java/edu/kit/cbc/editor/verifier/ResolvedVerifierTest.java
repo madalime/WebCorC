@@ -20,16 +20,16 @@ class ResolvedVerifierTest {
     private static final JsonNodeFactory JACKSON = JsonNodeFactory.instance;
 
     private static final VerifierSetting REPORT_TITLE = new VerifierSetting("reportTitle", "text", "string", "Report title",
-        null, false, JsonNode.createStringNode("Mock verification"), null, null, null, null);
+        null, false, JsonNode.createStringNode("Mock verification"), null, null, null);
     private static final VerifierSetting THRESHOLD = new VerifierSetting("threshold", "text", "number", "Threshold",
-        null, true, JsonNode.createStringNode("50"), null, null, null, null);
+        null, true, JsonNode.createStringNode("50"), null, null, null);
     private static final VerifierSetting STRATEGY = new VerifierSetting("strategy", "select", null, "Strategy",
-        null, true, JsonNode.createStringNode("strict"), null, null, null,
+        null, true, JsonNode.createStringNode("strict"), null, null,
         List.of(new VerifierSetting.Option("strict", "Strict"), new VerifierSetting.Option("lenient", "Lenient")));
     private static final VerifierSetting VERBOSE = new VerifierSetting("verbose", "boolean", null, "Verbose",
-        null, null, JsonNode.createBooleanNode(true), null, null, null, null);
+        null, null, JsonNode.createBooleanNode(true), null, null, null);
     private static final VerifierSetting COMMENT = new VerifierSetting("comment", "text", "string", "Comment",
-        null, false, null, null, null, null, null);
+        null, false, null, null, null, null);
 
     private static Verifier verifier(String id, boolean enabled, Boolean toggleable, VerifierSetting... settings) {
         return new Verifier(id, id, enabled, toggleable, null, List.of(settings), List.of(), null);

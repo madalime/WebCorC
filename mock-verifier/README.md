@@ -12,7 +12,7 @@ responses — dev/test infrastructure, not a published contract.
 | `GET /description`       | `description.json`, verbatim.                                                                                |
 | `POST /jobs/{id}`        | `202` with no body. Remembers the program's statement ids and the resolved Settings under `{id}`.            |
 | `GET /jobs/{id}` (WS)    | Three fixed `log` messages, then `{"type":"done","proven":true,"status":"Mock Verifier: whole run checked"}`, then a normal close. Same for every job.  |
-| `GET /jobs/{id}/result`  | `{"<statementId>": {"proven": true, "status": "Mock verification passed (strategy=…, threshold=…)"}, …}` for every statement id the program carried. |
+| `GET /jobs/{id}/result`  | `{"<statementId>": {"proven": true, "status": "Mock verification passed (id1=value1, id2=value2, …)"}, …}` for every statement id the program carried; every resolved Setting is echoed, sorted by id. |
 
 Guards, all as `application/problem+json`: `404` for an unknown job or path, `400` for a start
 request that is not JSON or lacks `program`/`files`/`settings`, `409` for a result fetched before

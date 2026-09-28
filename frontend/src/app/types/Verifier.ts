@@ -35,7 +35,11 @@ type SettingBase = {
  * carry a real boolean instead (see {@link BooleanSetting}).
  */
 type StringValued = {
-  /** Current, persisted value of the setting. Seeded from `default` on load. */
+  /**
+   * Current value of the setting. Not part of the Catalog / Verifier self-description —
+   * {@link applyOverrides} fills it on the merged view from the user's saved override, or
+   * from `default` when there is none.
+   */
   input?: string;
 } & Requiredness;
 
@@ -74,7 +78,11 @@ type SelectSetting = { type: 'select'; options: { id: string; label: string }[] 
  */
 type BooleanSetting = {
   type: 'boolean';
-  /** Current, persisted value of the setting. Seeded from `default` on load. */
+  /**
+   * Current value of the setting. Not part of the Catalog / Verifier self-description —
+   * {@link applyOverrides} fills it on the merged view from the user's saved override, or
+   * from `default` when there is none.
+   */
   input?: boolean;
   /** Value used to preinitialize the toggle. */
   default: boolean;

@@ -123,8 +123,11 @@ async function streamStatus(ws, job, messageDelayMs) {
 }
 
 function resultOf(job) {
-  const { strategy, threshold } = job.settings;
-  const status = `Mock verification passed (strategy=${strategy}, threshold=${threshold})`;
+  const summary = Object.keys(job.settings)
+    .sort()
+    .map((id) => `${id}=${job.settings[id]}`)
+    .join(", ");
+  const status = summary ? `Mock verification passed (${summary})` : "Mock verification passed";
   return Object.fromEntries(job.statementIds.map((id) => [String(id), { proven: true, status }]));
 }
 

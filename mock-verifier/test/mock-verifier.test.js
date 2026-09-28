@@ -231,16 +231,15 @@ describe("mock Verifier", () => {
       }
     });
 
-    it("echoes the resolved settings it was started with in the status text", async () => {
+    it("echoes the resolved settings it was started with in the status text, generically and sorted by id", async () => {
       const request = startRequest();
-      request.settings = { ...request.settings, strategy: "lenient", threshold: "12.5" };
+      request.settings = { zebra: "z", alpha: "a", flag: true };
       await postJob(base, "with-settings", request);
       await streamStatus(base, "with-settings");
 
       const result = await (await fetch(`${base}/jobs/with-settings/result`)).json();
 
-      assert.match(result["0"].status, /strategy=lenient/);
-      assert.match(result["0"].status, /threshold=12\.5/);
+      assert.equal(result["0"].status, "Mock verification passed (alpha=a, flag=true, zebra=z)");
     });
   });
 });

@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 @Property(name = "verifiers[0].url", value = "http://${mock-verifier.host}:${mock-verifier.port}")
 @Property(name = "verifiers[0].label", value = "Mock Verifier (renamed by policy)")
 @Property(name = "verifiers[0].toggleable", value = "false")
-@Property(name = "verifiers[0].settings.threshold.default", value = "75")
+@Property(name = "verifiers[0].settings.boundedNumberSetting.default", value = "75")
 @Property(name = "verifiers[1].id", value = "dead")
 @Property(name = "verifiers[1].url", value = "http://127.0.0.1:9")
 class VerifierCatalogIT {
@@ -102,41 +102,60 @@ class VerifierCatalogIT {
         Assertions.assertTrue(mock.get("allowFunctionalVariables").asBoolean());
 
         JsonNode variables = mock.get("variables");
-        Assertions.assertEquals(1, variables.size());
-        Assertions.assertEquals("energyBudget", variables.get(0).get("id").asText());
+        Assertions.assertEquals(List.of("doubleVariable", "intVariable"), ids(variables));
         Assertions.assertEquals("double", variables.get(0).get("type").asText());
+        Assertions.assertTrue(variables.get(0).has("description"));
         Assertions.assertFalse(variables.get(0).has("name"), "name is removed from the schema entirely");
+        Assertions.assertEquals("int", variables.get(1).get("type").asText());
+        Assertions.assertFalse(variables.get(1).has("description"), "A variable's description is optional");
 
         JsonNode settings = mock.get("settings");
-        Assertions.assertEquals(List.of("reportTitle", "threshold", "strategy", "verbose"), ids(settings),
+        Assertions.assertEquals(List.of("textSetting", "emptyTextSetting", "boundedNumberSetting",
+                "lowerBoundedNumberSetting", "selectSetting", "booleanSetting"), ids(settings),
             "All four kinds of settings, addressable by id");
+        settings.forEach(setting -> Assertions.assertFalse(setting.has("input"),
+            "A Catalog setting carries no input: " + setting));
 
-        JsonNode reportTitle = settings.get(0);
-        Assertions.assertEquals("text", reportTitle.get("type").asText());
-        Assertions.assertEquals("string", reportTitle.get("valueType").asText());
-        Assertions.assertEquals("Report title", reportTitle.get("label").asText());
-        Assertions.assertEquals("Mock verification", reportTitle.get("default").asText());
-        Assertions.assertFalse(reportTitle.get("required").asBoolean());
+        JsonNode text = settings.get(0);
+        Assertions.assertEquals("text", text.get("type").asText());
+        Assertions.assertEquals("string", text.get("valueType").asText());
+        Assertions.assertEquals("Text setting", text.get("label").asText());
+        Assertions.assertEquals("Example text", text.get("default").asText());
+        Assertions.assertFalse(text.get("required").asBoolean());
 
-        JsonNode threshold = settings.get(1);
-        Assertions.assertEquals("text", threshold.get("type").asText());
-        Assertions.assertEquals("number", threshold.get("valueType").asText());
-        Assertions.assertEquals(0.5, threshold.get("step").asDouble());
-        Assertions.assertEquals(0, threshold.get("range").get("min").asDouble());
-        Assertions.assertEquals(100, threshold.get("range").get("max").asDouble());
-        Assertions.assertTrue(threshold.get("required").asBoolean());
-        Assertions.assertEquals("75", threshold.get("default").asText(),
-            "The Registry's settings.threshold.default policy wins over the Self-Description's own 50");
+        JsonNode emptyText = settings.get(1);
+        Assertions.assertEquals("text", emptyText.get("type").asText());
+        Assertions.assertFalse(emptyText.has("default"), "An optional setting may declare no default");
+        Assertions.assertFalse(emptyText.has("required"));
+        Assertions.assertFalse(emptyText.has("description"));
 
-        JsonNode strategy = settings.get(2);
-        Assertions.assertEquals("select", strategy.get("type").asText());
-        Assertions.assertEquals(List.of("strict", "lenient"), ids(strategy.get("options")));
-        Assertions.assertEquals("Strict", strategy.get("options").get(0).get("label").asText());
-        Assertions.assertEquals("strict", strategy.get("default").asText());
+        JsonNode boundedNumber = settings.get(2);
+        Assertions.assertEquals("text", boundedNumber.get("type").asText());
+        Assertions.assertEquals("number", boundedNumber.get("valueType").asText());
+        Assertions.assertEquals(0.5, boundedNumber.get("step").asDouble());
+        Assertions.assertEquals(0, boundedNumber.get("range").get("min").asDouble());
+        Assertions.assertEquals(100, boundedNumber.get("range").get("max").asDouble());
+        Assertions.assertTrue(boundedNumber.get("required").asBoolean());
+        Assertions.assertEquals("75", boundedNumber.get("default").asText(),
+            "The Registry's settings.boundedNumberSetting.default policy wins over the Self-Description's own 50");
 
-        JsonNode verbose = settings.get(3);
-        Assertions.assertEquals("boolean", verbose.get("type").asText());
-        Assertions.assertTrue(verbose.get("default").isBoolean(), "Boolean settings carry a real boolean default");
-        Assertions.assertTrue(verbose.get("default").asBoolean());
+        JsonNode lowerBoundedNumber = settings.get(3);
+        Assertions.assertEquals("number", lowerBoundedNumber.get("valueType").asText());
+        Assertions.assertFalse(lowerBoundedNumber.has("step"), "An omitted step means integers only");
+        Assertions.assertEquals(0, lowerBoundedNumber.get("range").get("min").asDouble());
+        Assertions.assertFalse(lowerBoundedNumber.get("range").has("max"), "Each bound is optional");
+        Assertions.assertTrue(lowerBoundedNumber.get("required").asBoolean());
+        Assertions.assertEquals("10", lowerBoundedNumber.get("default").asText());
+
+        JsonNode select = settings.get(4);
+        Assertions.assertEquals("select", select.get("type").asText());
+        Assertions.assertEquals(List.of("optionA", "optionB", "optionC"), ids(select.get("options")));
+        Assertions.assertEquals("Option A", select.get("options").get(0).get("label").asText());
+        Assertions.assertEquals("optionA", select.get("default").asText());
+
+        JsonNode bool = settings.get(5);
+        Assertions.assertEquals("boolean", bool.get("type").asText());
+        Assertions.assertTrue(bool.get("default").isBoolean(), "Boolean settings carry a real boolean default");
+        Assertions.assertFalse(bool.get("default").asBoolean());
     }
 }
