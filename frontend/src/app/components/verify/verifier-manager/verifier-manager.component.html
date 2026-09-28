@@ -62,6 +62,7 @@
                          [ngModelOptions]="{ standalone: true }"
                          [required]="field.required ?? false"
                          [appNumberInput]="field"
+                         [appSavedValueError]="field"
                          #ctrl="ngModel" >
                   <mat-hint align="start"> Step: {{ field.step ?? 1 }}</mat-hint>
                   @if (field.range?.min != null && field.range?.max != null) {
@@ -86,6 +87,8 @@
 
                   @if (ctrl.hasError('required')) {
                     <mat-error> This field is required </mat-error>
+                  } @else if (ctrl.hasError('savedValueError')) {
+                    <mat-error> Saved value has the wrong type </mat-error>
                   } @else if (ctrl.hasError('number')) {
                     <mat-error> Must be a number </mat-error>
                   } @else if (ctrl.hasError('min')) {
@@ -108,6 +111,7 @@
                          (ngModelChange)="onSettingChange(item, field, $event)"
                          [ngModelOptions]="{ standalone: true }"
                          [required]="field.required ?? false"
+                         [appSavedValueError]="field"
                          #ctrl="ngModel" />
                   @if (getDescription(field); as description) {
                     <button
@@ -122,6 +126,8 @@
                   }
                   @if (ctrl.hasError('required')) {
                     <mat-error> This field is required </mat-error>
+                  } @else if (ctrl.hasError('savedValueError')) {
+                    <mat-error> Saved value has the wrong type </mat-error>
                   }
                 </mat-form-field>
               } @else if (field.type === 'select') {
@@ -130,7 +136,9 @@
                   <mat-select [ngModel]="field.input"
                               (ngModelChange)="onSettingChange(item, field, $event)"
                               [ngModelOptions]="{ standalone: true }"
-                              [required]="field.required ?? false">
+                              [required]="field.required ?? false"
+                              [appSavedValueError]="field"
+                              #ctrl="ngModel">
                     @if (!field.required) {
                       <mat-option>None</mat-option>
                     }
@@ -149,6 +157,13 @@
                       <i class="pi pi-info-circle"></i>
                     </button>
                   }
+                  @if (field.savedValueError?.reason === 'unknown-option') {
+                    <mat-error> Saved option '{{ savedOptionId(field) }}' is not available </mat-error>
+                  } @else if (ctrl.hasError('savedValueError')) {
+                    <mat-error> Saved value has the wrong type </mat-error>
+                  } @else if (ctrl.hasError('required')) {
+                    <mat-error> This field is required </mat-error>
+                  }
                 </mat-form-field>
               } @else if (field.type === 'boolean') {
                 <div class="boolean-field">
@@ -164,11 +179,14 @@
                     </button>
                   }
                   <p-toggleswitch
-                      [ngModel]="field.input ?? field.default"
+                      [ngModel]="booleanToggleValue(field)"
                       (ngModelChange)="onSettingChange(item, field, $event)"
                       [ngModelOptions]="{ standalone: true }"
                       [attr.aria-label]="field.label" />
                 </div>
+                @if (field.savedValueError) {
+                  <div class="boolean-field-error"> Saved value has the wrong type </div>
+                }
               }
             </div>
           }

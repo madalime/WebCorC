@@ -28,6 +28,17 @@ type SettingBase = {
 };
 
 /**
+ * Marks a saved value that its field cannot represent as valid. `value` is the raw saved value,
+ * kept for display (e.g. the unavailable option id). `'wrong-type'` is a value of the wrong JSON
+ * type for this setting (e.g. a number or `null` for a text/select setting, or a string for a
+ * boolean one); `'unknown-option'` is a select value that is not one of its current options.
+ */
+export type SavedValueError = {
+  value: unknown;
+  reason: 'wrong-type' | 'unknown-option';
+};
+
+/**
  * Value carrier of the text and select settings. `input` is always a string — text
  * inputs must round-trip invalid text so it can be flagged rather than silently
  * swallowed, and numeric settings store their value as a canonical `.`-decimal string.
@@ -41,6 +52,8 @@ type StringValued = {
    * from `default` when there is none.
    */
   input?: string;
+  /** See {@link SavedValueError}. */
+  savedValueError?: SavedValueError;
 } & Requiredness;
 
 /**
@@ -86,6 +99,8 @@ type BooleanSetting = {
   input?: boolean;
   /** Value used to preinitialize the toggle. */
   default: boolean;
+  /** See {@link SavedValueError}. */
+  savedValueError?: SavedValueError;
 };
 
 /**

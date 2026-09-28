@@ -22,6 +22,7 @@ import {
   VerifierService,
 } from "../../../services/verifier/verifier.service";
 import { NumberInputValidatorDirective } from "../../../services/verifier/number-input-validator.directive";
+import { SavedValueErrorValidatorDirective } from "../../../services/verifier/saved-value-error-validator.directive";
 import { MatTooltip } from "@angular/material/tooltip";
 import { MatIconButton } from "@angular/material/button";
 import { ErrorStateMatcher } from "@angular/material/core";
@@ -52,6 +53,7 @@ const immediateErrorStateMatcher: ErrorStateMatcher = {
     MatSelect,
     MatOption,
     NumberInputValidatorDirective,
+    SavedValueErrorValidatorDirective,
     MatHint,
     MatTooltip,
     MatSuffix,
@@ -187,6 +189,30 @@ export class VerifierManagerComponent {
     } else {
       return undefined;
     }
+  }
+
+  /**
+   * The saved option id from a select setting's `savedValueError`, for the "not available"
+   * error text. `savedValueError.value` is `unknown` (the marker is shared with the wrong-type
+   * case, whose saved value may be of any JSON type), but an unknown-option value is always the
+   * saved string id, so this reads it back as one for display.
+   * @param field The select setting whose `savedValueError` to read
+   */
+  public savedOptionId(field: Extract<VerifierSetting, { type: "select" }>): string {
+    return String(field.savedValueError?.value ?? "");
+  }
+
+  /**
+   * The toggle's displayed value for a boolean setting: the saved input, or the Catalog
+   * default only when there is no saved value at all. A saved value the field can't
+   * represent (`savedValueError`, e.g. a non-boolean override) must show off rather than
+   * silently falling back to the default.
+   * @param field The boolean setting to read
+   */
+  public booleanToggleValue(
+    field: Extract<VerifierSetting, { type: "boolean" }>,
+  ): boolean {
+    return field.savedValueError ? false : (field.input ?? field.default);
   }
 
   /**

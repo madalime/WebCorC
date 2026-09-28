@@ -543,4 +543,66 @@ describe("VerifierService", () => {
     service.updateSetting('v', 'n', '');
     expect(service.verifiersValid()).toBeTrue();
   });
+
+  describe("a saved value the field can't represent as valid", () => {
+    it("blocks the run gate and is listed by invalidVerifierSettings for a wrong-typed text setting", () => {
+      const persisted: VerifierOverrides = { v: { settings: { s: 5 as unknown as string } } };
+      projectServiceStub.getVerifierOverrides = () => persisted;
+      overridesLoaded.next();
+      loadCatalog([
+        { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+          { id: 's', label: 's', type: 'text', default: 'd' },
+        ], variables: [] },
+      ]);
+
+      expect(service.verifiersValid()).toBeFalse();
+      const invalid = service.invalidVerifierSettings;
+      expect(invalid.length).toBe(1);
+      expect(invalid[0].settings.map((setting) => setting.id)).toEqual(['s']);
+    });
+
+    it("blocks the run gate for an unknown select option", () => {
+      loadCatalog([
+        { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+          { id: 'sel', label: 'sel', type: 'select', required: true, default: 'a',
+            options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] },
+        ], variables: [] },
+      ]);
+
+      service.updateSetting('v', 'sel', 'gone');
+
+      expect(service.verifiersValid()).toBeFalse();
+    });
+
+    it("blocks the run gate for a wrong-typed boolean setting", () => {
+      const persisted: VerifierOverrides = { v: { settings: { flag: 'yes' } } };
+      projectServiceStub.getVerifierOverrides = () => persisted;
+      overridesLoaded.next();
+      loadCatalog([
+        { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+          { id: 'flag', label: 'flag', type: 'boolean', default: true },
+        ], variables: [] },
+      ]);
+
+      expect(service.verifiersValid()).toBeFalse();
+      expect(service.verifiers()[0].settings[0].input).toBeUndefined();
+    });
+
+    it("clears once the user changes the field to a well-typed value", () => {
+      const persisted: VerifierOverrides = { v: { settings: { s: 5 as unknown as string } } };
+      projectServiceStub.getVerifierOverrides = () => persisted;
+      overridesLoaded.next();
+      loadCatalog([
+        { id: 'v', label: 'V', enabled: true, statusPlaceholder: '', settings: [
+          { id: 's', label: 's', type: 'text', default: 'd' },
+        ], variables: [] },
+      ]);
+      expect(service.verifiersValid()).toBeFalse();
+
+      service.updateSetting('v', 's', 'typed');
+
+      expect(service.verifiersValid()).toBeTrue();
+      expect(service.verifiers()[0].settings[0].input).toBe('typed');
+    });
+  });
 });

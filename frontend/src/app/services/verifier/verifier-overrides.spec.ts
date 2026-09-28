@@ -70,7 +70,7 @@ describe("applyOverrides", () => {
     expect(merged[0].settings[0].input).toBe("typed");
   });
 
-  it("falls back to the default when a select setting override is not one of the current options", () => {
+  it("keeps an unknown select option verbatim and marks it unknown-option, without falling back to the default", () => {
     const base: Verifier[] = [
       {
         id: "v",
@@ -94,17 +94,11 @@ describe("applyOverrides", () => {
       },
     ];
     const overrides: VerifierOverrides = { v: { settings: { sel: "gone" } } };
-    const debug = spyOn(console, "debug");
 
     const merged = applyOverrides(base, overrides);
 
-    expect(merged[0].settings[0].input).toBe("a");
-    expect(debug).toHaveBeenCalled();
-    const message = debug.calls.mostRecent().args.join(" ");
-    expect(message).toContain("v");
-    expect(message).toContain("sel");
-    expect(message).toContain("gone");
-    expect(message).toContain("a");
+    expect(merged[0].settings[0].input).toBe("gone");
+    expect(merged[0].settings[0].savedValueError).toEqual({ value: "gone", reason: "unknown-option" });
   });
 
   it("resolves an optional select's \"\" override to \"\" even when it has a default", () => {
@@ -137,7 +131,7 @@ describe("applyOverrides", () => {
     expect(merged[0].settings[0].input).toBe("");
   });
 
-  it("falls back to the default when a required select's override is \"\"", () => {
+  it("keeps a required select's \"\" override as \"\" (plain required-but-empty, no marker)", () => {
     const base: Verifier[] = [
       {
         id: "v",
@@ -164,7 +158,39 @@ describe("applyOverrides", () => {
 
     const merged = applyOverrides(base, overrides);
 
-    expect(merged[0].settings[0].input).toBe("a");
+    expect(merged[0].settings[0].input).toBe("");
+    expect(merged[0].settings[0].savedValueError).toBeUndefined();
+  });
+
+  it("keeps a select setting's non-string override as \"\" and marks it wrong-type", () => {
+    const base: Verifier[] = [
+      {
+        id: "v",
+        label: "V",
+        enabled: true,
+        statusPlaceholder: "",
+        settings: [
+          {
+            id: "sel",
+            label: "sel",
+            type: "select",
+            required: false,
+            default: "a",
+            options: [
+              { id: "a", label: "A" },
+              { id: "b", label: "B" },
+            ],
+          },
+        ],
+        variables: [],
+      },
+    ];
+    const overrides: VerifierOverrides = { v: { settings: { sel: true } } };
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].settings[0].input).toBe("");
+    expect(merged[0].settings[0].savedValueError).toEqual({ value: true, reason: "wrong-type" });
   });
 
   it("seeds a boolean setting from its default and applies a boolean override verbatim", () => {
@@ -189,7 +215,7 @@ describe("applyOverrides", () => {
     expect(merged[0].settings[1].input).toBeTrue();
   });
 
-  it("falls back to the default when a boolean setting override is not a boolean", () => {
+  it("leaves a boolean setting's input unset and marks it wrong-type when the override is not a boolean, without falling back to the default", () => {
     const base: Verifier[] = [
       {
         id: "v",
@@ -197,27 +223,21 @@ describe("applyOverrides", () => {
         enabled: true,
         statusPlaceholder: "",
         settings: [
-          { id: "flag", label: "flag", type: "boolean", default: false },
+          { id: "flag", label: "flag", type: "boolean", default: true },
         ],
         variables: [],
       },
     ];
     // the legacy canonical-string form must be rejected too, not silently coerced
     const overrides: VerifierOverrides = { v: { settings: { flag: "true" } } };
-    const debug = spyOn(console, "debug");
 
     const merged = applyOverrides(base, overrides);
 
-    expect(merged[0].settings[0].input).toBeFalse();
-    expect(debug).toHaveBeenCalled();
-    const message = debug.calls.mostRecent().args.join(" ");
-    expect(message).toContain("v");
-    expect(message).toContain("flag");
-    expect(message).toContain("true");
-    expect(message).toContain("false");
+    expect(merged[0].settings[0].input).toBeUndefined();
+    expect(merged[0].settings[0].savedValueError).toEqual({ value: "true", reason: "wrong-type" });
   });
 
-  it("falls back to the default when a string setting override is not a string", () => {
+  it("keeps a non-string text setting override as JSON text and marks it wrong-type, without falling back to the default", () => {
     const base: Verifier[] = [
       {
         id: "v",
@@ -229,16 +249,32 @@ describe("applyOverrides", () => {
       },
     ];
     const overrides: VerifierOverrides = { v: { settings: { s: true } } };
-    const debug = spyOn(console, "debug");
 
     const merged = applyOverrides(base, overrides);
 
-    expect(merged[0].settings[0].input).toBe("d");
-    expect(debug).toHaveBeenCalled();
-    const message = debug.calls.mostRecent().args.join(" ");
-    expect(message).toContain("v");
-    expect(message).toContain("s");
-    expect(message).toContain("d");
+    expect(merged[0].settings[0].input).toBe("true");
+    expect(merged[0].settings[0].savedValueError).toEqual({ value: true, reason: "wrong-type" });
+  });
+
+  it("keeps a numeric text setting override as JSON text and marks it wrong-type, even a JSON type outside the declared override union (e.g. a raw number or null)", () => {
+    const base: Verifier[] = [
+      {
+        id: "v",
+        label: "V",
+        enabled: true,
+        statusPlaceholder: "",
+        settings: [
+          { id: "n", label: "n", type: "text", valueType: "number", default: "1" },
+        ],
+        variables: [],
+      },
+    ];
+    const overrides = { v: { settings: { n: 5 } } } as unknown as VerifierOverrides;
+
+    const merged = applyOverrides(base, overrides);
+
+    expect(merged[0].settings[0].input).toBe("5");
+    expect(merged[0].settings[0].savedValueError).toEqual({ value: 5, reason: "wrong-type" });
   });
 
   it("passes a numeric text override through verbatim even when out of range", () => {

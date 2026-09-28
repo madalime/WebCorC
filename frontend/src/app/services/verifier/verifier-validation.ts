@@ -96,8 +96,16 @@ export function hasStatus(verifier: { statusPlaceholder?: string }): boolean {
   return !!verifier.statusPlaceholder;
 }
 
-/** Whether a setting is valid for the purpose of gating a run; see {@link VerifierService.verifiersValid}. */
+/**
+ * Whether a setting is valid for the purpose of gating a run; see
+ * {@link VerifierService.verifiersValid}. A setting {@link applyOverrides} could not represent
+ * as valid (see `savedValueError` on the setting types in `types/Verifier.ts`) is always
+ * invalid, regardless of what its `input` happens to be.
+ */
 export function isSettingValid(setting: VerifierSetting): boolean {
+  if (setting.savedValueError) {
+    return false;
+  }
   if (setting.type === 'boolean') {
     return true;
   }

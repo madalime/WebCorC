@@ -37,6 +37,13 @@ p-accordion {
     line-height: 1;
 }
 
+/* Mirrors mat-error's styling for the boolean toggle, which has no mat-form-field of its own. */
+.boolean-field-error {
+    color: var(--mat-form-field-error-text-color, #f44336);
+    font-size: 0.75rem;
+    margin: -0.75rem 0 0.5rem;
+}
+
 .variables {
     margin-top: 0.5rem;
 }

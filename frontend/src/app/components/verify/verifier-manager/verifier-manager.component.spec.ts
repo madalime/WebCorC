@@ -337,6 +337,132 @@ describe('VerifierManagerComponent', () => {
     });
   });
 
+  describe("shows a saved value it can't represent as invalid, instead of the default", () => {
+    const options = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
+    const func: Verifier = {
+      id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [],
+    };
+    const catalog: Verifier[] = [
+      func,
+      {
+        id: 'v', label: 'V', enabled: true, toggleable: true,
+        settings: [
+          { id: 'text', label: 'Text', type: 'text', default: 'd' },
+          { id: 'num', label: 'Num', type: 'text', valueType: 'number', default: '1' },
+          { id: 'sel', label: 'Sel', type: 'select', required: false, default: 'a', options },
+          { id: 'reqSel', label: 'ReqSel', type: 'select', required: true, default: 'a', options },
+          { id: 'flag', label: 'Flag', type: 'boolean', default: true },
+        ],
+        variables: [],
+      },
+    ];
+
+    /** The `.field` container of the Setting labeled `label`. */
+    function fieldContainer(label: string): HTMLElement {
+      fixture.detectChanges();
+      const fields: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('.field'));
+      return fields.find(
+        (el) =>
+          el.querySelector('mat-label')?.textContent?.trim() === label ||
+          el.querySelector('.boolean-label')?.textContent?.trim() === label,
+      )!;
+    }
+
+    /** The mat-error (or the boolean field's own error element) shown under the Setting labeled `label`, or `null` if none is shown. */
+    function fieldErrorText(label: string): string | null {
+      const error = fieldContainer(label).querySelector('mat-error, .boolean-field-error');
+      return error ? error.textContent!.replace(/\s+/g, ' ').trim() : null;
+    }
+
+    /** Loads a Catalog whose "v" Verifier already carries the given saved override, as on project load. */
+    function loadWithSavedOverride(settings: Record<string, unknown>): void {
+      spyOn(TestBed.inject(ProjectService), 'getVerifierOverrides').and.returnValue({
+        v: { settings: settings as Record<string, string | boolean> },
+      });
+      spyOn(TestBed.inject(ProjectService), 'saveVerifierOverrides');
+      TestBed.inject(ProjectService).verifierOverridesLoaded.next();
+      httpTesting.expectOne(catalogUrl).flush({ verifiers: catalog });
+      component.updateExpandedSections(['v']);
+    }
+
+    it('flags a wrong-typed text Setting, shows the saved value as JSON text, and blocks the run gate', fakeAsync(() => {
+      loadWithSavedOverride({ text: 5 });
+      fixture.detectChanges();
+      tick();
+
+      expect(fieldErrorText('Text')).toBe('Saved value has the wrong type');
+      const input: HTMLInputElement = fieldContainer('Text').querySelector('input[matInput]')!;
+      expect(input.value).toBe('5');
+      expect(TestBed.inject(VerifierService).verifiersValid()).toBeFalse();
+    }));
+
+    it('flags a wrong-typed number Setting, even when its JSON text fails the number grammar', fakeAsync(() => {
+      // "null" fails NUMBER_GRAMMAR, so a naive error chain would show "Must be a number"
+      // instead of the more specific savedValueError text.
+      loadWithSavedOverride({ num: null });
+      fixture.detectChanges();
+      tick();
+
+      expect(fieldErrorText('Num')).toBe('Saved value has the wrong type');
+      const input: HTMLInputElement = fieldContainer('Num').querySelector('input[matInput]')!;
+      expect(input.value).toBe('null');
+    }));
+
+    it('flags an unknown select option, naming the saved id, and shows nothing selected', fakeAsync(() => {
+      loadWithSavedOverride({ sel: 'gone' });
+      fixture.detectChanges();
+      tick();
+
+      expect(fieldErrorText('Sel')).toBe("Saved option 'gone' is not available");
+      const selected = TestBed.inject(VerifierService)
+        .verifiers().find((v) => v.id === 'v')!
+        .settings.find((s) => s.id === 'sel')!;
+      expect(selected.input).toBe('gone');
+    }));
+
+    it('flags a wrong-typed boolean Setting and shows the toggle off, not the default', fakeAsync(() => {
+      loadWithSavedOverride({ flag: 'yes' });
+      fixture.detectChanges();
+      tick();
+      fixture.detectChanges();
+
+      expect(fieldErrorText('Flag')).toBe('Saved value has the wrong type');
+      const fields: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('.field'));
+      const flagField = fields.find((el) => el.querySelector('.boolean-label')?.textContent?.trim() === 'Flag')!;
+      const toggle = flagField.querySelector('[role="switch"]')!;
+      expect(toggle.getAttribute('aria-checked')).toBe('false');
+    }));
+
+    it('clears the error once the field is changed to a well-typed value', fakeAsync(() => {
+      loadWithSavedOverride({ text: 5 });
+      fixture.detectChanges();
+      tick();
+      expect(fieldErrorText('Text')).toBe('Saved value has the wrong type');
+
+      TestBed.inject(VerifierService).updateSetting('v', 'text', 'typed');
+      fixture.detectChanges();
+      tick();
+
+      expect(fieldErrorText('Text')).toBeNull();
+      expect(TestBed.inject(VerifierService).verifiersValid()).toBeTrue();
+    }));
+
+    it("shows \"This field is required\" for a required select left at \"\", with no wrong-type/unknown-option error", fakeAsync(() => {
+      httpTesting.expectOne(catalogUrl).flush({ verifiers: catalog });
+      // Keep the override out of sessionStorage, where it would outlive this spec.
+      spyOn(TestBed.inject(ProjectService), 'saveVerifierOverrides');
+      component.updateExpandedSections(['v']);
+      fixture.detectChanges();
+      tick();
+
+      TestBed.inject(VerifierService).updateSetting('v', 'reqSel', '');
+      fixture.detectChanges();
+      tick();
+
+      expect(fieldErrorText('ReqSel')).toBe('This field is required');
+    }));
+  });
+
   describe("a Verifier's Variables list", () => {
     it('renders each Variable by its id and type, with no separate name', () => {
       httpTesting.expectOne(catalogUrl).flush({

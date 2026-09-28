@@ -1,13 +1,19 @@
-import { Verifier, VerifierOverrides } from "../../types/Verifier";
+import { SavedValueError, Verifier, VerifierOverrides } from "../../types/Verifier";
 
 /**
  * Merges a sparse {@link VerifierOverrides} record onto the read-only base catalog into the
  * {@link Verifier} list consumers render. Pure — neither argument is mutated.
  *
- * Out-of-range/off-step numeric text passes through unsanitized; `mat-error` surfaces that in
- * the UI instead of this function clamping it. Orphan override entries (unknown verifier or
- * setting ids) are hidden from the merged view but left in the override record itself, since
- * they may belong to a Verifier that's only temporarily offline rather than being stale.
+ * A present override value is never replaced by the Catalog default, even when the field
+ * can't represent it (wrong JSON type, or a select value that is no longer an option): such a
+ * value is kept verbatim (or emptied for a select, whose dropdown has nothing to show) and
+ * marked with {@link SavedValueError}, so the UI shows it as invalid instead of silently
+ * substituting the default. Only a genuinely absent override (no entry at all) falls back to
+ * the default. Out-of-range/off-step numeric text likewise passes through unsanitized;
+ * `mat-error` surfaces that in the UI instead of this function clamping it. Orphan override
+ * entries (unknown verifier or setting ids) are hidden from the merged view but left in the
+ * override record itself, since they may belong to a Verifier that's only temporarily offline
+ * rather than being stale.
  */
 export function applyOverrides(
   base: Verifier[],
@@ -40,66 +46,74 @@ export function applyOverrides(
       enabled,
       settings: verifier.settings.map((setting) => {
         const overrideInput = override?.settings?.[setting.id];
-        return setting.type === "boolean"
-          ? { ...setting, input: resolveBooleanInput(verifier.id, setting, overrideInput) }
-          : { ...setting, input: resolveStringInput(verifier.id, setting, overrideInput) };
+        if (setting.type === "boolean") {
+          const resolved = resolveBooleanInput(setting, overrideInput);
+          return { ...setting, input: resolved.input, savedValueError: resolved.savedValueError };
+        }
+        const resolved = resolveStringInput(setting, overrideInput);
+        return { ...setting, input: resolved.input, savedValueError: resolved.savedValueError };
       }),
       variables: verifier.variables,
     };
   });
 }
 
+/**
+ * Resolves a text/select setting's merged `input` and, when the saved override value can't be
+ * represented as valid, its {@link SavedValueError} marker. Never falls back to the default for
+ * a present override — see {@link applyOverrides}.
+ */
 function resolveStringInput(
-  verifierId: string,
   setting: Exclude<Verifier["settings"][number], { type: "boolean" }>,
   overrideInput: string | boolean | undefined,
-): string {
-  const fallback = setting.default ?? "";
+): { input: string; savedValueError?: SavedValueError } {
   if (overrideInput === undefined) {
-    return fallback;
+    return { input: setting.default ?? "" };
   }
   if (typeof overrideInput !== "string") {
-    console.debug(
-      `Verifier setting override for "${verifierId}.${setting.id}" (${overrideInput}) is not a string; falling back to default (${fallback}).`,
-    );
-    return fallback;
+    return {
+      // A select has nothing to show for a non-string value; a text field round-trips it as
+      // JSON so the user sees exactly what was saved (e.g. `5`, `null`, `true`).
+      input: setting.type === "select" ? "" : JSON.stringify(overrideInput),
+      savedValueError: { value: overrideInput, reason: "wrong-type" },
+    };
   }
-  if (
-    setting.type === "select" &&
-    overrideInput === "" &&
-    setting.required !== true
-  ) {
-    // "" clears an optional select back to no value; it is legal even with a default, and
-    // does not fall back to it. Distinct from an unknown option, handled below.
-    return overrideInput;
+  if (setting.type === "select" && overrideInput === "") {
+    // "" is either "no value" (an optional select, legal even with a default) or "required
+    // but empty" (a required select) — both are present values kept verbatim, with no marker;
+    // isSettingValid's own required-but-empty check catches the latter.
+    return { input: overrideInput };
   }
   if (
     setting.type === "select" &&
     !setting.options.some((option) => option.id === overrideInput)
   ) {
-    console.debug(
-      `Verifier setting override for "${verifierId}.${setting.id}" (${overrideInput}) is not in current options; falling back to default (${fallback}).`,
-    );
-    return fallback;
+    return {
+      input: overrideInput,
+      savedValueError: { value: overrideInput, reason: "unknown-option" },
+    };
   }
-  return overrideInput;
+  return { input: overrideInput };
 }
 
+/**
+ * Resolves a boolean setting's merged `input` and, when the saved override value can't be
+ * represented as valid, its {@link SavedValueError} marker. Never falls back to the default for
+ * a present override — see {@link applyOverrides}. Unlike the default-on-absence path, a
+ * wrong-typed value leaves `input` unset rather than defaulting: the template must show the
+ * toggle off, not the Catalog default, for a value it cannot trust.
+ */
 function resolveBooleanInput(
-  verifierId: string,
   setting: Extract<Verifier["settings"][number], { type: "boolean" }>,
   overrideInput: string | boolean | undefined,
-): boolean {
+): { input?: boolean; savedValueError?: SavedValueError } {
   if (overrideInput === undefined) {
-    return setting.default;
+    return { input: setting.default };
   }
   if (typeof overrideInput !== "boolean") {
-    console.debug(
-      `Verifier setting override for "${verifierId}.${setting.id}" (${overrideInput}) is not a boolean; falling back to default (${setting.default}).`,
-    );
-    return setting.default;
+    return { savedValueError: { value: overrideInput, reason: "wrong-type" } };
   }
-  return overrideInput;
+  return { input: overrideInput };
 }
 
 function resolveEnabled(
