@@ -1,6 +1,7 @@
 package edu.kit.cbc.editor.verifier;
 
 import io.micronaut.context.annotation.Context;
+import io.micronaut.core.naming.NameUtils;
 import io.micronaut.json.tree.JsonNode;
 import io.micronaut.scheduling.TaskExecutors;
 import jakarta.inject.Named;
@@ -174,7 +175,9 @@ public class VerifierCatalogService {
      * warning and ignored, and so is one whose value does not fit the setting's kind (per
      * {@link SelfDescriptionValidator#defaultViolation}, the same rule the Verifier's own default
      * had to pass — e.g. an unquoted {@code default: 75} on a text setting, which the Registry
-     * binds as a number) — the Verifier's own default is then kept.
+     * binds as a number) — the Verifier's own default is then kept. "Declares" is checked in
+     * hyphenated form (see {@link VerifierRegistryEntry#getSettings()}), since Micronaut may have
+     * hyphenated the policy's own camelCase setting id.
      */
     private static List<VerifierSetting> applySettingDefaults(
         String id, List<VerifierSetting> settings, VerifierRegistryEntry policy
@@ -182,9 +185,11 @@ public class VerifierCatalogService {
         if (policy.getSettings().isEmpty()) {
             return settings;
         }
-        Set<String> knownSettingIds = settings.stream().map(VerifierSetting::id).collect(Collectors.toSet());
+        Set<String> knownHyphenatedIds = settings.stream()
+            .map(setting -> NameUtils.hyphenate(setting.id(), true))
+            .collect(Collectors.toSet());
         for (String settingId : policy.policedSettingIds()) {
-            if (!knownSettingIds.contains(settingId)) {
+            if (!knownHyphenatedIds.contains(NameUtils.hyphenate(settingId, true))) {
                 LOGGER.warning(String.format(
                     "Verifier Registry policy for '%s' overrides unknown setting id '%s'; ignored", id, settingId));
             }

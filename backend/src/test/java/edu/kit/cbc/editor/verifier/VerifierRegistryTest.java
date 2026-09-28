@@ -1,5 +1,6 @@
 package edu.kit.cbc.editor.verifier;
 
+import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.env.MapPropertySource;
 import io.micronaut.context.env.PropertySourcePropertyResolver;
 import io.micronaut.context.env.yaml.YamlPropertySourceLoader;
@@ -163,6 +164,77 @@ class VerifierRegistryTest {
         Assertions.assertEquals(JsonNode.createStringNode("75"), entry.settingDefault("quoted").orElseThrow());
         Assertions.assertEquals(JsonNode.createBooleanNode(true), entry.settingDefault("toggle").orElseThrow());
         Assertions.assertTrue(entry.settingDefault("absent").isEmpty());
+    }
+
+    // --- Setting-default policy finds a camelCase id, bound through a real context -------------
+
+    /**
+     * A context scoped to this package only, with its beans left lazy: {@code eagerInitSingletons
+     * = false} keeps the {@code @Context}-scoped {@link VerifierCatalogService} from starting
+     * (which would otherwise call out over HTTP) — only the beans a test actually asks for are
+     * built.
+     */
+    private static ApplicationContext contextWithProperties(Map<String, Object> properties) {
+        return ApplicationContext.builder()
+            .packages("edu.kit.cbc.editor.verifier")
+            .eagerInitSingletons(false)
+            .properties(properties)
+            .build()
+            .start();
+    }
+
+    private static ApplicationContext contextWithYaml(String yaml) throws IOException {
+        Map<String, Object> flattened = new YamlPropertySourceLoader()
+            .read("verifiers.yml", new ByteArrayInputStream(yaml.getBytes(StandardCharsets.UTF_8)));
+        return ApplicationContext.builder()
+            .packages("edu.kit.cbc.editor.verifier")
+            .eagerInitSingletons(false)
+            .propertySources(MapPropertySource.of("verifiers.yml", flattened))
+            .build()
+            .start();
+    }
+
+    /**
+     * A {@code @Property}-style flat source: Micronaut reconstructs the nested {@code settings}
+     * map from dotted properties and hyphenates the first segment below the prefix
+     * ({@code boundedNumberSetting} arrives as the key {@code bounded-number-setting}).
+     */
+    @Test
+    void bindsACamelCaseSettingIdFromAFlatPropertySource() {
+        try (ApplicationContext context = contextWithProperties(Map.of(
+                "verifiers[0].id", "mock",
+                "verifiers[0].url", "http://mock",
+                "verifiers[0].settings.boundedNumberSetting.default", "75"))) {
+            VerifierRegistry registry = context.getBean(VerifierRegistry.class);
+
+            Assertions.assertEquals(JsonNode.createStringNode("75"),
+                registry.entry("mock").orElseThrow().settingDefault("boundedNumberSetting").orElseThrow(),
+                "Micronaut hyphenates camelCase configuration keys internally ('bounded-number-setting'); "
+                    + "the exact, Verifier-owned setting id must still be found");
+        }
+    }
+
+    /**
+     * A YAML source, as a mounted Registry file provides it: the loader hands the nested
+     * {@code settings} map over as one already-structured value, so Micronaut binds the setting
+     * id exact ({@code boundedNumberSetting}), unlike the flat-property case above.
+     * {@link VerifierRegistryEntry#settingDefault(String)} must resolve both shapes the same way.
+     */
+    @Test
+    void bindsACamelCaseSettingIdFromAYamlSource() throws IOException {
+        try (ApplicationContext context = contextWithYaml("""
+                verifiers:
+                  - id: mock
+                    url: http://mock
+                    settings:
+                      boundedNumberSetting:
+                        default: "75"
+                """)) {
+            VerifierRegistry registry = context.getBean(VerifierRegistry.class);
+
+            Assertions.assertEquals(JsonNode.createStringNode("75"),
+                registry.entry("mock").orElseThrow().settingDefault("boundedNumberSetting").orElseThrow());
+        }
     }
 
     @Test

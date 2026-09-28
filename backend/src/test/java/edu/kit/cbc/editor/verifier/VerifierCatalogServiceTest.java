@@ -1,5 +1,6 @@
 package edu.kit.cbc.editor.verifier;
 
+import io.micronaut.context.ApplicationContext;
 import io.micronaut.json.tree.JsonNode;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -611,6 +612,15 @@ class VerifierCatalogServiceTest {
     }
 
     @Test
+    void rejectsTwoSettingIdsThatHyphenateToTheSameKey() {
+        String reason = lockedOffReason(describing(
+            text("boundedNumber", false, null), text("bounded-number", false, null)));
+
+        Assertions.assertTrue(reason.contains("'boundedNumber'") && reason.contains("'bounded-number'")
+            && reason.contains("hyphenate"), reason);
+    }
+
+    @Test
     void rejectsAllowFunctionalVariablesWithoutVariables() {
         SelfDescription description = new SelfDescription("Some Verifier", true, null, null, null, List.of(), true);
 
@@ -794,6 +804,83 @@ class VerifierCatalogServiceTest {
 
         Assertions.assertNull(catalog.message(), "An unknown setting id in policy is a warning, not an unavailability");
         Assertions.assertTrue(warningAbout("mock").contains("typo"), warningAbout("mock"));
+    }
+
+    // --- Registry policy: a camelCase setting id survives real configuration binding -----------
+
+    /**
+     * A context scoped to this package only, with its beans left lazy — only the
+     * {@link VerifierRegistry} this test asks for is built, not the {@code @Context}-scoped
+     * {@link VerifierCatalogService}, which would otherwise call out over HTTP itself.
+     *
+     * <p>Built with this test's log handler detached: starting a real {@link ApplicationContext}
+     * runs the application's own startup listeners (e.g. bucket provisioning), which log to the
+     * same global logger {@link #warnings()} reads and have nothing to do with the Registry
+     * policy this test is about.
+     */
+    private ApplicationContext contextWithRegistryProperties(Map<String, Object> properties) {
+        Logger.getGlobal().removeHandler(logHandler);
+        try {
+            return ApplicationContext.builder()
+                .packages("edu.kit.cbc.editor.verifier")
+                .eagerInitSingletons(false)
+                .properties(properties)
+                .build()
+                .start();
+        } finally {
+            Logger.getGlobal().addHandler(logHandler);
+        }
+    }
+
+    /**
+     * Reproduces the {@code VerifierCatalogIT} scenario: a {@code @Property}-style source
+     * hyphenates the policy's camelCase setting id internally
+     * ({@code bounded-number-setting}), so {@link VerifierRegistryEntry#settingDefault(String)}
+     * and the {@link VerifierCatalogService} startup type-check
+     * ({@code SelfDescriptionValidator} via {@code entry::settingDefault}) must still find it by
+     * the Verifier's exact id.
+     */
+    @Test
+    void wellTypedCamelCaseOverrideBoundThroughARealContextIsApplied() {
+        VerifierSetting boundedNumberSetting = new VerifierSetting("boundedNumberSetting", "text", "number",
+            "Bounded number", null, true, JsonNode.createStringNode("50"), null, null, null);
+        SelfDescription description = new SelfDescription(
+            "Mock", true, null, null, List.of(boundedNumberSetting), List.of(), null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("mock", description);
+
+        try (ApplicationContext context = contextWithRegistryProperties(Map.of(
+                "verifiers[0].id", "mock",
+                "verifiers[0].url", "http://mock",
+                "verifiers[0].settings.boundedNumberSetting.default", "75"))) {
+            VerifierCatalog catalog = build(context.getBean(VerifierRegistry.class), client);
+
+            Assertions.assertEquals(JsonNode.createStringNode("75"), defaultOf(catalog, "boundedNumberSetting"));
+            Assertions.assertNull(catalog.message());
+            Assertions.assertEquals(List.of(), warnings());
+        }
+    }
+
+    @Test
+    void wrongTypedCamelCaseOverrideBoundThroughARealContextIsIgnoredWithAWarning() {
+        VerifierSetting boundedNumberSetting = new VerifierSetting("boundedNumberSetting", "text", "number",
+            "Bounded number", null, true, JsonNode.createStringNode("50"), null, null, null);
+        SelfDescription description = new SelfDescription(
+            "Mock", true, null, null, List.of(boundedNumberSetting), List.of(), null);
+        FakeVerifierClient client = new FakeVerifierClient().describing("mock", description);
+
+        try (ApplicationContext context = contextWithRegistryProperties(Map.of(
+                "verifiers[0].id", "mock",
+                "verifiers[0].url", "http://mock",
+                "verifiers[0].settings.boundedNumberSetting.default", 75))) {
+            VerifierCatalog catalog = build(context.getBean(VerifierRegistry.class), client);
+
+            Assertions.assertEquals(JsonNode.createStringNode("50"), defaultOf(catalog, "boundedNumberSetting"),
+                "Unquoted -> bound as a number, which a text/number setting's string default rule rejects; "
+                    + "the Verifier's own default is kept");
+            Assertions.assertNull(catalog.message(), "A bad override is a warning, not an unavailability");
+            String warning = warningAbout("mock");
+            Assertions.assertTrue(warning.contains("'boundedNumberSetting'") && warning.contains("ignored"), warning);
+        }
     }
 
     // --- Registry policy: setting-default overrides are checked against the setting's kind ----

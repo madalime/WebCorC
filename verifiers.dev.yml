@@ -16,7 +16,7 @@
 #     url: http://mock-verifier:80
 #     label: "Renamed Mock"
 #     settings:
-#       threshold:
+#       boundedNumberSetting:
 #         default: "90"
 
 verifiers:

@@ -1,9 +1,12 @@
 package edu.kit.cbc.editor.verifier;
 
+import io.micronaut.core.naming.NameUtils;
 import io.micronaut.json.tree.JsonNode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -37,7 +40,10 @@ import java.util.regex.Pattern;
  *   <li>a select setting declares at least one option;</li>
  *   <li>a boolean setting declares a boolean {@code default};</li>
  *   <li>a text or select setting's {@code default}, when present, is a string;</li>
- *   <li>setting ids are unique;</li>
+ *   <li>setting ids are unique, and no two hyphenate to the same key — a Registry policy
+ *       addresses a setting id in hyphenated form when Micronaut bound it that way (see
+ *       {@link VerifierRegistryEntry#getSettings()}), so two ids it could not tell apart would
+ *       let the wrong one's default win silently;</li>
  *   <li>every variable is an object with string {@code id} and {@code type}, and a
  *       {@code description}, when present, that is a string — {@code type} is free-form, so
  *       nothing about its value is checked;</li>
@@ -103,6 +109,7 @@ public final class SelfDescriptionValidator {
             violations.add("enabled is missing");
         }
         Set<String> settingIds = new HashSet<>();
+        Map<String, String> firstIdByHyphenatedForm = new HashMap<>();
         List<VerifierSetting> settings = description.settings() == null ? List.of() : description.settings();
         for (int i = 0; i < settings.size(); i++) {
             VerifierSetting setting = settings.get(i);
@@ -112,6 +119,12 @@ public final class SelfDescriptionValidator {
             }
             if (!settingIds.add(setting.id())) {
                 violations.add("setting id '" + setting.id() + "' is declared more than once");
+            }
+            String hyphenatedForm = NameUtils.hyphenate(setting.id(), true);
+            String firstId = firstIdByHyphenatedForm.putIfAbsent(hyphenatedForm, setting.id());
+            if (firstId != null && !firstId.equals(setting.id())) {
+                violations.add("setting ids '" + firstId + "' and '" + setting.id() + "' both hyphenate to '"
+                    + hyphenatedForm + "', so a Verifier Registry policy could not address them separately");
             }
             settingFindings(setting, overrides.apply(setting.id()), findings);
         }

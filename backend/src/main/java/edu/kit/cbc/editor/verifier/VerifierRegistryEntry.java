@@ -2,6 +2,7 @@ package edu.kit.cbc.editor.verifier;
 
 import io.micronaut.context.annotation.EachProperty;
 import io.micronaut.context.annotation.Parameter;
+import io.micronaut.core.naming.NameUtils;
 import io.micronaut.core.order.Ordered;
 import io.micronaut.json.tree.JsonNode;
 import java.util.Map;
@@ -96,9 +97,18 @@ public class VerifierRegistryEntry implements Ordered {
     }
 
     /**
-     * Per-setting policy, keyed by the Setting's id; each entry's only recognised key is
-     * {@code default}. Raw ({@code Map<String, Object>}) because the Setting's own schema — not
-     * the Registry — owns the value's type; {@link #settingDefault(String)} converts it.
+     * Per-setting policy, keyed by the Setting's id as Micronaut happened to bind it; each
+     * entry's only recognised key is {@code default}. Raw ({@code Map<String, Object>}) because
+     * the Setting's own schema — not the Registry — owns the value's type;
+     * {@link #settingDefault(String)} converts it.
+     *
+     * <p>The key is <em>not</em> reliably the Verifier's exact setting id: Micronaut hyphenates a
+     * camelCase configuration key when it reconstructs a nested map from flat, dotted properties
+     * (as a {@code @Property}-bound or command-line-style source does), but leaves it exact when
+     * a YAML source already hands the nested map over as one value (a mounted Registry file, the
+     * deployment's normal case). {@link #settingDefault(String)} and
+     * {@link VerifierCatalogService}'s unknown-setting-id check compare ids in hyphenated form so
+     * that either shape resolves to the same Setting.
      */
     public Map<String, Map<String, Object>> getSettings() {
         return settings;
@@ -115,13 +125,21 @@ public class VerifierRegistryEntry implements Ordered {
 
     /**
      * The policy default for one Setting, converted to the wire representation
-     * {@link VerifierSetting#defaultValue()} uses.
+     * {@link VerifierSetting#defaultValue()} uses. Matches {@code settingId} against
+     * {@link #getSettings()}'s keys in hyphenated form (see {@link #getSettings()}), so a
+     * camelCase id such as {@code boundedNumberSetting} finds its policy regardless of whether
+     * Micronaut bound it exact or hyphenated to {@code bounded-number-setting}.
      *
      * @param settingId a Setting's id
      * @return the overriding default, or empty if this entry has no {@code settings.<id>.default}
      */
     public Optional<JsonNode> settingDefault(String settingId) {
-        Map<String, Object> policy = settings.get(settingId);
+        String hyphenated = NameUtils.hyphenate(settingId, true);
+        Map<String, Object> policy = settings.entrySet().stream()
+            .filter(entry -> NameUtils.hyphenate(entry.getKey(), true).equals(hyphenated))
+            .map(Map.Entry::getValue)
+            .findFirst()
+            .orElse(null);
         if (policy == null) {
             return Optional.empty();
         }
