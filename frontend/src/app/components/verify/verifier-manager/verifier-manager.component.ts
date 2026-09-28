@@ -174,7 +174,10 @@ export class VerifierManagerComponent {
     const defaultValue =
       field.default === undefined || field.default === ""
         ? undefined
-        : String(field.default);
+        : field.type === "select"
+          ? (field.options.find((option) => option.id === field.default)
+              ?.label ?? String(field.default))
+          : String(field.default);
     if (description && defaultValue) {
       return description + " (default: " + defaultValue + ")";
     } else if (description) {

@@ -77,6 +77,35 @@ describe('VerifierManagerComponent', () => {
     expect(statusText()).toBeNull();
   });
 
+  describe('getDescription for a select Setting', () => {
+    const selectSetting = (defaultValue: string) => ({
+      id: 'sel', label: 'Sel', type: 'select' as const, default: defaultValue,
+      options: [{ id: 'optionA', label: 'Option A' }, { id: 'optionB', label: 'Option B' }],
+    });
+
+    beforeEach(() => {
+      httpTesting.expectOne(catalogUrl).flush({ verifiers: [] });
+    });
+
+    it("shows the matching option's label, not the raw id, with a description", () => {
+      const field = { ...selectSetting('optionA'), description: 'Pick one' };
+
+      expect(component.getDescription(field)).toBe('Pick one (default: Option A)');
+    });
+
+    it("shows the matching option's label, not the raw id, without a description", () => {
+      const field = selectSetting('optionA');
+
+      expect(component.getDescription(field)).toBe('Default: Option A');
+    });
+
+    it('falls back to the raw id when the default matches no option', () => {
+      const field = selectSetting('missing');
+
+      expect(component.getDescription(field)).toBe('Default: missing');
+    });
+  });
+
   describe("highlights each Verifier by its result on the open diagram's root", () => {
     const verifier = (id: string, label: string): Verifier => ({
       id, label, enabled: true, toggleable: true,
