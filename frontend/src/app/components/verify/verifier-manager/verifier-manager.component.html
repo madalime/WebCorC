@@ -195,6 +195,13 @@
           @if (item.variables.length > 0) {
             <div class="variables">
               <div class="variables-header">Variables</div>
+              <div class="variables-scope">
+                @if (item.allowFunctionalVariables) {
+                  Conditions for this verifier may use Java Variables and these:
+                } @else {
+                  Conditions for this verifier may use only these variables:
+                }
+              </div>
               <ul class="variables-list">
                 @for (variable of item.variables; track variable.id) {
                   <li class="variable">

@@ -480,5 +480,47 @@ describe('VerifierManagerComponent', () => {
       const item: HTMLElement = fixture.nativeElement.querySelector('.variable');
       expect(item.textContent!.replace(/\s+/g, ' ').trim()).toBe('energyBudget: double');
     });
+
+    function scopeText(allowFunctionalVariables?: boolean): string | null {
+      httpTesting.expectOne(catalogUrl).flush({
+        verifiers: [
+          { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
+          {
+            id: 'vars', label: 'Variables', enabled: true, toggleable: true, settings: [],
+            variables: [{ id: 'energyBudget', type: 'double' }], allowFunctionalVariables,
+          },
+        ],
+      });
+      component.updateExpandedSections(['vars']);
+      fixture.detectChanges();
+
+      const scope: HTMLElement | null = fixture.nativeElement.querySelector('.variables-scope');
+      return scope && scope.textContent!.replace(/\s+/g, ' ').trim();
+    }
+
+    it('says Java Variables may be used too when the Verifier allows functional variables', () => {
+      expect(scopeText(true)).toBe('Conditions for this verifier may use Java Variables and these:');
+    });
+
+    it('says only its own variables may be used when allowFunctionalVariables is false', () => {
+      expect(scopeText(false)).toBe('Conditions for this verifier may use only these variables:');
+    });
+
+    it('says only its own variables may be used when allowFunctionalVariables is omitted', () => {
+      expect(scopeText(undefined)).toBe('Conditions for this verifier may use only these variables:');
+    });
+
+    it('shows no scope line for a Verifier without variables', () => {
+      httpTesting.expectOne(catalogUrl).flush({
+        verifiers: [
+          { id: 'func', label: 'Functional correctness', enabled: true, toggleable: false, settings: [], variables: [] },
+          { id: 'plain', label: 'Plain', enabled: true, toggleable: true, settings: [{ id: 'level', label: 'Level', type: 'text' }], variables: [] },
+        ],
+      });
+      component.updateExpandedSections(['plain']);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('.variables-scope')).toBeNull();
+    });
   });
 });

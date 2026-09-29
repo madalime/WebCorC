@@ -53,6 +53,12 @@ p-accordion {
     margin-bottom: 0.25rem;
 }
 
+.variables-scope {
+    font-size: 0.75rem;
+    opacity: 0.75;
+    margin-bottom: 0.25rem;
+}
+
 .variables-list {
     list-style: none;
     padding: 0;
