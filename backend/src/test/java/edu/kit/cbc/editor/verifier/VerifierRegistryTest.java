@@ -168,12 +168,7 @@ class VerifierRegistryTest {
 
     // --- Setting-default policy finds a camelCase id, bound through a real context -------------
 
-    /**
-     * A context scoped to this package only, with its beans left lazy: {@code eagerInitSingletons
-     * = false} keeps the {@code @Context}-scoped {@link VerifierCatalogService} from starting
-     * (which would otherwise call out over HTTP) — only the beans a test actually asks for are
-     * built.
-     */
+    /** Beans stay lazy so the {@code @Context} {@link VerifierCatalogService} does not start and call out over HTTP. */
     private static ApplicationContext contextWithProperties(Map<String, Object> properties) {
         return ApplicationContext.builder()
             .packages("edu.kit.cbc.editor.verifier")

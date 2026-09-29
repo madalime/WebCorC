@@ -46,11 +46,7 @@ export type SavedValueError = {
  * carry a real boolean instead (see {@link BooleanSetting}).
  */
 type StringValued = {
-  /**
-   * Current value of the setting. Not part of the Catalog / Verifier self-description —
-   * {@link applyOverrides} fills it on the merged view from the user's saved override, or
-   * from `default` when there is none.
-   */
+  /** Current value; set only on the merged view, never in the Self-Description. */
   input?: string;
   /** See {@link SavedValueError}. */
   savedValueError?: SavedValueError;
@@ -91,11 +87,7 @@ type SelectSetting = { type: 'select'; options: { id: string; label: string }[] 
  */
 type BooleanSetting = {
   type: 'boolean';
-  /**
-   * Current value of the setting. Not part of the Catalog / Verifier self-description —
-   * {@link applyOverrides} fills it on the merged view from the user's saved override, or
-   * from `default` when there is none.
-   */
+  /** Current value; set only on the merged view, never in the Self-Description. */
   input?: boolean;
   /** Value used to preinitialize the toggle. */
   default: boolean;

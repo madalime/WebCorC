@@ -191,24 +191,12 @@ export class VerifierManagerComponent {
     }
   }
 
-  /**
-   * The saved option id from a select setting's `savedValueError`, for the "not available"
-   * error text. `savedValueError.value` is `unknown` (the marker is shared with the wrong-type
-   * case, whose saved value may be of any JSON type), but an unknown-option value is always the
-   * saved string id, so this reads it back as one for display.
-   * @param field The select setting whose `savedValueError` to read
-   */
+  /** The saved id behind an `'unknown-option'` marker, for the error text. */
   public savedOptionId(field: Extract<VerifierSetting, { type: "select" }>): string {
     return String(field.savedValueError?.value ?? "");
   }
 
-  /**
-   * The toggle's displayed value for a boolean setting: the saved input, or the Catalog
-   * default only when there is no saved value at all. A saved value the field can't
-   * represent (`savedValueError`, e.g. a non-boolean override) must show off rather than
-   * silently falling back to the default.
-   * @param field The boolean setting to read
-   */
+  /** Shows a marked (untrusted) saved value as off, never as the default. */
   public booleanToggleValue(
     field: Extract<VerifierSetting, { type: "boolean" }>,
   ): boolean {

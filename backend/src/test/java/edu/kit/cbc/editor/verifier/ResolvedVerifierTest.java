@@ -16,8 +16,7 @@ import org.junit.jupiter.api.Test;
  * declared Setting — the Catalog default (Registry policy already applied) overlaid with the
  * project's Override input, kept verbatim whether or not it fits the Setting's kind. A present
  * value that breaks its Setting's own rules is never replaced by the default; it is reported
- * through {@link ResolvedVerifier#settingsViolation()} instead, for {@code VerifierFanOut} to
- * skip the Verifier over.
+ * through {@link ResolvedVerifier#settingsViolation()} instead.
  */
 class ResolvedVerifierTest {
 

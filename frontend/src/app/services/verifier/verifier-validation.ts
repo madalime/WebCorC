@@ -20,21 +20,10 @@ export function matchesStep(value: number, step: number, base: number): boolean 
   return Math.abs(steps - Math.round(steps)) < STEP_EPSILON;
 }
 
-/**
- * Strict decimal grammar a number Setting's input must match, mirroring the backend's
- * `NumberRule` (`-?\d+(\.\d+)?`) so a value the UI accepts is never rejected server-side.
- * Deliberately stricter than JS `Number()`, which also accepts exponents (`"1e3"`), leading/
- * trailing whitespace (`" 5 "`), a bare fraction (`".5"`), a trailing dot (`"5."`), an explicit
- * `"+"` sign and hex literals (`"0x10"`).
- */
+/** Mirrors the backend's `NumberRule` grammar, stricter than JS `Number()`. */
 const NUMBER_GRAMMAR = /^-?\d+(\.\d+)?$/;
 
-/**
- * Whether `input` is an empty number-Setting value. Unlike text/string Settings (trim-based,
- * see {@link isSettingValid}), only `""` counts as empty here — a whitespace-only input instead
- * falls through to {@link numberInputError}, which reports it as a `'number'` error. Shared by
- * the service gate and the step validator directive, so both agree on what "empty" means.
- */
+/** Only `""` is empty for a number Setting; whitespace-only input is a grammar error. */
 export function isNumberSettingEmpty(input: string): boolean {
   return input.length === 0;
 }
@@ -45,8 +34,7 @@ export function isNumberSettingEmpty(input: string): boolean {
  * the service gate and the step validator directive, so both agree on what "valid" means.
  *
  * `required` and emptiness are intentionally not handled here (see {@link isNumberSettingEmpty}
- * and the caller): empty optional inputs are valid and are filtered out by the caller, so a
- * whitespace-only input reaches this function and fails the grammar check below.
+ * and the caller): empty optional inputs are valid and are filtered out by the caller.
  */
 export function numberInputError(
   setting: Extract<VerifierSetting, { valueType: 'number' }>,
@@ -98,9 +86,7 @@ export function hasStatus(verifier: { statusPlaceholder?: string }): boolean {
 
 /**
  * Whether a setting is valid for the purpose of gating a run; see
- * {@link VerifierService.verifiersValid}. A setting {@link applyOverrides} could not represent
- * as valid (see `savedValueError` on the setting types in `types/Verifier.ts`) is always
- * invalid, regardless of what its `input` happens to be.
+ * {@link VerifierService.verifiersValid}.
  */
 export function isSettingValid(setting: VerifierSetting): boolean {
   if (setting.savedValueError) {

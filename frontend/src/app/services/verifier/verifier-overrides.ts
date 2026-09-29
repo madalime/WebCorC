@@ -4,16 +4,10 @@ import { SavedValueError, Verifier, VerifierOverrides } from "../../types/Verifi
  * Merges a sparse {@link VerifierOverrides} record onto the read-only base catalog into the
  * {@link Verifier} list consumers render. Pure — neither argument is mutated.
  *
- * A present override value is never replaced by the Catalog default, even when the field
- * can't represent it (wrong JSON type, or a select value that is no longer an option): such a
- * value is kept verbatim (or emptied for a select, whose dropdown has nothing to show) and
- * marked with {@link SavedValueError}, so the UI shows it as invalid instead of silently
- * substituting the default. Only a genuinely absent override (no entry at all) falls back to
- * the default. Out-of-range/off-step numeric text likewise passes through unsanitized;
- * `mat-error` surfaces that in the UI instead of this function clamping it. Orphan override
- * entries (unknown verifier or setting ids) are hidden from the merged view but left in the
- * override record itself, since they may belong to a Verifier that's only temporarily offline
- * rather than being stale.
+ * A present override is never replaced by the default: one the field can't represent is marked
+ * with {@link SavedValueError}. Out-of-range numeric text passes through unsanitized. Orphan
+ * override entries are hidden here but kept in the record, since their Verifier may only be
+ * offline.
  */
 export function applyOverrides(
   base: Verifier[],
@@ -58,11 +52,6 @@ export function applyOverrides(
   });
 }
 
-/**
- * Resolves a text/select setting's merged `input` and, when the saved override value can't be
- * represented as valid, its {@link SavedValueError} marker. Never falls back to the default for
- * a present override — see {@link applyOverrides}.
- */
 function resolveStringInput(
   setting: Exclude<Verifier["settings"][number], { type: "boolean" }>,
   overrideInput: string | boolean | undefined,
@@ -96,13 +85,7 @@ function resolveStringInput(
   return { input: overrideInput };
 }
 
-/**
- * Resolves a boolean setting's merged `input` and, when the saved override value can't be
- * represented as valid, its {@link SavedValueError} marker. Never falls back to the default for
- * a present override — see {@link applyOverrides}. Unlike the default-on-absence path, a
- * wrong-typed value leaves `input` unset rather than defaulting: the template must show the
- * toggle off, not the Catalog default, for a value it cannot trust.
- */
+/** A wrong-typed value leaves `input` unset rather than defaulted. */
 function resolveBooleanInput(
   setting: Extract<Verifier["settings"][number], { type: "boolean" }>,
   overrideInput: string | boolean | undefined,

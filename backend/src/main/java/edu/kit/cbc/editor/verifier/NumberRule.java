@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  * ({@code matchesStep} in {@code verifier-validation.ts}), so both sides agree on a value like
  * {@code 0.3} with step {@code 0.1}. A constraint that is itself broken ({@link #stepIsValid},
  * {@link #rangeIsValid}) is not checked against — a broken range is treated as absent, so it
- * does not anchor the grid either; the {@link SelfDescriptionValidator} reports it.
+ * does not anchor the grid either.
  */
 final class NumberRule {
 
@@ -52,12 +52,11 @@ final class NumberRule {
         return Optional.empty();
     }
 
-    /** Whether {@code step} is absent (meaning {@code 1}) or greater than {@code 0}. */
+    /** Absent step means {@code 1}. */
     static boolean stepIsValid(BigDecimal step) {
         return step == null || step.signum() > 0;
     }
 
-    /** Whether {@code range} is absent, has at most one bound, or has {@code min < max}. */
     static boolean rangeIsValid(VerifierSetting.Range range) {
         return range == null || range.min() == null || range.max() == null || range.min().compareTo(range.max()) < 0;
     }

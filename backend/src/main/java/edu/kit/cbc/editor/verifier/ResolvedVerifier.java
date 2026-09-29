@@ -17,8 +17,7 @@ import java.util.Optional;
  * unknown select option, a required value left empty, or a text/number value the
  * {@link NumberRule} rejects) is never replaced by the Catalog default -- {@link #settings} keeps
  * the user's value verbatim, invalid or not, and {@link #settingsViolation} names every such
- * break, worded for {@link edu.kit.cbc.editor.VerifierFanOut} to fail the Verifier outright.
- * The Catalog default is used only where the Overrides hold no value for a Setting at all.
+ * break. The Catalog default is used only where the Overrides hold no value for a Setting at all.
  *
  * <p>{@code variableIds} plus, with {@code allowFunctionalVariables}, the program's own variables
  * are the scope this Verifier's Verifier Conditions may reference.
@@ -166,11 +165,7 @@ public record ResolvedVerifier(String id, Map<String, JsonNode> settings, Option
         return input.isTextual() ? input.textValue() : input.toString();
     }
 
-    /**
-     * {@code input} translated node-for-node into the wire's {@link JsonNode} tree, never
-     * substituting anything -- including for a value {@link #settingViolation} rejects, since
-     * {@link #settings} keeps a present value verbatim whether or not it fits its Setting.
-     */
+    /** {@code input} converted node-for-node, never substituted. */
     private static JsonNode rawValue(com.fasterxml.jackson.databind.JsonNode input) {
         if (input.isNull()) {
             return JsonNode.nullNode();

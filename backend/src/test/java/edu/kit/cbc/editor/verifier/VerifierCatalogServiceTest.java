@@ -809,9 +809,8 @@ class VerifierCatalogServiceTest {
     // --- Registry policy: a camelCase setting id survives real configuration binding -----------
 
     /**
-     * A context scoped to this package only, with its beans left lazy — only the
-     * {@link VerifierRegistry} this test asks for is built, not the {@code @Context}-scoped
-     * {@link VerifierCatalogService}, which would otherwise call out over HTTP itself.
+     * Beans stay lazy so the {@code @Context} {@link VerifierCatalogService} does not start and
+     * call out over HTTP.
      *
      * <p>Built with this test's log handler detached: starting a real {@link ApplicationContext}
      * runs the application's own startup listeners (e.g. bucket provisioning), which log to the
@@ -832,14 +831,7 @@ class VerifierCatalogServiceTest {
         }
     }
 
-    /**
-     * Reproduces the {@code VerifierCatalogIT} scenario: a {@code @Property}-style source
-     * hyphenates the policy's camelCase setting id internally
-     * ({@code bounded-number-setting}), so {@link VerifierRegistryEntry#settingDefault(String)}
-     * and the {@link VerifierCatalogService} startup type-check
-     * ({@code SelfDescriptionValidator} via {@code entry::settingDefault}) must still find it by
-     * the Verifier's exact id.
-     */
+    /** A {@code @Property}-style source hyphenates the camelCase setting id; the override must still apply. */
     @Test
     void wellTypedCamelCaseOverrideBoundThroughARealContextIsApplied() {
         VerifierSetting boundedNumberSetting = new VerifierSetting("boundedNumberSetting", "text", "number",

@@ -3,12 +3,8 @@ import { AbstractControl, NG_VALIDATORS, ValidationErrors, Validator } from "@an
 import { VerifierSetting } from "../../types/Verifier";
 
 /**
- * Surfaces a setting's `savedValueError` marker (see `types/Verifier.ts`) as a `savedValueError`
- * control error, so it shows through `mat-error`/`immediateErrorStateMatcher` exactly like the
- * other validators (required, number range/step) without waiting for the control to be touched.
- * The marker itself, not `control.value`, is the source of truth — the control's displayed value
- * for a marked setting is already the saved value (or, for a boolean, forced off), not something
- * this validator needs to re-check.
+ * Surfaces a setting's `savedValueError` marker as a control error, so `mat-error` shows it
+ * untouched. Reads the marker, not `control.value`.
  */
 @Directive({
   selector: "[appSavedValueError]",
@@ -16,7 +12,6 @@ import { VerifierSetting } from "../../types/Verifier";
   providers: [{ provide: NG_VALIDATORS, useExisting: SavedValueErrorValidatorDirective, multi: true }],
 })
 export class SavedValueErrorValidatorDirective implements Validator {
-  /** The setting whose `savedValueError` marker is surfaced as a control error. */
   @Input({ alias: "appSavedValueError", required: true })
   public setting!: VerifierSetting;
 

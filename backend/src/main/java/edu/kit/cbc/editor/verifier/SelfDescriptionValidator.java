@@ -46,10 +46,8 @@ import java.util.regex.Pattern;
  *       non-empty, a text/number one passes the {@link NumberRule} and a select one is the id of
  *       one of its options — checked only against a {@code step}, {@code range} or option list
  *       that is not itself broken, which is reported on its own instead;</li>
- *   <li>setting ids are unique, and no two hyphenate to the same key — a Registry policy
- *       addresses a setting id in hyphenated form when Micronaut bound it that way (see
- *       {@link VerifierRegistryEntry#getSettings()}), so two ids it could not tell apart would
- *       let the wrong one's default win silently;</li>
+ *   <li>setting ids are unique, also once hyphenated (see
+ *       {@link VerifierRegistryEntry#getSettings()});</li>
  *   <li>every variable is an object with string {@code id} and {@code type}, and a
  *       {@code description}, when present, that is a string — {@code type} is free-form, so
  *       nothing about its value is checked;</li>

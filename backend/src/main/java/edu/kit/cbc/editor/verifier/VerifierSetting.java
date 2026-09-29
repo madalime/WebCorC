@@ -39,7 +39,7 @@ import java.util.List;
  * @param label human-readable label rendered next to the input
  * @param description optional longer description
  * @param required for string-valued settings: whether it must be filled in; implies a default
- * @param defaultValue value used to preinitialize the input ({@code default} on the wire)
+ * @param defaultValue value used to preinitialize the setting ({@code default} on the wire)
  * @param step for numeric settings: precision grid, {@code 1} when omitted
  * @param range for numeric settings: inclusive bounds, each optional
  * @param options for select settings: the predefined options

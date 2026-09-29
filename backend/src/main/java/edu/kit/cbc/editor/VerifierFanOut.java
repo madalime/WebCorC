@@ -28,10 +28,8 @@ import java.util.logging.Logger;
  * the Root, so a Verifier that said proven but whose result is lost counts as failed. No timeout
  * on a stream that never sends done.
  *
- * <p>A Verifier whose {@link ResolvedVerifier#settingsViolation()} is present -- one of its
- * declared Settings carries an Override value that breaks that Setting's own constraints -- fails
- * this same way before ever being called, exactly like a scope violation: the client's
- * {@code startJob} is never reached.
+ * <p>A Verifier with a {@code settingsViolation} fails like a scope violation, without being
+ * called.
  */
 @Singleton
 public class VerifierFanOut {
