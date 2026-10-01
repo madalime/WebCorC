@@ -178,21 +178,12 @@ export class StatementComponent {
       case "verified-all":
         return "success";
       case "verified-functional":
-        if (
-          this.verifierService.functionalOnly() ||
-          this.verifierService.enabledNonFunctionalVerifierIds.length === 0
-        ) {
-          return "success";
-        }
-        return "warn";
+        return "success";
       case "settings-changed":
         return "warn";
       case "failed":
         return "danger";
       case "failed-non-functional":
-        if (this.verifierService.functionalOnly()) {
-          return "success";
-        }
         return "danger";
       case "unverified":
         return "secondary";
@@ -200,9 +191,6 @@ export class StatementComponent {
   }
 
   public getStatementLabel(node: AbstractStatementNode): string {
-    if (node.statement.nodeState === "failed-non-functional" && this.verifierService.functionalOnly()) {
-        return "verified-functional";
-    }
     return node.statement.nodeState.replace(/-/g, " ");
   }
 

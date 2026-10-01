@@ -11,7 +11,6 @@ import { NetworkJobService } from '../../../../services/tree/network/network-job
 import { AbstractStatementNode } from '../../../../types/statements/nodes/abstract-statement-node';
 import { Verifier } from '../../../../types/Verifier';
 import { VerifierService } from '../../../../services/verifier/verifier.service';
-import { signal } from '@angular/core';
 
 describe('StatementComponent', () => {
   let component: StatementComponent;
@@ -91,47 +90,28 @@ describe('StatementComponent.verifyStatement (ticket 12 fix C)', () => {
 
 describe('StatementComponent.getStatementSeverity', () => {
   let severityComponent: StatementComponent;
-  let enabledNonFunctional: string[];
-  const functionalOnly = signal(false);
 
   const nodeIn = (nodeState: string) =>
     ({ statement: { nodeState } }) as unknown as AbstractStatementNode;
 
   beforeEach(() => {
-    enabledNonFunctional = [];
-    functionalOnly.set(false);
-    const verifierServiceStub = {
-      functionalOnly,
-      get enabledNonFunctionalVerifierIds() {
-        return enabledNonFunctional;
-      },
-    };
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: VerifierService, useValue: verifierServiceStub },
+        { provide: VerifierService, useValue: {} },
         { provide: TreeService, useValue: {} },
       ],
     });
     severityComponent = TestBed.runInInjectionContext(() => new StatementComponent());
   });
 
-  it('shows verified-functional as success in mode "all" when no non-functional Verifier is enabled', () => {
+  it('shows verified-functional as success', () => {
     expect(severityComponent.getStatementSeverity(nodeIn('verified-functional'))).toBe('success');
   });
 
-  it('shows verified-functional as warn in mode "all" when a non-functional Verifier is enabled', () => {
-    enabledNonFunctional = ['mock'];
-
-    expect(severityComponent.getStatementSeverity(nodeIn('verified-functional'))).toBe('warn');
-  });
-
-  it('shows verified-functional as success in functional-only mode even with a non-functional Verifier enabled', () => {
-    enabledNonFunctional = ['mock'];
-    functionalOnly.set(true);
-
-    expect(severityComponent.getStatementSeverity(nodeIn('verified-functional'))).toBe('success');
+  it('shows failed-non-functional as danger', () => {
+    expect(severityComponent.getStatementSeverity(nodeIn('failed-non-functional'))).toBe('danger');
   });
 });
 
