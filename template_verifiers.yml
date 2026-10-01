@@ -10,7 +10,9 @@
 #   id           — required. Stable identifier the backend addresses the Verifier by; assigned
 #                  here, not by the Verifier itself, so the same Verifier image can be
 #                  registered under any id, or twice with different ids/defaults. Must not be
-#                  `func` (reserved for the built-in Functional Verifier).
+#                  `func` (reserved for the built-in Functional Verifier). Users see it: the
+#                  verification console tags each line with it (`[energy] …`), so pick a short
+#                  name they recognise as this Verifier, not an opaque one like `v1`.
 #   url          — required. The Verifier's base URL; the Verifier API paths (e.g.
 #                  `/description`) are appended to it.
 #

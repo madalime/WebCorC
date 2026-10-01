@@ -76,6 +76,7 @@ export class VerificationService {
     const group = this.consoleService.addGroup();
     group.status = "RUNNING";
     this.tallies.set(group, { passed: 0, failed: 0, funcFailed: false, catalogUnreadable: false });
+    this.consoleService.beginLoading("verifying");
     return group;
   }
 
@@ -100,19 +101,8 @@ export class VerificationService {
   }
 
   private logMessage(group: ConsoleLogGroup, msg: LogMessage) {
-    if (msg.verifier === FUNCTIONAL_VERIFIER_ID) {
-      switch (msg.message) {
-        case "verification started":
-          group.lines.push(new ConsoleInfoLine("Verification started."));
-          this.consoleService.beginLoading("verifying");
-          return;
-        case "verification initialized":
-          group.lines.push(new ConsoleInfoLine("Verification initialized."));
-          return;
-      }
-    }
+    // A line about the job's own orchestration, not any Verifier's output: no [name] prefix.
     if (msg.verifier === undefined) {
-      // A line about the job's own orchestration, not any Verifier's output: no [name] prefix.
       if (msg.message.startsWith(VerificationService.CATALOG_UNREADABLE_PREFIX)) {
         const tally = this.tallies.get(group);
         if (tally) {
@@ -123,16 +113,15 @@ export class VerificationService {
       return;
     }
     group.lines.push(
-      new ConsoleInfoLine(`[${this.verifierLabel(msg.verifier)}] ${msg.message}`),
+      new ConsoleInfoLine(`[${msg.verifier}] ${msg.message}`),
     );
   }
 
   private doneMessage(group: ConsoleLogGroup, msg: DoneMessage) {
-    const label = this.verifierLabel(msg.verifier);
     const time = formatVerifierDuration(msg.durationMs);
     group.lines.push(
       new ConsoleInfoLine(
-        `${label} finished: ${msg.proven ? "passed" : "failed"} (${time}).`,
+        `${msg.verifier} finished: ${msg.proven ? "passed" : "failed"} (${time}).`,
         msg.proven ? "pi pi-check-circle" : "pi pi-times-circle",
       ),
     );
@@ -213,12 +202,6 @@ export class VerificationService {
       return;
     }
     group.lines.push(new ConsoleInfoLine(`Total time: ${formatVerifierDuration(tally.totalDurationMs)}`));
-  }
-
-  private verifierLabel(verifierId: string): string {
-    return verifierId === FUNCTIONAL_VERIFIER_ID
-      ? "Functional verification"
-      : verifierId;
   }
 
   public async next(

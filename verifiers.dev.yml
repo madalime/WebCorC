@@ -5,6 +5,9 @@
 # with scripted responses, see mock-verifier/README.md), reachable on the compose network under
 # its service name.
 #
+# Ids are what users see: the verification console shows the id, not the label, on every line,
+# so keep them short and recognisable.
+#
 # To see a locked-off Verifier in the panel, add an entry at a URL nobody listens on, e.g.
 #   - id: dead
 #     url: http://127.0.0.1:9

@@ -170,7 +170,7 @@ class VerificationJobTest {
         start(true, true, client);
         awaitComplete();
 
-        Assertions.assertEquals(VerificationMessage.log(FUNC, "verification initialized"), messages.get(0),
+        Assertions.assertEquals(VerificationMessage.log(null, "verification initialized"), messages.get(0),
             "What the constructor logged is delivered on subscribe");
         Assertions.assertTrue(messages.contains(VerificationMessage.log(FUNC, "proving Stub")), "Functional log lines are tagged func");
         List<VerificationMessage> tail = messages.subList(messages.size() - 2, messages.size());
@@ -320,8 +320,8 @@ class VerificationJobTest {
 
         Assertions.assertTrue(messages.contains(VerificationMessage.log(null, "no other Verifier is enabled")),
             "An orchestration line (no other Verifier enabled) carries no verifier tag");
-        Assertions.assertTrue(messages.contains(VerificationMessage.log(FUNC, "verification initialized")),
-            "A functional-status line still carries the func tag");
+        Assertions.assertTrue(messages.contains(VerificationMessage.log(null, "verification initialized")),
+            "The job's own lifecycle line carries no verifier tag");
         Assertions.assertTrue(messages.contains(VerificationMessage.log(FUNC, "functional verification complete")),
             "A functional-status line still carries the func tag");
 
@@ -574,7 +574,7 @@ class VerificationJobTest {
         job.start();
         awaitComplete();
 
-        Assertions.assertEquals(List.of(VerificationMessage.log(FUNC, "verification initialized")), seen,
+        Assertions.assertEquals(List.of(VerificationMessage.log(null, "verification initialized")), seen,
             "Dropped on its first message, which was the replayed history");
     }
 }

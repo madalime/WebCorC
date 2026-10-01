@@ -9,6 +9,7 @@ import { FUNCTIONAL_VERIFIER_ID, Verifier } from '../../../types/Verifier';
 import { TreeService } from '../tree.service';
 import { ProjectService } from '../../project/project.service';
 import { VerifierService } from '../../verifier/verifier.service';
+import { ConsoleService } from '../../console/console.service';
 import { IAbstractStatement, IVerifiers, nodeStateFor } from '../../../types/statements/abstract-statement';
 import { LocalCBCFormula } from '../../../types/CBCFormula';
 import { environment } from '../../../../environments/environment';
@@ -31,15 +32,11 @@ describe('VerificationService', () => {
   });
 
   describe('verifyInfo', () => {
-    it('logs a functional verification-started message and starts loading', () => {
-      const group = new ConsoleLogGroup();
-      service.verifyInfo(group, {
-        type: 'log',
-        verifier: FUNCTIONAL_VERIFIER_ID,
-        message: 'verification started',
-      });
-      expect(group.lines.length).toBe(1);
-      expect((group.lines[0] as ConsoleInfoLine).message).toContain('started');
+    it('starts loading when the verification log begins', () => {
+      const consoleService = TestBed.inject(ConsoleService);
+      service.beginVerificationLog();
+      expect(consoleService.loading()).toBeTrue();
+      expect(consoleService.loadingMessage()).toBe('verifying');
     });
 
     it('attributes a log message to the Verifier that produced it', () => {

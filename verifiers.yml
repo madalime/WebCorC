@@ -9,7 +9,8 @@
 # `verifiers: []` registers nothing: the Catalog then holds the Functional Verifier (`func`,
 # built in, always present) only. To run more Verifiers, replace the `[]` with a list of entries,
 # template_verifiers.yml next to this file documents every field (id, url, and the optional
-# label/enabled/toggleable/settings policy) with a worked example to copy from.
+# label/enabled/toggleable/settings policy) with a worked example to copy from. Choose ids users
+# will recognise: the verification console shows the id, not the label, on every line.
 #
 # The dev stack (docker-compose.dev.yml) does not use this file; it mounts verifiers.dev.yml
 # instead.

@@ -121,7 +121,7 @@ public class VerificationJob extends Thread {
         }
         this.verifierOverrides = overrides;
         context.verifierOverrides(overrides);
-        log("verification initialized");
+        orchestrationLog("verification initialized");
     }
 
     /**
@@ -147,7 +147,7 @@ public class VerificationJob extends Thread {
 
     public void run() {
         final long start = System.nanoTime();
-        log("verification started");
+        orchestrationLog("verification started");
 
         // One instance per run, created before the functional proof: the reset of every catalog
         // Verifier's entry happens up front, in both modes, so that no verdict of an earlier run
