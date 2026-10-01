@@ -14,6 +14,10 @@ responses — dev/test infrastructure, not a published contract.
 | `GET /jobs/{id}` (WS)    | Three fixed `log` messages, then `{"type":"done","proven":true,"status":"Mock Verifier: whole run checked"}`, then a normal close. Same for every job.  |
 | `GET /jobs/{id}/result`  | `{"<statementId>": {"proven": true, "status": "Mock verification passed (id1=value1, id2=value2, …)"}, …}` for every statement id the program carried; every resolved Setting is echoed, sorted by id. |
 
+With the `shouldPass` Setting off, the run fails instead: the done message carries
+`"proven":false,"status":"Mock Verifier: whole run failed"` and every result entry is
+`{"proven": false, "status": "Mock verification failed (…)"}`.
+
 Guards, all as `application/problem+json`: `404` for an unknown job or path, `400` for a start
 request that is not JSON or lacks `program`/`files`/`settings`, `409` for a result fetched before
 the status stream has sent `done`, `426` for a plain (non-upgrade) `GET /jobs/{id}`. Re-posting an

@@ -2,7 +2,8 @@
  * A stand-in Verifier implementing the Verifier API (openapi/verifier-api.yml) with scripted,
  * preset responses: the Self-Description from description.json, plus start-a-job, the status
  * stream and the result fetch. Every job runs the same fixed script, so both local development
- * and integration tests see the same messages and results every time.
+ * and integration tests see the same messages and results every time; only the `shouldPass`
+ * Setting flips the verdict.
  *
  * Per-job state is one in-memory map; nothing is persisted across restarts.
  */
@@ -21,7 +22,13 @@ const LOG_LINES = [
   "Mock Verifier: checking every statement against the resolved Settings",
   "Mock Verifier: all statements checked",
 ];
-const DONE_MESSAGE = { type: "done", proven: true, status: "Mock Verifier: whole run checked" };
+const DONE_PASSED = { type: "done", proven: true, status: "Mock Verifier: whole run checked" };
+const DONE_FAILED = { type: "done", proven: false, status: "Mock Verifier: whole run failed" };
+
+/** Passes unless the `shouldPass` Setting is false; a job started without it passes. */
+function passes(job) {
+  return job.settings.shouldPass !== false;
+}
 
 const JOB_PATH = /^\/jobs\/([^/]+)$/;
 const RESULT_PATH = /^\/jobs\/([^/]+)\/result$/;
@@ -119,7 +126,7 @@ async function streamStatus(ws, job, messageDelayMs) {
   await pause();
   if (ws.readyState !== ws.OPEN) return;
   job.done = true; // before the done message, so a result fetch racing it never sees 409
-  ws.send(JSON.stringify(DONE_MESSAGE), () => ws.close(1000));
+  ws.send(JSON.stringify(passes(job) ? DONE_PASSED : DONE_FAILED), () => ws.close(1000));
 }
 
 function resultOf(job) {
@@ -127,8 +134,10 @@ function resultOf(job) {
     .sort()
     .map((id) => `${id}=${job.settings[id]}`)
     .join(", ");
-  const status = summary ? `Mock verification passed (${summary})` : "Mock verification passed";
-  return Object.fromEntries(job.statementIds.map((id) => [String(id), { proven: true, status }]));
+  const proven = passes(job);
+  const verdict = proven ? "Mock verification passed" : "Mock verification failed";
+  const status = summary ? `${verdict} (${summary})` : verdict;
+  return Object.fromEntries(job.statementIds.map((id) => [String(id), { proven, status }]));
 }
 
 /** Returns why `body` is not a start request, or null when it is one. */

@@ -90,6 +90,13 @@
       "label": "Boolean setting",
       "description": "A toggle; the Verifier receives true or false. It always has a value, so it has no required flag and must declare a default.",
       "default": false
+    },
+    {
+      "id": "shouldPass",
+      "type": "boolean",
+      "label": "Pass verification",
+      "description": "Whether the mock run passes. Off: the run and every statement are reported as not proven.",
+      "default": true
     }
   ],
   "variables": [

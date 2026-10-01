@@ -132,7 +132,7 @@ class VerificationIT {
         Assertions.assertEquals(
             "Mock verification passed (booleanSetting=false, boundedNumberSetting=50, emptyTextSetting=, "
                 + "lowerBoundedNumberSetting=10, optionalSelectSetting=, selectSetting=optionA, "
-                + "textSetting=Example text)",
+                + "shouldPass=true, textSetting=Example text)",
             entry.get("status").asText(),
             "The status text echoes the resolved Settings: the Catalog defaults, with no project Overrides");
     }

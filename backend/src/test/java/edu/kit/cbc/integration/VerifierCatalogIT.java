@@ -111,7 +111,7 @@ class VerifierCatalogIT {
 
         JsonNode settings = mock.get("settings");
         Assertions.assertEquals(List.of("textSetting", "emptyTextSetting", "boundedNumberSetting",
-                "lowerBoundedNumberSetting", "selectSetting", "optionalSelectSetting", "booleanSetting"),
+                "lowerBoundedNumberSetting", "selectSetting", "optionalSelectSetting", "booleanSetting", "shouldPass"),
             ids(settings), "All four kinds of settings, addressable by id");
         settings.forEach(setting -> Assertions.assertFalse(setting.has("input"),
             "A Catalog setting carries no input: " + setting));

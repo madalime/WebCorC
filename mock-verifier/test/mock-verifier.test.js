@@ -241,5 +241,20 @@ describe("mock Verifier", () => {
 
       assert.equal(result["0"].status, "Mock verification passed (alpha=a, flag=true, zebra=z)");
     });
+
+    it("fails the run and every statement when shouldPass is false", async () => {
+      const request = startRequest();
+      request.settings = { shouldPass: false };
+      await postJob(base, "should-fail", request);
+
+      const { messages } = await streamStatus(base, "should-fail");
+      const result = await (await fetch(`${base}/jobs/should-fail/result`)).json();
+
+      assert.equal(messages.at(-1).proven, false);
+      for (const entry of Object.values(result)) {
+        assert.equal(entry.proven, false);
+        assert.equal(entry.status, "Mock verification failed (shouldPass=false)");
+      }
+    });
   });
 });
