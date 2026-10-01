@@ -666,24 +666,6 @@ describe('VerificationService', () => {
       expect(messages).toContain('2 verifiers did not run');
     });
 
-    it('after a "the Verifier Catalog could not be read" line: only the closing line, verdict from formula.isProven, no counts', async () => {
-      const group = service.beginVerificationLog();
-      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
-      service.verifyInfo(group, {
-        type: 'log',
-        message: 'the Verifier Catalog could not be read; every Verifier entry keeps what the last run left it: boom',
-      });
-
-      const formula = formulaWithVerifiers({ func: { proven: true } }, true);
-      await service.next(group, formula, 'urn');
-
-      const messages = messagesOf(group);
-      expect(group.status).toBe('SUCCESS');
-      expect(messages.some((m) => /verifiers successful/.test(m))).toBeFalse();
-      expect(messages.some((m) => m.includes('did not run'))).toBeFalse();
-      expect(messages.some((m) => m.includes('functional verification failed'))).toBeFalse();
-    });
-
     it('pushes "Total time: …" as the overview\'s last line, after the counts', async () => {
       const group = service.beginVerificationLog();
       service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
@@ -713,23 +695,6 @@ describe('VerificationService', () => {
 
       const messages = messagesOf(group);
       expect(messages[messages.length - 1]).toBe('Total time: 850 ms');
-    });
-
-    it('after a Catalog-unreadable line: the closing line is followed directly by "Total time: …", still no count lines', async () => {
-      const group = service.beginVerificationLog();
-      service.verifyInfo(group, { type: 'done', verifier: 'func', proven: true, durationMs: 10 });
-      service.verifyInfo(group, {
-        type: 'log',
-        message: 'the Verifier Catalog could not be read; every Verifier entry keeps what the last run left it: boom',
-      });
-      service.verifyInfo(group, { type: 'complete', durationMs: 1200 });
-
-      const formula = formulaWithVerifiers({ func: { proven: true } }, true);
-      await service.next(group, formula, 'urn');
-
-      const messages = messagesOf(group);
-      expect(messages.some((m) => /verifiers successful/.test(m))).toBeFalse();
-      expect(messages[messages.length - 1]).toBe('Total time: 1.2 s');
     });
 
     it('with no duration recorded for the group (next called without beginVerificationLog), pushes no total-time line', async () => {

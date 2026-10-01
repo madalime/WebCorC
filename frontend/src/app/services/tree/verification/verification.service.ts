@@ -32,14 +32,12 @@ export function formatVerifierDuration(durationMs: number): string {
   return `${minutes} m ${seconds} s`;
 }
 
-/** One run's `done` tally for a console group: how many Verifiers passed or failed, and whether the overview can be trusted at all. */
+/** One run's `done` tally for a console group: how many Verifiers passed or failed. */
 interface VerifierTally {
   passed: number;
   failed: number;
   /** `func`'s own `done` was `proven: false`: no other Verifier ran. */
   funcFailed: boolean;
-  /** The Catalog could not be read for this run: the reset never happened, so y would be wrong. */
-  catalogUnreadable: boolean;
   /** The job's total run time, from `complete`. `undefined` until `complete` arrives. */
   totalDurationMs?: number;
 }
@@ -57,13 +55,6 @@ export class VerificationService {
   private consoleService = inject(ConsoleService);
   private globalSettingsService = inject(GlobalSettingsService);
 
-  /**
-   * Prefix of the orchestration log line the backend sends when the Catalog could not be read,
-   * so no count overview can be trusted. Mirrors the backend's
-   * `VerificationJob.CATALOG_UNREADABLE_LOG_PREFIX` (VerificationJob.java); keep both in step.
-   */
-  private static readonly CATALOG_UNREADABLE_PREFIX = "the Verifier Catalog could not be read";
-
   /** One run's `done` tally per console group, so `next`/`nextStatement` can push the overview once the run ends. */
   private readonly tallies = new WeakMap<ConsoleLogGroup, VerifierTally>();
 
@@ -75,7 +66,7 @@ export class VerificationService {
   public beginVerificationLog() {
     const group = this.consoleService.addGroup();
     group.status = "RUNNING";
-    this.tallies.set(group, { passed: 0, failed: 0, funcFailed: false, catalogUnreadable: false });
+    this.tallies.set(group, { passed: 0, failed: 0, funcFailed: false });
     this.consoleService.beginLoading("verifying");
     return group;
   }
@@ -103,12 +94,6 @@ export class VerificationService {
   private logMessage(group: ConsoleLogGroup, msg: LogMessage) {
     // A line about the job's own orchestration, not any Verifier's output: no [name] prefix.
     if (msg.verifier === undefined) {
-      if (msg.message.startsWith(VerificationService.CATALOG_UNREADABLE_PREFIX)) {
-        const tally = this.tallies.get(group);
-        if (tally) {
-          tally.catalogUnreadable = true;
-        }
-      }
       group.lines.push(new ConsoleInfoLine(msg.message));
       return;
     }
@@ -163,12 +148,12 @@ export class VerificationService {
    * then `z ... failed` and `n ... did not run` where non-zero, then the functional-failure line
    * where `func` itself failed. z counts `done(proven: false)` only; n = y − x − z covers disabled
    * and unavailable Verifiers as well as those skipped because functional verification failed.
-   * Pushes nothing when the tally cannot be trusted (or is absent) — the closing line's verdict is
-   * decided separately, by `formula.isProven`, and does not depend on this.
+   * Pushes nothing when the tally is absent — the closing line's verdict is decided separately, by
+   * `formula.isProven`, and does not depend on this.
    */
   private pushOverview(group: ConsoleLogGroup, formula: LocalCBCFormula) {
     const tally = this.tallies.get(group);
-    if (!tally || tally.catalogUnreadable) {
+    if (!tally) {
       return;
     }
     const y = this.totalVerifiers(formula);
@@ -190,9 +175,8 @@ export class VerificationService {
   }
 
   /**
-   * Pushes `Total time: <time>` as the overview's last line, backend-measured on `complete` —
-   * shown even when the Catalog could not be read (unlike `pushOverview`'s count lines), since
-   * that only makes `y` unreliable, not the time. Pushes nothing when no duration was recorded
+   * Pushes `Total time: <time>` as the overview's last line, backend-measured on `complete`.
+   * Pushes nothing when no duration was recorded
    * for this group (only possible for a caller that never went through `beginVerificationLog`,
    * or one that calls `next`/`nextStatement` without ever having relayed a `complete` message).
    */

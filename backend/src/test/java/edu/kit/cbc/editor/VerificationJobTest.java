@@ -514,7 +514,7 @@ class VerificationJobTest {
     }
 
     @Test
-    void aCatalogThatCannotBeResolvedLogsTheSharedUnreadablePrefix() throws Exception {
+    void aFailedResetIsLoggedUntaggedAndTheJobStillCompletes() throws Exception {
         CompletableFuture<VerifierCatalog> brokenCatalog = new CompletableFuture<>();
         brokenCatalog.completeExceptionally(new RuntimeException("catalog service down"));
         CbCFormula formula = new CbCFormula("Demo", new StubStatement(true), List.of(), List.of(), List.of(), null, false);
@@ -533,9 +533,8 @@ class VerificationJobTest {
 
         Assertions.assertTrue(
             messages.stream().anyMatch(m -> m.verifier() == null && m.message() != null
-                && m.message().startsWith(VerificationJob.CATALOG_UNREADABLE_LOG_PREFIX)),
-            "The frontend (VerificationService.CATALOG_UNREADABLE_PREFIX) matches on exactly this prefix to suppress the overview: "
-                + messages);
+                && m.message().contains("catalog service down")),
+            "The failure is reported as an orchestration line carrying its cause: " + messages);
     }
 
     @Test

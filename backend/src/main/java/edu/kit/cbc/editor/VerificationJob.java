@@ -47,14 +47,6 @@ public class VerificationJob extends Thread {
     private static final ObjectMapper VERIFIERS_MAPPER = new ObjectMapper();
     private static final String FUNC = VerifierCatalogService.FUNCTIONAL_VERIFIER_ID;
 
-    /**
-     * Prefix of the orchestration log line emitted when the Catalog could not be read, so no
-     * count overview can be trusted. Mirrored on the frontend as
-     * {@code VerificationService.CATALOG_UNREADABLE_PREFIX} (verification.service.ts), which
-     * matches on it to suppress the overview; keep both in step.
-     */
-    static final String CATALOG_UNREADABLE_LOG_PREFIX = "the Verifier Catalog could not be read";
-
     private final Object lock = new Object();
     private final List<VerificationMessage> messages = new ArrayList<>();
     private final List<Function<VerificationMessage, Boolean>> listeners = new ArrayList<>();
@@ -239,8 +231,9 @@ public class VerificationJob extends Thread {
     /**
      * Resets every catalog Verifier's entry, before functional verification and in both modes, so
      * that nothing of an earlier run can survive this one's outcome. Needs the Catalog even
-     * functional-only (for the ids to mark disabled); a Catalog that cannot be resolved is
-     * reported and the run continues functionally, as it does when the fan-out needs it.
+     * functional-only (for the ids to mark disabled). A failure here is a bug, not an expected
+     * state — the Catalog the job joins is the one the frontend already fetched — so it is only
+     * reported and the run continues functionally.
      */
     private void resetVerifierEntries(NarrowedProgram program) {
         try {
@@ -254,9 +247,8 @@ public class VerificationJob extends Thread {
                 .toList();
             program.resetForRun(enabled, disabledIds);
         } catch (RuntimeException e) {
-            // Without the Catalog there are no ids to reset; the functional run still happens.
             LOGGER.log(Level.SEVERE, "Resetting the Verifier entries of job " + jobId + " failed", e);
-            orchestrationLog(CATALOG_UNREADABLE_LOG_PREFIX + "; every Verifier entry keeps what the last run left it: "
+            orchestrationLog("resetting the Verifier entries failed; every Verifier entry keeps what the last run left it: "
                 + e.getMessage());
         }
     }
