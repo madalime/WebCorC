@@ -150,6 +150,13 @@
   white-space: nowrap;
 }
 
+/* PrimeNG mutes collapsed headers to the same grey as the status; keep the name distinct. */
+.verifier-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--p-accordion-header-active-color);
+}
+
 .verifier-status {
   margin-left: auto;
   margin-right: 0.5rem;

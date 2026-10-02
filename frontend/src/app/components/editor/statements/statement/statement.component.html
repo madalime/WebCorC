@@ -203,7 +203,7 @@
                 <p-accordion-panel [value]="item.id" [class]="panelResultClass(item)">
                     <p-accordion-header>
                         <span class="flex items-center gap-2 w-full min-w-0">
-                            <span>{{ item.label }}</span>
+                            <span class="verifier-label">{{ item.label }}</span>
                             @if (verifierStatusText(item)) {
                                 <span class="verifier-status"
                                       [matTooltip]="verifierStatusText(item)"
@@ -224,7 +224,7 @@
             <p-accordion-panel [value]="item.id" [class]="panelResultClass(item)">
                 <p-accordion-header>
                     <span class="flex items-center gap-2 w-full min-w-0">
-                        <span>{{ item.label }}</span>
+                        <span class="verifier-label">{{ item.label }}</span>
                         @if (verifierStatusText(item)) {
                             <span class="verifier-status"
                                   [matTooltip]="verifierStatusText(item)"
