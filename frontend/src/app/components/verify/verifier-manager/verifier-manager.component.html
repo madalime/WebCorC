@@ -95,12 +95,10 @@
                     <mat-error> Must be at least {{ field.range?.min }} </mat-error>
                   } @else if (ctrl.hasError('max')) {
                     <mat-error> Must be at most {{ field.range?.max }} </mat-error>
+                  } @else if (ctrl.hasError('step') && (field.step ?? 1) === 1) {
+                    <mat-error> Must be a whole number </mat-error>
                   } @else if (ctrl.hasError('step')) {
-                    @if ((field.step ?? 1) === 1) {
-                      <mat-error> Must be a whole number </mat-error>
-                    } @else {
-                      <mat-error> Must be a multiple of {{ field.step }} </mat-error>
-                    }
+                    <mat-error> Must be a multiple of {{ field.step }} </mat-error>
                   }
                 </mat-form-field>
               } @else if (field.type === 'text') {
