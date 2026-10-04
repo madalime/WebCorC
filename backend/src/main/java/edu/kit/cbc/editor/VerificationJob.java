@@ -139,7 +139,7 @@ public class VerificationJob extends Thread {
 
     public void run() {
         final long start = System.nanoTime();
-        orchestrationLog("verification started");
+        orchestrationLog("starting "+FUNC);
 
         // One instance per run, created before the functional proof: the reset of every catalog
         // Verifier's entry happens up front, in both modes, so that no verdict of an earlier run
