@@ -151,32 +151,34 @@ export class CompositionStatementNode extends AbstractStatementNode {
   }
 
   override checkConditionSync(child: AbstractStatementNode): boolean {
+    if (child.statement.type == "REPETITION") {
+      const first = child == this._firstStatementNode;
+      child.overridePrecondition(first ? this.precondition : this.intermediateCondition);
+      child.overridePostcondition(first ? this.intermediateCondition : this.postcondition);
+      return true;
+    }
     let inSync;
     if (child == this._firstStatementNode) {
       inSync =
-        (this.precondition.getValue() == child.precondition.getValue() &&
-          this.intermediateCondition.getValue() == child.postcondition.getValue()) ||
-        child.statement.type == "REPETITION";
+        this.precondition.getValue() == child.precondition.getValue() &&
+        this.intermediateCondition.getValue() == child.postcondition.getValue();
       if (!inSync) {
         this.getConditionConflicts(child);
       }
       inSync =
-        (this.precondition.getValue() == child.precondition.getValue() &&
-          this.intermediateCondition.getValue() == child.postcondition.getValue()) ||
-        child.statement.type == "REPETITION";
+        this.precondition.getValue() == child.precondition.getValue() &&
+        this.intermediateCondition.getValue() == child.postcondition.getValue();
       return inSync;
     }
     inSync =
-      (this.intermediateCondition.getValue() == child.precondition.getValue() &&
-        this.postcondition.getValue() == child.postcondition.getValue()) ||
-      child.statement.type == "REPETITION";
+      this.intermediateCondition.getValue() == child.precondition.getValue() &&
+      this.postcondition.getValue() == child.postcondition.getValue();
     if (!inSync) {
       this.getConditionConflicts(child);
     }
     inSync =
-      (this.intermediateCondition.getValue() == child.precondition.getValue() &&
-        this.postcondition.getValue() == child.postcondition.getValue()) ||
-      child.statement.type == "REPETITION";
+      this.intermediateCondition.getValue() == child.precondition.getValue() &&
+      this.postcondition.getValue() == child.postcondition.getValue();
     return inSync;
   }
 

@@ -108,6 +108,21 @@ export class AbstractStatementNode {
     }
   }
 
+  /**
+   * Make `to` resolve to the very same verifier condition subjects as `from`
+   * (shared, not copied). For a slot whose main condition is derived from another
+   * rather than shared, e.g. a selection branch's precondition.
+   */
+  public static shareSlotVerifierConditions(
+    from: BehaviorSubject<ICondition>,
+    to: BehaviorSubject<ICondition>,
+  ): void {
+    AbstractStatementNode.slotVerifierConditions.set(
+      to,
+      AbstractStatementNode.verifierConditionsOfSlot(from),
+    );
+  }
+
   constructor(
     statement: IAbstractStatement,
     parent: AbstractStatementNode | undefined,
@@ -244,17 +259,20 @@ export class AbstractStatementNode {
   }
 
   public checkConditionSync(child: AbstractStatementNode) {
+    if (child.statement.type == "REPETITION") {
+      child.overridePrecondition(this.precondition);
+      child.overridePostcondition(this.postcondition);
+      return true;
+    }
     let inSync =
-      (this.precondition.getValue() == child.precondition.getValue() &&
-        this.postcondition.getValue() == child.postcondition.getValue()) ||
-      child.statement.type == "REPETITION";
+      this.precondition.getValue() == child.precondition.getValue() &&
+      this.postcondition.getValue() == child.postcondition.getValue();
     if (!inSync) {
       this.getConditionConflicts(child);
     }
     inSync =
-      (this.precondition.getValue() == child.precondition.getValue() &&
-        this.postcondition.getValue() == child.postcondition.getValue()) ||
-      child.statement.type == "REPETITION";
+      this.precondition.getValue() == child.precondition.getValue() &&
+      this.postcondition.getValue() == child.postcondition.getValue();
     return inSync;
   }
 

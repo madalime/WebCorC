@@ -177,20 +177,24 @@ export function disconnectNodes(
 ) {
   const sharedPostcondition = child.postcondition;
   const sharedPrecondition = child.precondition;
-  child.overridePostcondition(
-    new BehaviorSubject<ICondition>(new Condition(sharedPostcondition.getValue().condition)),
+  const detachedPostcondition = new BehaviorSubject<ICondition>(
+    new Condition(sharedPostcondition.getValue().condition),
   );
-  child.overridePrecondition(
-    new BehaviorSubject<ICondition>(new Condition(sharedPrecondition.getValue().condition)),
+  const detachedPrecondition = new BehaviorSubject<ICondition>(
+    new Condition(sharedPrecondition.getValue().condition),
   );
+  // Copy before overriding: a repetition keeps its own subjects and only adopts
+  // the verifier conditions of the ones it is given.
   AbstractStatementNode.copySlotVerifierConditions(
     sharedPostcondition,
-    child.postcondition,
+    detachedPostcondition,
   );
   AbstractStatementNode.copySlotVerifierConditions(
     sharedPrecondition,
-    child.precondition,
+    detachedPrecondition,
   );
+  child.overridePostcondition(detachedPostcondition);
+  child.overridePrecondition(detachedPrecondition);
   parent.deleteChild(child);
   child.parent = undefined;
 }
